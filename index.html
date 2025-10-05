@@ -1,73 +1,37 @@
 ﻿<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>Koshie Studios — Home</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="description" content="Koshie Studios portfolio and projects.">
-    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-    <link rel="preload" href="assets/logo.svg" as="image" type="image/svg+xml">
-    <link rel="stylesheet" href="styles/reset.css">
-    <link rel="stylesheet" href="styles/main.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Koshie Studios</title>
+  <style>
+    html,body{height:100%;margin:0}
+    body{
+      background:#000;color:#fff;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      display:flex;flex-direction:column;align-items:center
+    }
+    .top{width:100%;display:flex;justify-content:center;margin-top:48px}
+    .logo{max-width:280px;height:auto;display:block;object-fit:contain}
+    .logo-text{font-size:32px;font-weight:700;letter-spacing:.04em}
+    h1{margin:40px 0 12px;font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.16em}
+    ul{list-style:none;padding:0;margin:0 0 80px;width:min(800px,90vw)}
+    li{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+    a{color:#9ad0ff;text-decoration:none;word-break:break-all}
+    a:hover{text-decoration:underline}
+  </style>
 </head>
 <body>
-    <header class="site-header">
-        <div class="container header-inner">
-            <a class="brand" href="./" aria-label="Koshie Studios Home">
-                <img src="assets/logo.svg" alt="" width="32" height="32">
-                <span>Koshie Studios</span>
-            </a>
-            <button class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" aria-label="Toggle navigation">
-                ☰
-            </button>
-            <nav id="primary-nav" class="nav">
-                <a href="./">Home</a>
-                <a href="kadie-ai/">Kadie AI</a>
-            </nav>
-        </div>
-    </header>
+  <div class="top">
+    <!-- Swap to your assets path when available -->
+    <!-- <img src="assets/your-logo.png" alt="Koshie Studios" class="logo"> -->
+    <div class="logo-text">Koshie Studios</div>
+  </div>
 
-    <main>
-        <section class="hero">
-            <div class="container">
-                <h1>Build. Ship. Refine.</h1>
-                <p>Projects, experiments, and production-ready tools from Koshie Studios.</p>
-                <div class="actions">
-                    <a class="btn primary" href="kadie-ai/">Open Kadie AI</a>
-                    <a class="btn" href="#projects">View Projects</a>
-                </div>
-            </div>
-        </section>
-
-        <section id="projects" class="section">
-            <div class="container grid">
-                <article class="card">
-                    <h2>Realtime Web</h2>
-                    <p>Modern, fast, and accessible frontends with zero bloat.</p>
-                </article>
-                <article class="card">
-                    <h2>Game Tech</h2>
-                    <p>Custom AI, tooling, and pipelines for UE5 projects.</p>
-                </article>
-                <article class="card">
-                    <h2>Kadie AI</h2>
-                    <p>A focused AI interface with strong UX and modular design.</p>
-                    <p><a class="inline-link" href="kadie-ai/">Go to Kadie AI →</a></p>
-                </article>
-            </div>
-        </section>
-    </main>
-
-    <footer class="site-footer">
-        <div class="container footer-inner">
-            <p>© <span id="year"></span> Koshie Studios</p>
-            <nav class="footer-nav">
-                <a href="./">Home</a>
-                <a href="kadie-ai/">Kadie AI</a>
-            </nav>
-        </div>
-    </footer>
-
-    <script src="scripts/main.js" defer></script>
+  <h1>Projects</h1>
+  <ul>
+    <li><a href="NewKoshieSite/index.html">NewKoshieSite/index.html</a></li>
+    <li><a href="NewKoshieSite/kadie-ai/index.html">NewKoshieSite/kadie-ai/index.html</a></li>
+  </ul>
 </body>
 </html>
