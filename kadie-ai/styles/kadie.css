@@ -1,0 +1,51 @@
+:root{
+  --bg:#0b0c10;
+  --panel:#11131a;
+  --card:#171a22;
+  --text:#e6e9ef;
+  --muted:#a3adbd;
+  --brand:#ff8ccf;
+  --brand-2:#7ab8ff;
+  --border:#232734;
+  --radius:14px;
+  --shadow:0 6px 24px rgba(0,0,0,.25);
+}
+
+html,body{background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Inter,Arial,sans-serif;}
+a{color:inherit;text-decoration:none}
+
+.ka-container{width:min(1100px,92%);margin-inline:auto;}
+
+.ka-header{position:sticky;top:0;background:linear-gradient(180deg, rgba(0,0,0,.75), rgba(0,0,0,0));backdrop-filter:saturate(1.2) blur(6px);border-bottom:1px solid var(--border);z-index:50;}
+.ka-header-inner{display:flex;align-items:center;gap:16px;min-height:64px;}
+.ka-brand{padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel);color:var(--muted);}
+.ka-title{margin-left:auto;margin-right:auto;font-size:1.1rem;}
+.ka-nav{display:flex;gap:14px;}
+.ka-nav a{padding:8px 10px;border-radius:10px;color:var(--muted);}
+.ka-nav a:hover{background:var(--panel);color:var(--text);}
+
+.ka-hero{padding:64px 0;background:
+  radial-gradient(800px 300px at 10% -10%, rgba(122,184,255,.18), transparent),
+  radial-gradient(900px 300px at 90% -20%, rgba(255,140,207,.18), transparent);}
+.ka-hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:24px;align-items:center;}
+.ka-hero-copy h2{font-size: clamp(1.8rem, 3vw + 1rem, 3rem);line-height:1.1;margin-bottom:10px;}
+.ka-hero-copy p{color:var(--muted);margin-bottom:18px;}
+.ka-actions{display:flex;gap:12px;flex-wrap:wrap;}
+.ka-btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:12px;background:var(--panel);border:1px solid var(--border);color:var(--text);}
+.ka-btn.primary{background:linear-gradient(135deg,var(--brand),var(--brand-2));border-color:transparent;}
+
+.ka-section{padding:50px 0;}
+.ka-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+.ka-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
+.ka-card h3{font-size:1.05rem;margin-bottom:6px;}
+.ka-card p{color:var(--muted);}
+
+.ka-cta{text-align:center;}
+.ka-footer{border-top:1px solid var(--border);padding:18px 0;margin-top:40px;text-align:center;}
+@media (max-width: 860px){
+  .ka-hero-grid{grid-template-columns:1fr;}
+  .ka-grid{grid-template-columns:1fr 1fr;}
+}
+@media (max-width: 560px){
+  .ka-grid{grid-template-columns:1fr;}
+}

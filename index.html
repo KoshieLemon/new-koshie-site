@@ -1,0 +1,73 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Koshie Studios — Home</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="Koshie Studios portfolio and projects.">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <link rel="preload" href="assets/logo.svg" as="image" type="image/svg+xml">
+    <link rel="stylesheet" href="styles/reset.css">
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <header class="site-header">
+        <div class="container header-inner">
+            <a class="brand" href="./" aria-label="Koshie Studios Home">
+                <img src="assets/logo.svg" alt="" width="32" height="32">
+                <span>Koshie Studios</span>
+            </a>
+            <button class="nav-toggle" aria-expanded="false" aria-controls="primary-nav" aria-label="Toggle navigation">
+                ☰
+            </button>
+            <nav id="primary-nav" class="nav">
+                <a href="./">Home</a>
+                <a href="kadie-ai/">Kadie AI</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1>Build. Ship. Refine.</h1>
+                <p>Projects, experiments, and production-ready tools from Koshie Studios.</p>
+                <div class="actions">
+                    <a class="btn primary" href="kadie-ai/">Open Kadie AI</a>
+                    <a class="btn" href="#projects">View Projects</a>
+                </div>
+            </div>
+        </section>
+
+        <section id="projects" class="section">
+            <div class="container grid">
+                <article class="card">
+                    <h2>Realtime Web</h2>
+                    <p>Modern, fast, and accessible frontends with zero bloat.</p>
+                </article>
+                <article class="card">
+                    <h2>Game Tech</h2>
+                    <p>Custom AI, tooling, and pipelines for UE5 projects.</p>
+                </article>
+                <article class="card">
+                    <h2>Kadie AI</h2>
+                    <p>A focused AI interface with strong UX and modular design.</p>
+                    <p><a class="inline-link" href="kadie-ai/">Go to Kadie AI →</a></p>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-inner">
+            <p>© <span id="year"></span> Koshie Studios</p>
+            <nav class="footer-nav">
+                <a href="./">Home</a>
+                <a href="kadie-ai/">Kadie AI</a>
+            </nav>
+        </div>
+    </footer>
+
+    <script src="scripts/main.js" defer></script>
+</body>
+</html>
