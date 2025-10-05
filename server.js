@@ -3,27 +3,38 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const RAILWAY_PORT = process.env.PORT;
-const PORT = Number(RAILWAY_PORT || 8080);
 const HOST = '0.0.0.0';
+const PORT = Number(process.env.PORT || 8080);
 
-// choose static dir: /dist then /build
-const distDir = path.join(__dirname, 'dist');
-const buildDir = path.join(__dirname, 'build');
-const STATIC_DIR = fs.existsSync(distDir) ? distDir : (fs.existsSync(buildDir) ? buildDir : null);
+function pickStaticDir() {
+  const candidates = [
+    process.env.STATIC_DIR, // set this in Railway if your assets live elsewhere, e.g. "client/dist"
+    'dist', 'build', 'public', 'out', 'site', 'www', 'static'
+  ].filter(Boolean);
 
-if (!STATIC_DIR) {
-  console.error('ERROR: no /dist or /build found in project root.');
-  process.exit(1);
+  for (const rel of candidates) {
+    const abs = path.resolve(__dirname, rel);
+    if (fs.existsSync(abs) && fs.statSync(abs).isDirectory()) return abs;
+  }
+  if (fs.existsSync(path.join(__dirname, 'index.html'))) return __dirname;
+  return null;
 }
 
-app.use(express.static(STATIC_DIR));
-
-app.get('/healthz', (_req, res) => res.type('text/plain').send('ok'));
-
-// SPA fallback
-app.get('*', (_req, res) => res.sendFile(path.join(STATIC_DIR, 'index.html')));
+const STATIC_DIR = pickStaticDir();
+if (STATIC_DIR) {
+  app.use(express.static(STATIC_DIR));
+  app.get('/healthz', (_req, res) => res.type('text/plain').send('ok'));
+  const indexPath = path.join(STATIC_DIR, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    app.get('*', (_req, res) => res.sendFile(indexPath));
+  } else {
+    app.get('*', (_req, res) => res.type('text/plain').send('static server up'));
+  }
+} else {
+  app.get('/healthz', (_req, res) => res.type('text/plain').send('ok'));
+  app.get('*', (_req, res) => res.type('text/plain').send('server up: no static content found'));
+}
 
 app.listen(PORT, HOST, () => {
-  console.log(`listening on ${HOST}:${PORT} (RAILWAY_PORT=${RAILWAY_PORT || 'unset'}) serving ${STATIC_DIR}`);
+  console.log(`listening on ${HOST}:${PORT} serving ${STATIC_DIR || 'none'}`);
 });
