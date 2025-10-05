@@ -1,0 +1,190 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kadie AI — Bot Config</title>
+  <style>
+    html,body{height:100%;margin:0}
+    body{background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:900px;margin:40px auto;padding:0 16px}
+    .muted{color:#bbb}
+    .grid{display:grid;grid-template-columns:220px 1fr;gap:12px;align-items:center}
+    .row{display:contents}
+    input,textarea,select{width:100%;background:#0b0b0b;border:1px solid #222;border-radius:8px;color:#fff;padding:10px}
+    textarea{min-height:90px}
+    .btn{display:inline-block;padding:10px 16px;background:#1a7f37;color:#fff;text-decoration:none;border-radius:8px;border:0;cursor:pointer}
+    .btn-alt{background:#2a2a2a}
+    .hsep{height:1px;background:#1a1a1a;margin:18px 0}
+    .title{font-size:18px;font-weight:700;margin:14px 0 8px}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid #222;background:#101010;color:#ddd;text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p><a href="./" class="muted">← Back</a></p>
+    <h1>Bot Configuration</h1>
+    <p id="guildLine" class="muted"></p>
+
+    <div class="hsep"></div>
+
+    <div class="title">Settings</div>
+    <div id="form" class="grid"></div>
+
+    <p style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+      <button id="save" class="btn">Save</button>
+      <button id="reload" class="btn btn-alt">Reload</button>
+      <span id="status" class="muted"></span>
+    </p>
+
+    <div class="hsep"></div>
+
+    <div class="title">Add new setting</div>
+    <div class="grid" style="margin-bottom:10px">
+      <div class="row">
+        <label for="newKey" class="muted">Key</label>
+        <input id="newKey" placeholder="e.g. maxWarnings" />
+      </div>
+      <div class="row">
+        <label for="newType" class="muted">Type</label>
+        <select id="newType">
+          <option value="string">string</option>
+          <option value="number">number</option>
+          <option value="boolean">boolean</option>
+          <option value="json">json (object/array)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="newValue" class="muted">Value</label>
+        <input id="newValue" placeholder='for json, use {"a":1}' />
+      </div>
+    </div>
+    <p><button id="add" class="btn btn-alt">Add field</button></p>
+  </div>
+
+  <!-- API wrapper -->
+  <script src="./firebase/index.js"></script>
+  <script>
+    function qp(k){ return new URLSearchParams(location.search).get(k); }
+    const guildId = qp("guild_id");
+    if(!guildId){ document.body.innerHTML = "<div class='wrap'><p class='muted'>Missing guild_id.</p></div>"; throw new Error(); }
+    document.getElementById("guildLine").textContent = "Guild ID: " + guildId;
+
+    const formGrid = document.getElementById("form");
+    const statusEl = document.getElementById("status");
+
+    // Render helpers
+    function makeRow(labelText, key, value){
+      const type = detectType(value);
+      const row = document.createElement("div"); row.className = "row";
+
+      const label = document.createElement("label");
+      label.className = "muted";
+      label.textContent = labelText;
+
+      let input;
+      if (type === "boolean") {
+        input = document.createElement("select");
+        input.innerHTML = `<option value="true">true</option><option value="false">false</option>`;
+        input.value = String(value);
+      } else if (type === "number") {
+        input = document.createElement("input");
+        input.type = "number";
+        input.value = String(value);
+      } else if (type === "string") {
+        input = document.createElement("input");
+        input.value = value ?? "";
+      } else {
+        input = document.createElement("textarea");
+        input.value = JSON.stringify(value ?? null, null, 2);
+      }
+      input.dataset.key = key;
+      input.dataset.kind = type;
+
+      formGrid.appendChild(label);
+      formGrid.appendChild(input);
+    }
+
+    function detectType(v){
+      if (typeof v === "boolean") return "boolean";
+      if (typeof v === "number") return "number";
+      if (typeof v === "string") return "string";
+      return "json";
+    }
+
+    function collectPayload(){
+      const payload = {};
+      const inputs = formGrid.querySelectorAll("input, textarea, select");
+      inputs.forEach(el=>{
+        const k = el.dataset.key;
+        const kind = el.dataset.kind;
+        if (!k) return;
+        if (kind === "boolean") payload[k] = (el.value === "true");
+        else if (kind === "number") payload[k] = Number(el.value);
+        else if (kind === "string") payload[k] = el.value;
+        else {
+          try { payload[k] = JSON.parse(el.value); }
+          catch { payload[k] = el.value; }
+        }
+      });
+      return payload;
+    }
+
+    async function load(){
+      statusEl.textContent = "Loading…";
+      const cfg = await KadieFirebase.getConfig(guildId);
+      formGrid.innerHTML = "";
+
+      // If no config, show an empty hint row.
+      const source = cfg && typeof cfg === "object" ? cfg : {};
+      const keys = Object.keys(source).filter(k => k !== "updatedAt").sort();
+
+      if (keys.length === 0){
+        makeRow("prefix", "prefix", "!");
+        makeRow("autoModeration", "autoModeration", true);
+        makeRow("logging", "logging", true);
+      } else {
+        keys.forEach(k => makeRow(k, k, source[k]));
+      }
+
+      statusEl.textContent = keys.length ? "Loaded." : "No config yet. Start adding fields.";
+    }
+
+    document.getElementById("save").addEventListener("click", async ()=>{
+      statusEl.textContent = "Saving…";
+      try {
+        const payload = collectPayload();
+        await KadieFirebase.setConfig(guildId, payload);
+        statusEl.textContent = "Saved.";
+      } catch (e) {
+        statusEl.textContent = "Error: " + e.message;
+      }
+    });
+
+    document.getElementById("reload").addEventListener("click", load);
+
+    document.getElementById("add").addEventListener("click", ()=>{
+      const key = document.getElementById("newKey").value.trim();
+      const type = document.getElementById("newType").value;
+      const raw = document.getElementById("newValue").value;
+
+      if (!key) return;
+
+      let value;
+      if (type === "boolean") value = raw === "true";
+      else if (type === "number") value = Number(raw || 0);
+      else if (type === "string") value = raw || "";
+      else {
+        try { value = JSON.parse(raw || "null"); }
+        catch { value = raw || ""; }
+      }
+
+      makeRow(key, key, value);
+      document.getElementById("newKey").value = "";
+      document.getElementById("newValue").value = "";
+    });
+
+    load();
+  </script>
+</body>
+</html>

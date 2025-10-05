@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Koshie Studios</title>
+  <meta name="robots" content="noindex">
   <style>
     html,body{height:100%;margin:0}
     body{
@@ -16,22 +17,73 @@
     .logo-text{font-size:32px;font-weight:700;letter-spacing:.04em}
     h1{margin:40px 0 12px;font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.16em}
     ul{list-style:none;padding:0;margin:0 0 80px;width:min(800px,90vw)}
-    li{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08)}
-    a{color:#9ad0ff;text-decoration:none;word-break:break-all}
+    li{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.1)}
+    a{color:#9ad0ff;text-decoration:none}
     a:hover{text-decoration:underline}
   </style>
 </head>
 <body>
   <div class="top">
-    <!-- Swap to your assets path when available -->
-    <!-- <img src="assets/your-logo.png" alt="Koshie Studios" class="logo"> -->
-    <div class="logo-text">Koshie Studios</div>
+    <!-- Update the src if your logo lives elsewhere -->
+    <img id="logo" src="assets/logo.png" alt="Koshie Studios" class="logo">
   </div>
 
   <h1>Projects</h1>
-  <ul>
-    <li><a href="NewKoshieSite/index.html">NewKoshieSite/index.html</a></li>
-    <li><a href="NewKoshieSite/kadie-ai/index.html">NewKoshieSite/kadie-ai/index.html</a></li>
-  </ul>
+  <ul id="projects-list"></ul>
+
+  <script>
+    // Edit this list to set custom names and links.
+    const PROJECTS = [
+      { href: "NewKoshieSite/index.html", name: "Koshie Site" },
+      { href: "NewKoshieSite/kadie-ai/index.html", name: "Kadie AI" }
+      // { href: "about.html", name: "About" },
+    ];
+
+    // Replace logo with text if the image is missing.
+    (function handleLogoFallback(){
+      const img = document.getElementById('logo');
+      img.addEventListener('error', () => {
+        const div = document.createElement('div');
+        div.className = 'logo-text';
+        div.textContent = 'Koshie Studios';
+        img.replaceWith(div);
+      }, { once: true });
+    })();
+
+    // Normalize paths so / and /index.html are treated the same.
+    function normalizePath(p){
+      try{
+        const u = new URL(p, location.href);
+        let path = u.pathname;
+        if (!path.endsWith('.html')){
+          if (!path.endsWith('/')) path += '/';
+          path += 'index.html';
+        }
+        return path;
+      }catch(e){ return p; }
+    }
+
+    const current = normalizePath(location.pathname);
+    const list = document.getElementById('projects-list');
+
+    PROJECTS.forEach(({ href, name }) => {
+      const linkPath = normalizePath(href);
+      if (linkPath === current) return; // exclude this index page
+
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = href;
+      a.textContent = name;
+      li.appendChild(a);
+      list.appendChild(li);
+    });
+  </script>
+
+  <noscript>
+    <ul>
+      <li><a href="NewKoshieSite/index.html">Koshie Site</a></li>
+      <li><a href="NewKoshieSite/kadie-ai/index.html">Kadie AI</a></li>
+    </ul>
+  </noscript>
 </body>
 </html>
