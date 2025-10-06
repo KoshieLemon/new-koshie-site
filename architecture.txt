@@ -10,7 +10,7 @@ NewKoshieSite/
 │  ├─ styles/
 │  │  └─ kadie.css
 │  ├─ bot-config.html
-│  └─ index.html
+│  └─ kadie-ai.html
 │
 ├─ scripts/
 │  └─ main.js

@@ -6,11 +6,7 @@
   <title>Koshie Studios</title>
   <style>
     html,body{height:100%;margin:0}
-    body{
-      background:#000;color:#fff;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-      display:flex;flex-direction:column;align-items:center
-    }
+    body{background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center}
     .top{width:100%;display:flex;justify-content:center;margin-top:48px}
     .logo{max-width:280px;height:auto;display:block;object-fit:contain}
     .logo-text{font-size:32px;font-weight:700;letter-spacing:.04em}
@@ -30,13 +26,10 @@
   <ul id="projects-list"></ul>
 
   <script>
-    // List only non-root pages here.
     const PROJECTS = [
-      { href: "kadie-ai/index.html", name: "Kadie AI" }
-      // Root home (index.html) is intentionally excluded.
+      { href: "kadie-ai/kadie-ai.html", name: "Kadie AI" }
     ];
 
-    // Replace logo with text if the image is missing.
     (function handleLogoFallback(){
       const img = document.getElementById('logo');
       img.addEventListener('error', () => {
@@ -56,21 +49,15 @@
       }
       return path.toLowerCase();
     }
+    function isRootIndex(p){ p = p.toLowerCase(); return p === "/index.html" || p === "/"; }
 
-    function isRootIndex(pathname){
-      const p = pathname.toLowerCase();
-      return p === "/index.html" || p === "/";
-    }
-
-    const current = normalize(location.pathname); // treats "/" as "/index.html"
+    const current = normalize(location.pathname);
     const list = document.getElementById("projects-list");
 
     PROJECTS.forEach(({ href, name }) => {
       const linkPath = normalize(href);
-      // Hide if it matches current page OR resolves to root index.
       if (linkPath === current) return;
       if (isRootIndex(linkPath)) return;
-
       const li = document.createElement("li");
       li.innerHTML = `<a class="btn" href="${href}">${name}</a>`;
       list.appendChild(li);
@@ -79,8 +66,7 @@
 
   <noscript>
     <ul id="projects-list">
-      <li><a class="btn" href="kadie-ai/index.html">Kadie AI</a></li>
-      <!-- Root home intentionally not listed -->
+      <li><a class="btn" href="kadie-ai/kadie-ai.html">Kadie AI</a></li>
     </ul>
   </noscript>
 </body>

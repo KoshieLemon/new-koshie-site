@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Kadie AI — Discord Login</title>
   <style>
     html,body{height:100%;margin:0}
@@ -26,10 +26,10 @@
 
   <script>
     const DISCORD_INSTALL_BASE =
-      "https://discord.com/oauth2/authorize?client_id=1395827053928120341&permissions=8&integration_type=0&scope=bot%20applications.commands";
+      "https://discord.com/oauth2/authorize?client_id=YOUR_APP_ID&permissions=8&integration_type=0&scope=bot%20applications.commands";
 
-    const PERM_ADMIN = 8n;          // ADMINISTRATOR
-    const PERM_MANAGE_GUILD = 32n;  // MANAGE_GUILD
+    const PERM_ADMIN = 8n;
+    const PERM_MANAGE_GUILD = 32n;
 
     async function jget(p){ const r=await fetch(p,{credentials:'include'}); if(!r.ok) throw new Error(await r.text()); return r.json(); }
     async function init(){
@@ -41,7 +41,6 @@
         ? `<p>Signed in as <strong>${me.username}#${me.discriminator ?? me.global_name ?? ""}</strong> · <a class="pill" href="/api/logout">Log out</a></p>`
         : `<a class="btn" href="/api/login">Sign in with Discord</a>`;
 
-      // if not signed in, stop
       if(!me) return;
 
       // guilds
@@ -72,7 +71,7 @@
           <div class="row">
             <a class="pill" href="${DISCORD_INSTALL_BASE}&guild_id=${g.id}&disable_guild_select=true">Add/Invite Bot</a>
             <a class="pill" ${manageable ? "" : 'aria-disabled="true"'}
-               href="${manageable ? `bot-config.html?guild_id=${g.id}` : '#'}">Manage Bot</a>
+               href="${manageable ? `/kadie-ai/bot-config.html?guild_id=${g.id}` : '#'}">Manage Bot</a>
           </div>
         `;
         grid.appendChild(card);
