@@ -23,7 +23,6 @@
 </head>
 <body>
   <div class="top">
-    <!-- Update path if your logo differs -->
     <img id="logo" src="assets/logo.png" alt="Koshie Studios" class="logo">
   </div>
 
@@ -31,11 +30,10 @@
   <ul id="projects-list"></ul>
 
   <script>
-    // Custom names per site. Add more entries as needed.
+    // List only non-root pages here.
     const PROJECTS = [
-      { href: "kadie-ai/index.html",      name: "Kadie AI" },
-      { href: "NewKoshieSite/index.html", name: "Koshie Site" }
-      // { href: "about/index.html",       name: "About" },
+      { href: "kadie-ai/index.html", name: "Kadie AI" }
+      // Root home (index.html) is intentionally excluded.
     ];
 
     // Replace logo with text if the image is missing.
@@ -56,7 +54,12 @@
         if (!path.endsWith("/")) path += "/";
         path += "index.html";
       }
-      return path;
+      return path.toLowerCase();
+    }
+
+    function isRootIndex(pathname){
+      const p = pathname.toLowerCase();
+      return p === "/index.html" || p === "/";
     }
 
     const current = normalize(location.pathname); // treats "/" as "/index.html"
@@ -64,7 +67,9 @@
 
     PROJECTS.forEach(({ href, name }) => {
       const linkPath = normalize(href);
-      if (linkPath === current) return; // never show this root page
+      // Hide if it matches current page OR resolves to root index.
+      if (linkPath === current) return;
+      if (isRootIndex(linkPath)) return;
 
       const li = document.createElement("li");
       li.innerHTML = `<a class="btn" href="${href}">${name}</a>`;
@@ -75,7 +80,7 @@
   <noscript>
     <ul id="projects-list">
       <li><a class="btn" href="kadie-ai/index.html">Kadie AI</a></li>
-      <li><a class="btn" href="NewKoshieSite/index.html">Koshie Site</a></li>
+      <!-- Root home intentionally not listed -->
     </ul>
   </noscript>
 </body>

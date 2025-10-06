@@ -1,0 +1,27 @@
+NewKoshieSite/
+├─ assets/
+│
+├─ kadie-ai/
+│  ├─ firebase/
+│  │  ├─ index.js
+│  │  └─ kadie-ai-firebase-adminsdk-fbsvc-*.json
+│  ├─ scripts/
+│  │  └─ kadie.js
+│  ├─ styles/
+│  │  └─ kadie.css
+│  ├─ bot-config.html
+│  └─ index.html
+│
+├─ scripts/
+│  └─ main.js
+│
+├─ styles/
+│  ├─ main.css
+│  └─ reset.css
+│
+├─ .gitignore
+├─ .nvmrc
+├─ index.html
+├─ package.json
+├─ README.md
+└─ server.js
