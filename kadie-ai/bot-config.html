@@ -7,7 +7,7 @@
   <style>
     html,body{height:100%;margin:0}
     body{background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-    .wrap{max-width:900px;margin:40px auto;padding:0 16px}
+    .wrap{max-width:960px;margin:32px auto;padding:0 16px}
     .muted{color:#bbb}
     .grid{display:grid;grid-template-columns:220px 1fr;gap:12px;align-items:center}
     .row{display:contents}
@@ -18,188 +18,177 @@
     .hsep{height:1px;background:#1a1a1a;margin:18px 0}
     .title{font-size:18px;font-weight:700;margin:14px 0 8px}
     .pill{padding:6px 10px;border-radius:999px;border:1px solid #222;background:#101010;color:#ddd;text-decoration:none}
+    .gridCards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+    .card{border:1px solid #222;border-radius:10px;padding:12px;background:#0b0b0b}
   </style>
 </head>
 <body>
   <div class="wrap">
     <p><a href="/kadie-ai/kadie-ai.html" class="muted">← Back</a></p>
     <h1>Bot Configuration</h1>
-    <p id="guildLine" class="muted"></p>
+    <p id="authLine" class="muted">Checking sign-in…</p>
 
     <div class="hsep"></div>
 
-    <div class="title">Settings</div>
-    <div id="form" class="grid"></div>
-
-    <p style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
-      <button id="save" class="btn">Save</button>
-      <button id="reload" class="btn btn-alt">Reload</button>
-      <span id="status" class="muted"></span>
-    </p>
+    <div class="title">Select a server</div>
+    <div id="guilds" class="gridCards"></div>
 
     <div class="hsep"></div>
 
-    <div class="title">Add new setting</div>
-    <div class="grid" style="margin-bottom:10px">
-      <div class="row">
-        <label for="newKey" class="muted">Key</label>
-        <input id="newKey" placeholder="e.g. maxWarnings" />
+    <p id="guildLine" class="muted" style="display:none"></p>
+    <div id="formWrap" style="display:none">
+      <div class="title">Settings</div>
+      <div id="form" class="grid"></div>
+
+      <p style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+        <button id="save" class="btn">Save</button>
+        <button id="reload" class="btn btn-alt">Reload</button>
+        <span id="status" class="muted"></span>
+      </p>
+
+      <div class="hsep"></div>
+
+      <div class="title">Add new setting</div>
+      <div class="grid" style="margin-bottom:10px">
+        <div class="row">
+          <label for="newKey" class="muted">Key</label>
+          <input id="newKey" placeholder="e.g. prefix" />
+        </div>
+        <div class="row">
+          <label for="newType" class="muted">Type</label>
+          <select id="newType">
+            <option value="string">string</option>
+            <option value="number">number</option>
+            <option value="boolean">boolean</option>
+            <option value="json">json (object/array)</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="newValue" class="muted">Value</label>
+          <input id="newValue" placeholder='for json, use {"a":1}' />
+        </div>
       </div>
-      <div class="row">
-        <label for="newType" class="muted">Type</label>
-        <select id="newType">
-          <option value="string">string</option>
-          <option value="number">number</option>
-          <option value="boolean">boolean</option>
-          <option value="json">json (object/array)</option>
-        </select>
-      </div>
-      <div class="row">
-        <label for="newValue" class="muted">Value</label>
-        <input id="newValue" placeholder='for json, use {"a":1}' />
-      </div>
+      <p><button id="add" class="btn btn-alt">Add field</button></p>
     </div>
-    <p><button id="add" class="btn btn-alt">Add field</button></p>
   </div>
 
   <script>
-    // Inline API wrapper. No external dependency.
-    window.KadieFirebase = {
-      async getConfig(guildId){
-        const r = await fetch(`/api/config?guild_id=${encodeURIComponent(guildId)}`, { credentials: "include" });
-        if (!r.ok) throw new Error(await r.text());
-        return r.json();
-      },
-      async setConfig(guildId, data){
-        const r = await fetch(`/api/config?guild_id=${encodeURIComponent(guildId)}`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data)
-        });
-        if (!r.ok) throw new Error(await r.text());
-        return r.json();
-      }
-    };
+    const BOT_ORIGIN = "https://kadie-ai-production.up.railway.app";
+    const PERM_ADMIN = 8n, PERM_MANAGE_GUILD = 32n;
 
+    // utilities
+    async function jget(u){ const r=await fetch(u,{credentials:"include"}); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+    async function jpost(u,body){ const r=await fetch(u,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})}); if(!r.ok) throw new Error(await r.text()); return r.json(); }
     function qp(k){ return new URLSearchParams(location.search).get(k); }
-    const guildId = qp("guild_id");
-    if(!guildId){ document.body.innerHTML = "<div class='wrap'><p class='muted'>Missing guild_id.</p></div>"; throw new Error(); }
-    document.getElementById("guildLine").textContent = "Guild ID: " + guildId;
+    function loginHref(){
+      const q = new URLSearchParams({ return_url: new URL(location.pathname+location.search, location.origin).toString() });
+      return `${BOT_ORIGIN}/api/login?${q.toString()}`;
+    }
+    function manageable(g){
+      const p = BigInt(g.permissions ?? "0");
+      return g.owner || (p & PERM_ADMIN) !== 0n || (p & PERM_MANAGE_GUILD) !== 0n;
+    }
 
+    const authLine = document.getElementById("authLine");
+    const guildsDiv = document.getElementById("guilds");
+    const guildLine = document.getElementById("guildLine");
     const formGrid = document.getElementById("form");
+    const formWrap = document.getElementById("formWrap");
     const statusEl = document.getElementById("status");
 
+    // form helpers
+    function detectType(v){ if (typeof v==="boolean") return "boolean"; if (typeof v==="number") return "number"; if (typeof v==="string") return "string"; return "json"; }
     function makeRow(labelText, key, value){
       const type = detectType(value);
       const row = document.createElement("div"); row.className = "row";
-
-      const label = document.createElement("label");
-      label.className = "muted";
-      label.textContent = labelText;
-
+      const label = document.createElement("label"); label.className="muted"; label.textContent = labelText;
       let input;
-      if (type === "boolean") {
-        input = document.createElement("select");
-        input.innerHTML = `<option value="true">true</option><option value="false">false</option>`;
-        input.value = String(value);
-      } else if (type === "number") {
-        input = document.createElement("input");
-        input.type = "number";
-        input.value = String(value);
-      } else if (type === "string") {
-        input = document.createElement("input");
-        input.value = value ?? "";
-      } else {
-        input = document.createElement("textarea");
-        input.value = JSON.stringify(value ?? null, null, 2);
-      }
-      input.dataset.key = key;
-      input.dataset.kind = type;
-
-      formGrid.appendChild(label);
-      formGrid.appendChild(input);
+      if (type==="boolean"){ input=document.createElement("select"); input.innerHTML='<option value="true">true</option><option value="false">false</option>'; input.value=String(value); }
+      else if (type==="number"){ input=document.createElement("input"); input.type="number"; input.value=String(value); }
+      else if (type==="string"){ input=document.createElement("input"); input.value=value??""; }
+      else { input=document.createElement("textarea"); input.value=JSON.stringify(value??null,null,2); }
+      input.dataset.key=key; input.dataset.kind=type;
+      formGrid.appendChild(label); formGrid.appendChild(input);
     }
-
-    function detectType(v){
-      if (typeof v === "boolean") return "boolean";
-      if (typeof v === "number") return "number";
-      if (typeof v === "string") return "string";
-      return "json";
-    }
-
     function collectPayload(){
-      const payload = {};
-      const inputs = formGrid.querySelectorAll("input, textarea, select");
-      inputs.forEach(el=>{
-        const k = el.dataset.key;
-        const kind = el.dataset.kind;
-        if (!k) return;
-        if (kind === "boolean") payload[k] = (el.value === "true");
-        else if (kind === "number") payload[k] = Number(el.value);
-        else if (kind === "string") payload[k] = el.value;
-        else {
-          try { payload[k] = JSON.parse(el.value); }
-          catch { payload[k] = el.value; }
-        }
-      });
-      return payload;
+      const payload={}; formGrid.querySelectorAll("input,textarea,select").forEach(el=>{
+        const k=el.dataset.key, kind=el.dataset.kind; if(!k) return;
+        if(kind==="boolean") payload[k]= (el.value==="true");
+        else if(kind==="number") payload[k]= Number(el.value);
+        else if(kind==="string") payload[k]= el.value;
+        else { try{ payload[k]=JSON.parse(el.value); } catch{ payload[k]=el.value; } }
+      }); return payload;
     }
 
-    async function load(){
+    // flow
+    let me=null, guildId = qp("guild_id");
+
+    async function ensureAuth(){
+      try { me = await jget(`${BOT_ORIGIN}/api/me`); authLine.textContent = `Signed in as ${me.username}`; }
+      catch { authLine.innerHTML = `Not signed in. <a class="pill" href="${loginHref()}">Sign in with Discord</a>`; throw new Error("no auth"); }
+    }
+
+    async function loadGuilds(){
+      const list = await jget(`${BOT_ORIGIN}/api/guilds`);
+      guildsDiv.innerHTML = "";
+      list.forEach(g=>{
+        const icon = g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=64` : "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f5bc.svg";
+        const m = manageable(g);
+        const el = document.createElement("div");
+        el.className="card";
+        el.style.opacity = m ? 1 : .45;
+        el.innerHTML = `
+          <div style="display:flex;gap:10px;align-items:center">
+            <img src="${icon}" alt="" width="32" height="32" style="border-radius:6px;background:#111">
+            <div><div style="font-weight:600">${g.name}</div><div style="font-size:12px;color:#bbb">${g.id}</div></div>
+          </div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+            <a class="pill" href="https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(me.id)}&permissions=8&integration_type=0&scope=bot%20applications.commands&guild_id=${g.id}&disable_guild_select=true">Add/Invite Bot</a>
+            <a class="pill" ${m ? "" : 'aria-disabled="true"'} href="${m ? `?guild_id=${g.id}` : '#'}">Manage</a>
+          </div>`;
+        guildsDiv.appendChild(el);
+      });
+    }
+
+    async function loadConfig(){
+      if(!guildId){ formWrap.style.display="none"; guildLine.style.display="none"; return; }
+      guildLine.style.display="block";
+      guildLine.textContent = "Guild ID: " + guildId;
       statusEl.textContent = "Loading…";
-      const cfg = await KadieFirebase.getConfig(guildId);
-      formGrid.innerHTML = "";
-
-      const source = cfg && typeof cfg === "object" ? cfg : {};
-      const keys = Object.keys(source).filter(k => k !== "updatedAt").sort();
-
-      if (keys.length === 0){
-        makeRow("prefix", "prefix", "!");
-        makeRow("autoModeration", "autoModeration", true);
-        makeRow("logging", "logging", true);
-      } else {
-        keys.forEach(k => makeRow(k, k, source[k]));
-      }
-
-      statusEl.textContent = keys.length ? "Loaded." : "No config yet. Start adding fields.";
+      const cfg = await jget(`${BOT_ORIGIN}/api/config?guild_id=${encodeURIComponent(guildId)}`);
+      formGrid.innerHTML="";
+      const src = cfg && typeof cfg==="object" ? cfg : {};
+      const keys = Object.keys(src).filter(k => k!=="updatedAt").sort();
+      if(keys.length===0){ makeRow("prefix","prefix","!"); makeRow("autoModeration","autoModeration",true); makeRow("logging","logging",true); }
+      else { keys.forEach(k=>makeRow(k,k,src[k])); }
+      formWrap.style.display="block";
+      statusEl.textContent = keys.length ? "Loaded." : "No config yet.";
     }
 
     document.getElementById("save").addEventListener("click", async ()=>{
       statusEl.textContent = "Saving…";
-      try {
-        const payload = collectPayload();
-        await KadieFirebase.setConfig(guildId, payload);
-        statusEl.textContent = "Saved.";
-      } catch (e) {
-        statusEl.textContent = "Error: " + e.message;
-      }
+      await jpost(`${BOT_ORIGIN}/api/config?guild_id=${encodeURIComponent(guildId)}`, collectPayload());
+      statusEl.textContent = "Saved.";
     });
-
-    document.getElementById("reload").addEventListener("click", load);
-
+    document.getElementById("reload").addEventListener("click", loadConfig);
     document.getElementById("add").addEventListener("click", ()=>{
       const key = document.getElementById("newKey").value.trim();
       const type = document.getElementById("newType").value;
       const raw = document.getElementById("newValue").value;
-
-      if (!key) return;
-
-      let value;
-      if (type === "boolean") value = raw === "true";
-      else if (type === "number") value = Number(raw || 0);
-      else if (type === "string") value = raw || "";
-      else {
-        try { value = JSON.parse(raw || "null"); }
-        catch { value = raw || ""; }
-      }
-
-      makeRow(key, key, value);
-      document.getElementById("newKey").value = "";
-      document.getElementById("newValue").value = "";
+      if(!key) return;
+      let value; if(type==="boolean") value=(raw==="true");
+      else if(type==="number") value=Number(raw||0);
+      else if(type==="string") value=raw||"";
+      else { try{ value=JSON.parse(raw||"null"); } catch{ value=raw||""; } }
+      makeRow(key,key,value);
+      document.getElementById("newKey").value=""; document.getElementById("newValue").value="";
     });
 
-    load();
+    (async function run(){
+      try{ await ensureAuth(); } catch { return; }
+      await loadGuilds();
+      await loadConfig();
+    })();
   </script>
 </body>
 </html>
