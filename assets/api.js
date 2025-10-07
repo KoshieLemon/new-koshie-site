@@ -1,32 +1,48 @@
 // /assets/api.js
-// Frontend constants and helpers.
-// Node OAuth service base. Do not change here unless you rename the service.
 export const NODE_API_BASE = 'https://kadie-ai-node.up.railway.app';
 
-// Simple environment detection for logging and UI hints.
 export const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-export const SITE_ORIGIN = IS_LOCAL ? 'http://localhost:8080' : 'https://koshiestudios.com';
+export const SITE_ORIGIN = IS_LOCAL ? 'http://localhost:8080' : location.origin;
 
-// OAuth endpoints exposed by the Node service.
-export const OAUTH_URL = `${NODE_API_BASE}/auth/discord`;
-export const ME_URL = `${NODE_API_BASE}/me`;
-export const GUILDS_URL = `${NODE_API_BASE}/guilds`;   // expected route
-export const LOGOUT_URL = `${NODE_API_BASE}/logout`;   // optional
+export const OAUTH_URL  = `${NODE_API_BASE}/auth/discord`;
+export const ME_URL     = `${NODE_API_BASE}/me`;
 
-// Fetch with credentials + verbose diagnostics.
+// Try these in order; stop at first non-404.
+export const GUILDS_URLS = [
+  `${NODE_API_BASE}/guilds`,
+  `${NODE_API_BASE}/api/guilds`,
+  `${NODE_API_BASE}/discord/guilds`,
+  `${NODE_API_BASE}/user/guilds`
+];
+
+export const LOGOUT_URL = `${NODE_API_BASE}/logout`;
+
 export async function apiGet(url, label) {
   const tag = label || 'request';
   console.info(`[API] ${tag} ->`, url, { withCredentials: true, origin: location.origin });
-  const res = await fetch(url, {
-    method: 'GET',
-    credentials: 'include',    // send/receive kadie_session cookie
-    cache: 'no-store',
-  });
+  const res = await fetch(url, { method: 'GET', credentials: 'include', cache: 'no-store' });
   console.info(`[API] ${tag} status`, res.status, res.statusText);
   return res;
 }
 
-// Quick checks printed to console to accelerate debugging.
+export async function apiGetFirst(urls, label) {
+  const attempts = [];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { method: 'GET', credentials: 'include', cache: 'no-store' });
+      console.info(`[API] ${label} -> ${url} status ${res.status}`);
+      if (res.status === 404) { attempts.push({ url, status: 404 }); continue; }
+      return { res, url };
+    } catch (e) {
+      console.warn(`[API] ${label} network error @ ${url}:`, e);
+      attempts.push({ url, error: e?.message || String(e) });
+    }
+  }
+  const err = new Error('No matching endpoint for ' + label);
+  err.attempts = attempts;
+  throw err;
+}
+
 export function printDiagnostics(context) {
   console.group(`[DIAG] ${context}`);
   console.log('IS_LOCAL:', IS_LOCAL);
