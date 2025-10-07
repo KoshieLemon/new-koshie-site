@@ -1,42 +1,32 @@
-﻿<!doctype html>
+<!-- /kadie-ai/kadie-ai.html -->
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Kadie AI — Discord Login</title>
-  <style>
-    html,body{height:100%;margin:0}
-    body{background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-    .wrap{max-width:900px;margin:40px auto;padding:0 16px}
-    .btn{display:inline-block;padding:10px 16px;background:#5865F2;color:#fff;text-decoration:none;border-radius:8px}
-    .muted{color:#bbb}
-  </style>
+  <meta charset="utf-8" />
+  <title>Kadie AI • Sign in</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/assets/main.css" />
 </head>
 <body>
-  <div class="wrap">
+  <header class="container">
     <h1>Kadie AI</h1>
-    <p class="muted">Sign in with Discord to continue.</p>
-    <p><a id="login" class="btn">Sign in with Discord</a></p>
-    <p><a class="muted" href="/">Back to Home</a></p>
-  </div>
+  </header>
 
-  <script>
-    const BOT_ORIGIN = "https://kadie-ai-production.up.railway.app";
+  <main class="container center">
+    <button id="signin" class="btn">Sign in with Discord</button>
+  </main>
 
-    // Build login URL that returns to bot-config after OAuth.
-    function loginHref(){
-      const returnUrl = new URL("/kadie-ai/bot-config.html", location.origin).toString();
-      const q = new URLSearchParams({ return_url: returnUrl });
-      return `${BOT_ORIGIN}/api/login?${q.toString()}`;
-    }
+  <script type="module">
+    import { OAUTH_URL, printDiagnostics } from '/assets/api.js';
 
-    document.getElementById("login").setAttribute("href", loginHref());
+    printDiagnostics('kadie-ai.html');
 
-    // If already authenticated with the bot, skip straight to config.
-    fetch(`${BOT_ORIGIN}/api/me`, { credentials: "include" })
-      .then(r => r.ok ? r.json() : null)
-      .then(me => { if (me) location.replace("/kadie-ai/bot-config.html"); })
-      .catch(() => {});
+    document.getElementById('signin').addEventListener('click', () => {
+      // Entry point: start Discord OAuth at the Node service.
+      // The Node service will handle Discord redirect and final callback.
+      console.info('[OAUTH] Redirecting to', OAUTH_URL);
+      location.href = OAUTH_URL;
+    });
   </script>
 </body>
 </html>
