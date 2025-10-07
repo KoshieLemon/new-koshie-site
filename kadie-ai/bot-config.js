@@ -1,18 +1,42 @@
 // /kadie-ai/bot-config.js
-import { apiGet, apiGetFirst, ME_URL, GUILDS_URLS, LOGOUT_URL, printDiagnostics } from '/assets/api.js';
+import {
+  IS_LOCAL,
+  apiGet,
+  apiGetFirst,
+  ME_URL,
+  GUILDS_URLS,
+  LOGOUT_URL,
+  printDiagnostics
+} from '/assets/api.js';
 
 const statusEl = document.getElementById('status');
 const listEl = document.getElementById('list');
+const reauthBox = document.getElementById('reauth');
 
 printDiagnostics('bot-config.html');
 
+// show Re-auth only when running locally
+if (IS_LOCAL) reauthBox.classList.remove('hidden'); else reauthBox.classList.add('hidden');
+
 function showError(msg, tip) {
+  statusEl.classList.remove('hidden');
   statusEl.classList.add('error');
   statusEl.innerHTML = `${msg}${tip ? `<br><span class="small">${tip}</span>` : ''}`;
 }
 
+function setStatusLoaded(count, usedUrl) {
+  if (IS_LOCAL) {
+    statusEl.classList.remove('hidden');
+    statusEl.classList.remove('error');
+    statusEl.textContent = `Loaded ${count} server(s) from ${usedUrl}`;
+  } else {
+    statusEl.classList.add('hidden');   // hide on live
+    statusEl.textContent = '';
+  }
+}
+
 function renderGuilds(guilds, usedUrl) {
-  statusEl.textContent = `Loaded ${guilds.length} server(s) from ${usedUrl}`;
+  setStatusLoaded(guilds.length, usedUrl);
   const frag = document.createDocumentFragment();
   guilds.forEach(g => {
     const div = document.createElement('div');
@@ -45,9 +69,12 @@ function renderGuilds(guilds, usedUrl) {
     // Guilds with fallback probing
     const { res: gRes, url: usedUrl } = await apiGetFirst(GUILDS_URLS, 'GET guilds');
     if (gRes.status === 401) { showError('Session expired. Re-authenticate.', `<a href="/kadie-ai/kadie-ai.html">Sign in</a>`); return; }
-    if (!gRes.ok) { showError(`Failed to load guilds: ${gRes.status} ${gRes.statusText}`, `Tried ${GUILDS_URLS.map(u=>`<code>${u}</code>`).join(', ')}`); return; }
+    if (!gRes.ok) {
+      showError(`Failed to load guilds: ${gRes.status} ${gRes.statusText}`,
+        `Tried ${GUILDS_URLS.map(u=>`<code>${u}</code>`).join(', ')}`);
+      return;
+    }
     const guilds = await gRes.json();
-    console.info('[DATA] guilds from', usedUrl, guilds);
     if (!Array.isArray(guilds)) { showError('Guilds payload is not an array.', `Endpoint: <code>${usedUrl}</code>`); return; }
     renderGuilds(guilds, usedUrl);
   } catch (err) {
