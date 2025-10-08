@@ -3,13 +3,11 @@ export const NODE_API_BASE = 'https://kadie-ai-node.up.railway.app';
 
 export const IS_LOCAL =
   location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-
 export const SITE_ORIGIN = IS_LOCAL ? 'http://localhost:8080' : location.origin;
 
-export const OAUTH_URL = `${NODE_API_BASE}/auth/discord`;
-export const ME_URL = `${NODE_API_BASE}/me`;
+export const OAUTH_URL  = `${NODE_API_BASE}/auth/discord`;
+export const ME_URL     = `${NODE_API_BASE}/me`;
 
-// User guilds via OAuth (first existing path wins)
 export const GUILDS_URLS = [
   `${NODE_API_BASE}/guilds`,
   `${NODE_API_BASE}/api/guilds`,
@@ -17,19 +15,9 @@ export const GUILDS_URLS = [
   `${NODE_API_BASE}/user/guilds`,
 ];
 
-// Optional endpoints (if your backend provides them)
-const BOT_GUILDS_URLS = [
-  `${NODE_API_BASE}/bot/guilds`,
-  `${NODE_API_BASE}/api/bot/guilds`,
-];
-const GUILD_COUNTS_URLS = (id) => [
-  `${NODE_API_BASE}/guilds/${id}/counts`,
-  `${NODE_API_BASE}/api/guilds/${id}/counts`,
-];
-const APP_ID_URLS = [
-  `${NODE_API_BASE}/public/app-id`,
-  `${NODE_API_BASE}/api/public/app-id`,
-];
+export const LOGOUT_URL = `${NODE_API_BASE}/logout`;
+
+function getParam(name){ return new URLSearchParams(location.search).get(name); }
 
 export async function apiGet(url, label) {
   const tag = label || 'request';
@@ -67,7 +55,20 @@ export function printDiagnostics(context) {
   console.groupEnd();
 }
 
-// ---- Optional helpers (graceful fallbacks) ----
+// ---------- Optional helpers ----------
+const BOT_GUILDS_URLS = [
+  `${NODE_API_BASE}/bot/guilds`,
+  `${NODE_API_BASE}/api/bot/guilds`,
+];
+const GUILD_COUNTS_URLS = (id) => [
+  `${NODE_API_BASE}/guilds/${id}/counts`,
+  `${NODE_API_BASE}/api/guilds/${id}/counts`,
+];
+const APP_ID_URLS = [
+  `${NODE_API_BASE}/public/app-id`,
+  `${NODE_API_BASE}/api/public/app-id`,
+];
+
 export async function fetchBotGuildSet() {
   try {
     const { res } = await apiGetFirst(BOT_GUILDS_URLS, 'GET bot guilds');
@@ -88,17 +89,29 @@ export async function fetchGuildCounts(id) {
   } catch { return null; }
 }
 
+// Application ID resolution (client_id)
 export async function fetchAppId() {
-  // 1) Try backend
+  // 0) URL param override: ?app_id=123456789012345678
+  const qp = getParam('app_id');
+  if (qp) { console.info('[APP_ID] from query param'); return String(qp); }
+
+  // 1) Meta tag: <meta name="discord-application-id" content="123...">
+  const meta = document.querySelector('meta[name="discord-application-id"]');
+  if (meta?.content) { console.info('[APP_ID] from meta tag'); return String(meta.content); }
+
+  // 2) Backend endpoint (non-secret)
   try {
     const { res } = await apiGetFirst(APP_ID_URLS, 'GET app id');
     if (res.ok) {
       const j = await res.json();
-      if (j?.application_id) return String(j.application_id);
+      if (j?.application_id) { console.info('[APP_ID] from backend'); return String(j.application_id); }
     }
   } catch {}
-  // 2) Try global variable if site owner sets it on the page
-  if (window.DISCORD_APPLICATION_ID) return String(window.DISCORD_APPLICATION_ID);
+
+  // 3) Global: window.DISCORD_APPLICATION_ID = '123...'
+  if (window.DISCORD_APPLICATION_ID) { console.info('[APP_ID] from window global'); return String(window.DISCORD_APPLICATION_ID); }
+
+  console.warn('[APP_ID] not found');
   return null;
 }
 

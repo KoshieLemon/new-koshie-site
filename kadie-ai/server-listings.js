@@ -42,7 +42,7 @@ function el(tag, cls, html) {
   return x;
 }
 
-function renderCard(g, appId, isBotIn, manageable) {
+function renderCard(g, appId, isBotIn, manageable, counts) {
   const card = el('div', 'guild-card' + (manageable ? ' manageable' : ''), '');
   const head = el('div', 'guild-head', '');
   const img = el('div', 'guild-icon', '');
@@ -65,15 +65,28 @@ function renderCard(g, appId, isBotIn, manageable) {
 
   const meta = el('div', 'guild-meta', '');
   meta.appendChild(el('div', '', `ID: <span class="small">${g.id}</span>`));
-  // counts filled lazily
   const countsEl = el('div', 'small', '');
+  if (counts) {
+    const parts = [];
+    if (typeof counts.online === 'number') parts.push(`${counts.online} online`);
+    if (typeof counts.total === 'number') parts.push(`${counts.total} members`);
+    if (parts.length) countsEl.textContent = parts.join(' • ');
+  }
   meta.appendChild(countsEl);
   card.appendChild(meta);
 
   const actions = el('div', 'actions', '');
   if (isBotIn) {
-    const cfg = el('a', 'btn secondary', 'Configure');
-    cfg.href = `/kadie-ai/bot-options.html?guild_id=${encodeURIComponent(g.id)}&guild_name=${encodeURIComponent(g.name || '')}`;
+    const cfg = el('a', 'btn secondary', 'Manage bot');
+    // pass icon/name/counts along for header rendering
+    const q = new URLSearchParams({
+      guild_id: g.id,
+      guild_name: g.name || '',
+      guild_icon: g.icon || '',
+      total: counts?.total ?? '',
+      online: counts?.online ?? ''
+    }).toString();
+    cfg.href = `/kadie-ai/bot-options.html?${q}`;
     actions.appendChild(cfg);
   } else {
     const add = el('a', 'btn', 'Add bot');
@@ -92,16 +105,6 @@ function renderCard(g, appId, isBotIn, manageable) {
   }
   card.appendChild(actions);
 
-  // Lazy counts fetch (optional backend)
-  (async () => {
-    const c = await fetchGuildCounts(g.id);
-    if (!c) return;
-    const parts = [];
-    if (typeof c.online === 'number') parts.push(`${c.online} online`);
-    if (typeof c.total === 'number') parts.push(`${c.total} members`);
-    if (parts.length) countsEl.textContent = parts.join(' • ');
-  })();
-
   return card;
 }
 
@@ -115,24 +118,25 @@ function renderCard(g, appId, isBotIn, manageable) {
     }
     if (!meRes.ok) { setStatus(`Unexpected /me: ${meRes.status}`, true); return; }
 
-    // 2) user guilds
+    // 2) guilds
     const { res: gRes, url: usedUrl } = await apiGetFirst(GUILDS_URLS, 'GET guilds');
     if (!gRes.ok) { setStatus(`Guilds error: ${gRes.status} ${gRes.statusText}`, true); return; }
     const guilds = await gRes.json();
     if (!Array.isArray(guilds)) { setStatus('Guilds payload invalid.', true); return; }
-
-    // 3) app id + bot membership (both optional)
-    const [appId, botSet] = await Promise.all([fetchAppId(), fetchBotGuildSet()]);
-
     if (IS_LOCAL) setStatus(`Loaded ${guilds.length} server(s) from ${usedUrl}`);
 
-    // 4) render
+    // 3) helpers
+    const [appId, botSet] = await Promise.all([fetchAppId(), fetchBotGuildSet()]);
+
+    // 4) render with lazy count fetches
     const frag = document.createDocumentFragment();
-    guilds.forEach(g => {
+    for (const g of guilds) {
       const manageable = hasManagePerms(g);
       const isBotIn = botSet ? botSet.has(String(g.id)) : false;
-      frag.appendChild(renderCard(g, appId, isBotIn, manageable));
-    });
+      // counts fetched per guild; if endpoint missing they’ll remain blank
+      const counts = await fetchGuildCounts(g.id);
+      frag.appendChild(renderCard(g, appId, isBotIn, manageable, counts || null));
+    }
     gridEl.replaceChildren(frag);
   } catch (err) {
     const attemptsHtml = Array.isArray(err?.attempts)
