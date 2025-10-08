@@ -78,7 +78,11 @@ export async function fetchBotGuildSet() {
   } catch { return null; }
 }
 
+// Disable counts after first failure to avoid repeated 404s.
+let COUNTS_DISABLED = false;
+
 export async function fetchGuildCounts(id) {
+  if (COUNTS_DISABLED) return null;
   try {
     const { res } = await apiGetFirst(GUILD_COUNTS_URLS(id), `GET counts ${id}`);
     if (!res.ok) return null;
@@ -86,7 +90,10 @@ export async function fetchGuildCounts(id) {
     const total = j.approximate_member_count ?? j.member_count ?? null;
     const online = j.approximate_presence_count ?? j.online ?? null;
     return { total, online };
-  } catch { return null; }
+  } catch {
+    COUNTS_DISABLED = true; // stop further attempts this session
+    return null;
+  }
 }
 
 // Application ID resolution (client_id)

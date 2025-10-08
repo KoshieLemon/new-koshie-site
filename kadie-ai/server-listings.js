@@ -25,7 +25,7 @@ function setStatus(msg, isError = false) {
 }
 
 function hasManagePerms(g) {
-  const ADMIN = 1 << 3;      // 8
+  const ADMIN = 1 << 3;        // 8
   const MANAGE_GUILD = 1 << 5; // 32
   const perms = Number(g.permissions || 0);
   return Boolean(g.owner || (perms & ADMIN) || (perms & MANAGE_GUILD));
@@ -76,9 +76,10 @@ function renderCard(g, appId, isBotIn, manageable, counts) {
   card.appendChild(meta);
 
   const actions = el('div', 'actions', '');
-  if (isBotIn) {
-    const cfg = el('a', 'btn secondary', 'Manage bot');
-    // pass icon/name/counts along for header rendering
+  const showManage = Boolean(isBotIn || manageable);
+
+  if (showManage) {
+    const cfg = el('a', 'btn secondary', 'Manage server');
     const q = new URLSearchParams({
       guild_id: g.id,
       guild_name: g.name || '',
@@ -90,7 +91,7 @@ function renderCard(g, appId, isBotIn, manageable, counts) {
     actions.appendChild(cfg);
   } else {
     const add = el('a', 'btn', 'Add bot');
-    if (appId && manageable) {
+    if (appId) {
       add.href = buildInviteUrl(appId, g.id, 0);
       add.target = '_blank';
       actions.appendChild(add);
@@ -98,7 +99,7 @@ function renderCard(g, appId, isBotIn, manageable, counts) {
       add.href = '#';
       add.setAttribute('aria-disabled', 'true');
       add.classList.add('disabled');
-      add.textContent = manageable ? 'Add bot (app id missing)' : 'Insufficient perms';
+      add.textContent = 'Add bot (app id missing)';
       add.className = 'btn secondary';
       actions.appendChild(add);
     }
@@ -133,8 +134,7 @@ function renderCard(g, appId, isBotIn, manageable, counts) {
     for (const g of guilds) {
       const manageable = hasManagePerms(g);
       const isBotIn = botSet ? botSet.has(String(g.id)) : false;
-      // counts fetched per guild; if endpoint missing they’ll remain blank
-      const counts = await fetchGuildCounts(g.id);
+      const counts = await fetchGuildCounts(g.id); // may be null
       frag.appendChild(renderCard(g, appId, isBotIn, manageable, counts || null));
     }
     gridEl.replaceChildren(frag);

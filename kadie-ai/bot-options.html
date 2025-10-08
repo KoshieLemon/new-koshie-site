@@ -6,6 +6,56 @@
   <title>Kadie AI • Bot Options</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/assets/main.css" />
+  <style>
+    /* Blueprint editor styles */
+    .toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .toolbar .group{display:flex;gap:8px;align-items:center}
+    .select, .input, .btn{border:1px solid #0003;background:#111; color:#eee; padding:6px 8px; border-radius:8px}
+    .btn{cursor:pointer}
+    .btn[disabled]{opacity:.5;cursor:not-allowed}
+    .editor-wrap{position:relative;height:68vh;min-height:420px;border:1px solid #0004;border-radius:12px;overflow:hidden;background:#0b0b0c}
+    .grid{position:absolute;inset:0;background:
+      linear-gradient(#1a1a1a 1px, transparent 1px),
+      linear-gradient(90deg,#1a1a1a 1px, transparent 1px);
+      background-size:24px 24px,24px 24px; background-position:0 0,0 0}
+    .grid::after{content:"";position:absolute;inset:0;background:
+      linear-gradient(#1117, #1110)}
+    .canvas{position:absolute;inset:0}
+    .nodes{position:absolute;inset:0}
+    .node{
+      position:absolute; min-width:180px; background:#17181b; color:#eaeaea;
+      border:1px solid #3a3d47; border-radius:10px; box-shadow:0 6px 18px #0006;
+      user-select:none
+    }
+    .node .header{padding:6px 8px; font-weight:600; background:#1e2026; border-bottom:1px solid #2b2f3a; display:flex; justify-content:space-between; align-items:center; border-top-left-radius:10px;border-top-right-radius:10px}
+    .pins{display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px}
+    .pin{display:flex; align-items:center; gap:6px; font-size:12px}
+    .pin.exec .jack{background:#6cf}
+    .pin.data .jack{background:#a6f08a}
+    .jack{
+      width:10px;height:10px;border-radius:50%;border:2px solid #0008; box-sizing:content-box;
+    }
+    .pin.left{justify-content:flex-start}
+    .pin.right{justify-content:flex-end; flex-direction:row-reverse}
+    .ghost{opacity:.7}
+    .selected{outline:2px solid #5ac8fa}
+    .disabled-overlay{position:absolute;inset:0;background:#000000aa; display:flex; align-items:center;justify-content:center;color:#aaa; font-weight:600; font-size:14px; z-index:50}
+    .context{position:absolute;background:#121317;border:1px solid #2e3342;border-radius:8px; box-shadow:0 10px 24px #000a; padding:6px; min-width:220px; z-index:60}
+    .context h4{margin:6px 8px; font-size:12px; color:#98a2b3}
+    .menu-item{padding:8px 10px; font-size:13px; color:#e3e7ee; cursor:grab}
+    .menu-item:hover{background:#1f2330}
+    .submenu{margin-left:6px; padding-left:6px; border-left:1px dashed #2b3040}
+    .statusbar{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:10px}
+    .dirty{display:none}
+    .dirty.show{display:flex; gap:8px; align-items:center}
+    .hint{font-size:12px; color:#96a0ad}
+    /* selection rectangle */
+    .rubberband{position:absolute;border:1px dashed #5ac8fa;background:#5ac8fa22;pointer-events:none;z-index:55}
+    /* wires */
+    svg.wires{position:absolute;inset:0;pointer-events:none}
+    path.wire{fill:none;stroke:#7dd3fc;stroke-width:3px;filter:drop-shadow(0 0 4px #7dd3fcaa)}
+    path.wire.data{stroke:#a7f3d0; filter:drop-shadow(0 0 4px #a7f3d0aa)}
+  </style>
 </head>
 <body>
   <header class="container">
@@ -23,9 +73,40 @@
       </div>
     </div>
 
-    <div id="content" class="card">
-      <!-- empty for now -->
-      <div class="small">More options coming soon.</div>
+    <div class="card">
+      <div class="toolbar">
+        <div class="group">
+          <label for="bpSelect" class="hint">Blueprint</label>
+          <select id="bpSelect" class="select" style="min-width:260px"></select>
+          <button id="bpCreate" class="btn">Create</button>
+          <button id="bpRename" class="btn">Rename</button>
+          <button id="bpDelete" class="btn" style="color:#fda4af;border-color:#7f1d1d">Delete</button>
+        </div>
+        <div class="group">
+          <button id="undoBtn" class="btn">Undo</button>
+          <button id="redoBtn" class="btn">Redo</button>
+        </div>
+      </div>
+
+      <div class="editor-wrap" id="editor">
+        <div class="grid"></div>
+
+        <svg class="wires" id="wires" viewBox="0 0 1000 1000" preserveAspectRatio="none"></svg>
+        <div class="nodes" id="nodes"></div>
+
+        <div class="disabled-overlay" id="disabledOverlay">Select or create a blueprint to edit</div>
+        <div class="rubberband" id="rubber" style="display:none"></div>
+        <div class="context" id="ctx" style="display:none"></div>
+      </div>
+
+      <div class="statusbar">
+        <div class="dirty" id="dirty">
+          <span class="hint">Unsaved changes</span>
+          <button class="btn" id="saveBtn">Save</button>
+          <button class="btn" id="revertBtn">Revert</button>
+        </div>
+        <div class="hint">Right-click for menu. Drag to select. Drag from pins to connect.</div>
+      </div>
     </div>
   </main>
 
