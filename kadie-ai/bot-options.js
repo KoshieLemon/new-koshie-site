@@ -21,20 +21,12 @@ if (gicon) {
 } else {
   iconEl.removeAttribute('src');
 }
-async function setMeta() {
-  let total = totalQ ? Number(totalQ) : null;
-  let online = onlineQ ? Number(onlineQ) : null;
-  if (total == null || isNaN(total) || online == null || isNaN(online)) {
-    const c = gid ? await fetchGuildCounts(gid) : null;
-    total = c?.total ?? total;
-    online = c?.online ?? online;
-  }
-  const parts = [`ID: ${gid || '(unknown)'}`];
-  if (typeof online === 'number') parts.push(`${online} online`);
-  if (typeof total === 'number') parts.push(`${total} members`);
-  metaEl.textContent = parts.join(' • ');
-}
-setMeta();
+const total = Number(qp('total')) || null;
+const online = Number(qp('online')) || null;
+const parts = [`ID: ${gid || '(unknown)'}`];
+if (typeof online === 'number' && !Number.isNaN(online)) parts.push(`${online} online`);
+if (typeof total === 'number' && !Number.isNaN(total)) parts.push(`${total} members`);
+metaEl.textContent = parts.join(' • ');
 
 // ===== CONFIG =====
 const BOT_BASE = new URLSearchParams(location.search).get('bot') || 'https://kadie-ai-production.up.railway.app'; // change if needed
