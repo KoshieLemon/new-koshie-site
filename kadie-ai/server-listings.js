@@ -1,4 +1,4 @@
-// /kadie-ai/server-listings.js
+// /kadie-ai/server-listings.js  v4
 import {
   IS_LOCAL,
   apiGet,
@@ -9,13 +9,15 @@ import {
   buildInviteUrl,
   fetchBotGuildSet,
   fetchGuildCounts,
-  printDiagnostics
+  printDiagnostics,
+  ME_URL_LABEL,
+  GUILDS_URLS_LABEL
 } from '/assets/api.js';
 
 const statusEl = document.getElementById('status');
 const gridEl = document.getElementById('grid');
 
-printDiagnostics('server-listings.html');
+printDiagnostics('server-listings.html v4');
 
 function setStatus(msg, isError = false) {
   if (!IS_LOCAL && !isError) { statusEl.classList.add('hidden'); return; }
@@ -45,13 +47,11 @@ function el(tag, cls, html) {
 function renderCard(g, appId, isBotIn, manageable, counts) {
   const card = el('div', 'guild-card' + (manageable ? ' manageable' : ''), '');
   const head = el('div', 'guild-head', '');
-  const img = el('div', 'guild-icon', '');
   const url = iconUrl(g);
   if (url) {
-    const i = new Image(); i.src = url; i.className = 'guild-icon'; img.replaceWith(i);
-    head.appendChild(i);
+    const i = new Image(); i.src = url; i.className = 'guild-icon'; head.appendChild(i);
   } else {
-    img.textContent = (g.name || '?').slice(0,1).toUpperCase();
+    const img = el('div', 'guild-icon', (g.name || '?').slice(0,1).toUpperCase());
     head.appendChild(img);
   }
   const titleBox = el('div', '', '');
@@ -70,22 +70,21 @@ function renderCard(g, appId, isBotIn, manageable, counts) {
     const parts = [];
     if (typeof counts.online === 'number') parts.push(`${counts.online} online`);
     if (typeof counts.total === 'number') parts.push(`${counts.total} members`);
-    if (parts.length) countsEl.textContent = parts.join(' • ');
+    countsEl.textContent = parts.join(' • ');
   }
   meta.appendChild(countsEl);
   card.appendChild(meta);
 
   const actions = el('div', 'actions', '');
-  const showManage = Boolean(isBotIn || manageable);
+  const showManage = Boolean(manageable || isBotIn);
+  console.info('[render]', g.id, { manageable, isBotIn, showManage });
 
   if (showManage) {
     const cfg = el('a', 'btn secondary', 'Manage server');
     const q = new URLSearchParams({
       guild_id: g.id,
       guild_name: g.name || '',
-      guild_icon: g.icon || '',
-      total: counts?.total ?? '',
-      online: counts?.online ?? ''
+      guild_icon: g.icon || ''
     }).toString();
     cfg.href = `/kadie-ai/bot-options.html?${q}`;
     actions.appendChild(cfg);
@@ -94,15 +93,13 @@ function renderCard(g, appId, isBotIn, manageable, counts) {
     if (appId) {
       add.href = buildInviteUrl(appId, g.id, 0);
       add.target = '_blank';
-      actions.appendChild(add);
     } else {
       add.href = '#';
       add.setAttribute('aria-disabled', 'true');
-      add.classList.add('disabled');
+      add.classList.add('disabled', 'secondary');
       add.textContent = 'Add bot (app id missing)';
-      add.className = 'btn secondary';
-      actions.appendChild(add);
     }
+    actions.appendChild(add);
   }
   card.appendChild(actions);
 
@@ -111,31 +108,24 @@ function renderCard(g, appId, isBotIn, manageable, counts) {
 
 (async () => {
   try {
-    // 1) session
-    const meRes = await apiGet(ME_URL, 'GET /me');
-    if (meRes.status === 401) {
-      setStatus(`Not logged in. <a href="/kadie-ai/kadie-ai.html">Sign in with Discord</a>`, true);
-      return;
-    }
+    const meRes = await apiGet(ME_URL, ME_URL_LABEL);
+    if (meRes.status === 401) { setStatus(`Not logged in. <a href="/kadie-ai/kadie-ai.html">Sign in with Discord</a>`, true); return; }
     if (!meRes.ok) { setStatus(`Unexpected /me: ${meRes.status}`, true); return; }
 
-    // 2) guilds
-    const { res: gRes, url: usedUrl } = await apiGetFirst(GUILDS_URLS, 'GET guilds');
+    const { res: gRes, url: usedUrl } = await apiGetFirst(GUILDS_URLS, GUILDS_URLS_LABEL);
     if (!gRes.ok) { setStatus(`Guilds error: ${gRes.status} ${gRes.statusText}`, true); return; }
     const guilds = await gRes.json();
     if (!Array.isArray(guilds)) { setStatus('Guilds payload invalid.', true); return; }
     if (IS_LOCAL) setStatus(`Loaded ${guilds.length} server(s) from ${usedUrl}`);
 
-    // 3) helpers
     const [appId, botSet] = await Promise.all([fetchAppId(), fetchBotGuildSet()]);
 
-    // 4) render with lazy count fetches
     const frag = document.createDocumentFragment();
     for (const g of guilds) {
       const manageable = hasManagePerms(g);
       const isBotIn = botSet ? botSet.has(String(g.id)) : false;
-      const counts = await fetchGuildCounts(g.id); // may be null
-      frag.appendChild(renderCard(g, appId, isBotIn, manageable, counts || null));
+      const counts = await fetchGuildCounts(g.id); // returns null (disabled)
+      frag.appendChild(renderCard(g, appId, isBotIn, manageable, counts));
     }
     gridEl.replaceChildren(frag);
   } catch (err) {
