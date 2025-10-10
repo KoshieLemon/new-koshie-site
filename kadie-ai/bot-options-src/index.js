@@ -1,22 +1,40 @@
-// index.js — boot the editor
-import { renderAll, fitSvg } from './render.js';
+// bot-options-src/index.js — bootstrap Kadie AI editor
+
+import { printDiagnostics } from '/assets/api.js';
+import { gid, gname, gicon, total, online } from './config.js';
+import { els, setGuildHeader } from './dom.js';
+import { fitSvg, renderAll } from './render.js';
 import { initInteractions } from './interactions.js';
-import { state } from './state.js';
-import { els } from './dom.js';
-import { loadNodesIndex } from './nodes-index.js';
-import { loadBlueprintsForGuild, saveCurrentBlueprint } from './blueprints.js'; // keep your existing exports
+import {
+  initBlueprints,
+  saveCurrentBlueprint,
+  revertCurrentBlueprint,
+} from './blueprints.js';
+import { undo, redo } from './state.js';
 
-async function boot(){
-  await loadNodesIndex();     // populates state.nodesIndex
-  await loadBlueprintsForGuild(); // populates state.nodes/edges for selected BP if any
-  initInteractions();
+printDiagnostics('bot-options.html');
+
+setGuildHeader({ gid, gname, gicon, total, online });
+
+fitSvg();
+window.addEventListener('resize', fitSvg);
+
+initInteractions();
+
+(async () => {
+  await initBlueprints(gid);
   renderAll();
-  window.addEventListener('resize', fitSvg);
+})();
 
-  // bind save button if present
-  document.getElementById('save')?.addEventListener('click', async ()=>{
-    await saveCurrentBlueprint();
-  });
-}
+// toolbar
+document.getElementById('undoBtn')?.addEventListener('click', () => undo(renderAll));
+document.getElementById('redoBtn')?.addEventListener('click', () => redo(renderAll));
+document.getElementById('saveBtn')?.addEventListener('click', async () => {
+  await saveCurrentBlueprint();
+});
+document.getElementById('revertBtn')?.addEventListener('click', async () => {
+  await revertCurrentBlueprint();
+});
 
-boot();
+// expose for quick console debugging
+window.__kadie = { els };
