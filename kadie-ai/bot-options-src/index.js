@@ -1,15 +1,22 @@
-import { printDiagnostics } from '/assets/api.js';
-import { gid, gname, gicon, total, online } from './config.js';
-import { els, setGuildHeader } from './dom.js';
-import { fitSvg, renderAll } from './render.js';
+// index.js — boot the editor
+import { renderAll, fitSvg } from './render.js';
 import { initInteractions } from './interactions.js';
-import { initBlueprints } from './blueprints.js';
+import { state } from './state.js';
+import { els } from './dom.js';
+import { loadNodesIndex } from './nodes-index.js';
+import { loadBlueprintsForGuild, saveCurrentBlueprint } from './blueprints.js'; // keep your existing exports
 
-printDiagnostics('bot-options.html');
-setGuildHeader({ gid, gname, gicon, total, online });
-fitSvg();
-window.addEventListener('resize', fitSvg);
+async function boot(){
+  await loadNodesIndex();     // populates state.nodesIndex
+  await loadBlueprintsForGuild(); // populates state.nodes/edges for selected BP if any
+  initInteractions();
+  renderAll();
+  window.addEventListener('resize', fitSvg);
 
-// Wire editor interactions and blueprint UI.
-initInteractions();
-initBlueprints(gid).then(renderAll);
+  // bind save button if present
+  document.getElementById('save')?.addEventListener('click', async ()=>{
+    await saveCurrentBlueprint();
+  });
+}
+
+boot();

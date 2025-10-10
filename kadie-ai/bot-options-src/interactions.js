@@ -1,16 +1,14 @@
-// interactions.js — type-safe wiring + literal hide/show
+// interactions.js — drag, selection, type-safe wiring
 import { els } from './dom.js';
 import { state, uid, pushHistory, markDirty, undo, redo } from './state.js';
-import { renderAll, drawWires, bezierPath, getPinCenter } from './render.js';
+import { renderAll, drawWires, bezierPath, getPinCenter, registerNodeInteractions } from './render.js';
 
 let drag = null;
 let dragWire = null;
 let selectionBox = null;
-let nodeInteractionHook = null;
-export function registerNodeInteractions(fn){ nodeInteractionHook = fn; }
 
 const COMPAT = new Set([
-  'Snowflake->TextBasedChannel' // allow channel by id
+  'Snowflake->TextBasedChannel' // extend as needed
 ]);
 
 function pinInfo(pinEl){
@@ -33,7 +31,7 @@ function enableNodeInteractions(el, model){
     ev.preventDefault();
   });
 
-  // context menu duplicate/delete (unchanged)
+  // context menu
   el.addEventListener('contextmenu', (ev)=>{
     ev.preventDefault();
     const x = ev.clientX, y = ev.clientY;
@@ -54,7 +52,7 @@ function enableNodeInteractions(el, model){
     window.addEventListener('click',()=>{ els.ctxMenu.style.display='none'; }, { once:true });
   });
 
-  // start wire
+  // begin wire from any jack
   el.querySelectorAll('.pin .jack').forEach(j=>{
     j.addEventListener('mousedown', (ev)=>{
       ev.stopPropagation();
@@ -139,16 +137,7 @@ export function initInteractions(){
     }
   });
 
-  els.editor.addEventListener('contextmenu', async (ev)=>{
-    ev.preventDefault();
-    const er = els.editor.getBoundingClientRect();
-    const menu = document.getElementById('ctx');
-    menu.style.left = ev.clientX + 'px';
-    menu.style.top  = ev.clientY + 'px';
-    // menu populated elsewhere
-  });
-
-  // drop-node external (unchanged)
+  // create node via drag-n-drop from palette (if present)
   els.editor.addEventListener('dragover', (e)=>{ e.preventDefault(); });
   els.editor.addEventListener('drop', (e)=>{
     e.preventDefault();
@@ -167,19 +156,19 @@ export function initInteractions(){
     if (!toNodeEl) return;
 
     const to = pinInfo(pinEl);
-    if (to.side === 'right'){ dragWire=null; return; } // must connect into left pins
-    if (to.kind !== dragWire.kind){ dragWire=null; return; } // exec↔exec only, data↔data only
+    if (to.side === 'right'){ dragWire=null; return; } // only into left pins
+    if (to.kind !== dragWire.kind){ dragWire=null; return; } // exec↔exec or data↔data only
 
     // data type compatibility
     if (to.kind === 'data'){
       const match = (dragWire.type === to.type) || COMPAT.has(`${dragWire.type}->${to.type}`);
       if (!match){ dragWire=null; return; }
-      // one incoming per data pin: remove existing
+      // one incoming per data pin
       for (const [id,e] of [...state.edges]){
         if (e.to?.nid === toNodeEl.dataset.nid && e.to?.pin === to.pin) state.edges.delete(id);
       }
     } else {
-      // exec: also one incoming per 'in'
+      // exec: one incoming per exec pin as well
       for (const [id,e] of [...state.edges]){
         if (e.to?.nid === toNodeEl.dataset.nid && e.to?.pin === to.pin) state.edges.delete(id);
       }
@@ -210,6 +199,7 @@ export function initInteractions(){
     if ((e.ctrlKey||e.metaKey) && y){ e.preventDefault(); redo(renderAll); }
     if (e.key==='Delete'){
       for (const id of [...state.sel]) state.nodes.delete(id);
+      for (const [eid,e] of [...state.edges]) if (!state.nodes.has(e.from.nid) || !state.nodes.has(e.to.nid)) state.edges.delete(eid);
       renderAll(); pushHistory(); markDirty(els.dirty);
     }
   });
