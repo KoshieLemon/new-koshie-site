@@ -1,20 +1,11 @@
+<!-- /index.html -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Koshie Studios</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Force HTTPS for subresources -->
-  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests; block-all-mixed-content">
-  <link rel="stylesheet" href="/main.css" />
-  <script>
-    (function () {
-      const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-      if (location.protocol === 'http:' && !isLocal) {
-        location.replace('https://' + location.host + location.pathname + location.search + location.hash);
-      }
-    })();
-  </script>
+  <link rel="stylesheet" href="/assets/main.css" />
 </head>
 <body>
   <header class="container">

@@ -5,16 +5,7 @@
   <title>Kadie AI — Server Listings</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="discord-application-id" content="">
-  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests; block-all-mixed-content">
-  <link rel="stylesheet" href="/main.css">
-  <script>
-    (function () {
-      const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-      if (location.protocol === 'http:' && !isLocal) {
-        location.replace('https://' + location.host + location.pathname + location.search + location.hash);
-      }
-    })();
-  </script>
+  <link rel="stylesheet" href="/assets/main.css">
 </head>
 <body>
   <main class="wrap">
@@ -26,6 +17,7 @@
     </section>
   </main>
 
-  <script type="module" src="/kadie-ai/server-listings.js?v=5"></script>
+  <!-- Cache-bust to force the new logic -->
+  <script type="module" src="/kadie-ai/server-listings.js?v=4"></script>
 </body>
 </html>
