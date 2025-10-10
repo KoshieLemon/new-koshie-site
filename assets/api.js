@@ -1,4 +1,4 @@
-// /assets/api.js
+// /assets/api.js1
 export const NODE_API_BASE = 'https://kadie-ai-node.up.railway.app';
 export const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 export const SITE_ORIGIN = IS_LOCAL ? 'http://localhost:8080' : location.origin;
