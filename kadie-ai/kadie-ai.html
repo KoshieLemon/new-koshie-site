@@ -6,6 +6,21 @@
   <title>Kadie AI • Sign in</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/assets/main.css" />
+  <script>
+    (function () {
+      const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      if (location.protocol === 'http:' && !isLocal) {
+        location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+        return;
+      }
+      if (location.protocol === 'https:') {
+        const m = document.createElement('meta');
+        m.httpEquiv = 'Content-Security-Policy';
+        m.content = 'upgrade-insecure-requests; block-all-mixed-content';
+        document.head.appendChild(m);
+      }
+    })();
+  </script>
 </head>
 <body>
   <header class="container">
@@ -22,8 +37,6 @@
     printDiagnostics('kadie-ai.html');
 
     document.getElementById('signin').addEventListener('click', () => {
-      // Entry point: start Discord OAuth at the Node service.
-      // The Node service will handle Discord redirect and final callback.
       console.info('[OAUTH] Redirecting to', OAUTH_URL);
       location.href = OAUTH_URL;
     });

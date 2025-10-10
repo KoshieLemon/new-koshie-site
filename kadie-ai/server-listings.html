@@ -6,6 +6,21 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="discord-application-id" content="">
   <link rel="stylesheet" href="/assets/kadie-ai.css">
+  <script>
+    (function () {
+      const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      if (location.protocol === 'http:' && !isLocal) {
+        location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+        return;
+      }
+      if (location.protocol === 'https:') {
+        const m = document.createElement('meta');
+        m.httpEquiv = 'Content-Security-Policy';
+        m.content = 'upgrade-insecure-requests; block-all-mixed-content';
+        document.head.appendChild(m);
+      }
+    })();
+  </script>
 </head>
 <body>
   <main class="wrap">
@@ -18,6 +33,6 @@
   </main>
 
   <!-- Cache-bust to force the new logic -->
-  <script type="module" src="/kadie-ai/server-listings.js?v=4"></script>
+  <script type="module" src="/kadie-ai/server-listings.js?v=5"></script>
 </body>
 </html>
