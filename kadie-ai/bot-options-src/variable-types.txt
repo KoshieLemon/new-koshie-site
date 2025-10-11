@@ -1,0 +1,65 @@
+Primitives
+boolean
+string
+int
+float
+number (accepts int or float)
+bigint (bitfields)
+json
+buffer
+stream
+date
+timestamp_ms
+duration_ms
+url
+color (#rrggbb or int)
+
+IDs (all aliases of snowflake = string)
+snowflake
+guildId ≡ channelId ≡ userId ≡ memberId ≡ roleId ≡ messageId ≡ emojiId ≡ webhookId ≡ applicationId ≡ interactionId
+
+Discord objects
+Client
+Guild
+User
+GuildMember
+Role
+Message
+Attachment
+Webhook
+Invite
+
+Channels
+TextBasedChannel (supertype)
+Subtypes: TextChannel, ThreadChannel, DMChannel, NewsChannel, ForumChannel
+Equivalence: any subtype ⇢ TextBasedChannel
+
+VoiceBasedChannel (supertype)
+Subtypes: VoiceChannel, StageChannel
+Equivalence: any subtype ⇢ VoiceBasedChannel
+
+CategoryChannel
+
+Interactions
+Interaction (supertype)
+Subtypes: ChatInputCommandInteraction, MessageComponentInteraction, ModalSubmitInteraction, AutocompleteInteraction
+Equivalence: any subtype ⇢ Interaction
+
+Message payload types
+MessageContent (= string)
+Embed (builder or API object)
+ComponentRow
+AllowedMentions
+MessageReference
+AttachmentInput (builder | buffer | stream | url | file path)
+TTS (= boolean)
+
+Permissions / Intents / Flags
+Permissions (bitfield bigint | string[])
+IntentFlags (number | string[])
+
+Wiring rules (keep simple)
+IDs: treat all *Id as snowflake. snowflake ↔ string allowed.
+Channels: when a node expects TextBasedChannel, any text channel subtype is valid; for IDs use channelId (snowflake).
+Objects → scalars: disallow direct object → string. Use extractor nodes (Message → content, Channel → channelId).
+Numbers: int/float auto-fit into number. Avoid number → bigint.
