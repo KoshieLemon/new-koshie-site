@@ -1,87 +1,100 @@
-// Renders nodes with exec pins plus typed variable inputs.
-// Shows inline input for primitive pins when not connected.
-import { getNodeDef } from "./nodes-index.js";
-import { state, setNodeParam, isPinConnected } from "./state.js";
+// ESM. Renders pins and inline editors for unconnected VARIABLE inputs.
+import { getGraphState, setNodeInputDefault, isInputConnected } from "./state.js";
 
-const PRIMITIVES = new Set(["string", "number", "boolean"]);
-
-function el(tag, cls, text) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text != null) e.textContent = text;
-  return e;
-}
-
-function createPin(label, colorClass) {
-  const pin = el("div", `pin ${colorClass}`);
-  pin.dataset.label = label;
-  pin.title = label;
-  const name = el("span", "pin-label", label);
-  const wrap = el("div", "pin-wrap");
-  wrap.append(pin, name);
-  return { wrap, pin, name };
-}
-
-function createInlineInput(nodeId, pinName, type, value) {
-  const wrap = el("div", "inline-input");
-  let input;
-  if (type === "boolean") {
-    input = el("input"); input.type = "checkbox"; input.checked = !!value;
-    input.addEventListener("change", () => setNodeParam(nodeId, pinName, input.checked));
-  } else if (type === "number") {
-    input = el("input"); input.type = "number"; input.value = value ?? 0;
-    input.addEventListener("input", () => setNodeParam(nodeId, pinName, Number(input.value)));
-  } else {
-    input = el("input"); input.type = "text"; input.value = value ?? "";
-    input.addEventListener("input", () => setNodeParam(nodeId, pinName, input.value));
+function editorForType(t) {
+  switch ((t || "string").toLowerCase()) {
+    case "number":
+    case "float":
+    case "int": return "number";
+    case "boolean": return "checkbox";
+    default: return "text";
   }
-  wrap.appendChild(input);
-  return wrap;
 }
 
-export function renderNode(node) {
-  // node = { id, typeId, params, ... }
-  const def = getNodeDef(node.typeId);
-  const box = el("div", "node");
-  const header = el("div", "node-header", def?.name || node.typeId);
-  const body = el("div", "node-body");
+export function renderNode(node, catalog) {
+  const meta = catalog[node.type];
+  const el = document.createElement("div");
+  el.className = "node";
+
+  const title = document.createElement("div");
+  title.className = "node-title";
+  title.textContent = meta.label || node.type;
+  el.appendChild(title);
 
   // Exec pins
-  const left = el("div", "pins-left");
-  const right = el("div", "pins-right");
-  (def?.exec?.inputs || ["in"]).forEach(n => {
-    const { wrap } = createPin(n, "exec-in");
-    left.appendChild(wrap);
-  });
-  (def?.exec?.outputs || ["out"]).forEach(n => {
-    const { wrap } = createPin(n, "exec-out");
-    right.appendChild(wrap);
-  });
+  const execIn = document.createElement("div");
+  execIn.className = "pin pin-exec in";
+  execIn.textContent = "in";
+  el.appendChild(execIn);
 
-  // Data pins
-  const inputsDef = def?.pins?.inputs || def?.inputs || {};
-  const outputsDef = def?.pins?.outputs || def?.outputs || {};
+  const execOut = document.createElement("div");
+  execOut.className = "pin pin-exec out";
+  execOut.textContent = "out";
+  el.appendChild(execOut);
 
-  const inputsWrap = el("div", "pins-inputs");
-  for (const [name, meta] of Object.entries(inputsDef)) {
-    const { wrap } = createPin(name, "data-in");
-    // Inline field for primitives only when not connected
-    const t = (meta && meta.type) || "string";
-    const connected = isPinConnected(node.id, name, "in");
-    if (PRIMITIVES.has(t) && !connected) {
-      const current = (node.params && node.params[name]) ?? meta.default ?? (t === "number" ? 0 : (t === "boolean" ? false : ""));
-      wrap.appendChild(createInlineInput(node.id, name, t, current));
+  // Inputs with inline editors when not connected
+  const inputsWrap = document.createElement("div");
+  inputsWrap.className = "pins inputs";
+  for (const [key, spec] of Object.entries(meta.inputs || {})) {
+    const row = document.createElement("div");
+    row.className = "pin-row";
+
+    const sock = document.createElement("div");
+    sock.className = "pin var in";
+    row.appendChild(sock);
+
+    const label = document.createElement("label");
+    label.textContent = spec.label || key;
+    row.appendChild(label);
+
+    const showEditor = !isInputConnected(node.id, key);
+    if (showEditor) {
+      const typeAttr = editorForType(spec.type);
+      let input;
+      if (typeAttr === "checkbox") {
+        input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = !!(node.defaults?.[key]);
+      } else {
+        input = document.createElement("input");
+        input.type = typeAttr;
+        input.value = (node.defaults?.[key] ?? "");
+      }
+      input.className = "pin-editor";
+      input.addEventListener("input", () => {
+        const val = typeAttr === "checkbox" ? input.checked : input.value;
+        setNodeInputDefault(node.id, key, val);
+      });
+      row.appendChild(input);
+    } else {
+      const hint = document.createElement("span");
+      hint.className = "pin-hint";
+      hint.textContent = "connected";
+      row.appendChild(hint);
     }
-    inputsWrap.appendChild(wrap);
-  }
 
-  const outputsWrap = el("div", "pins-outputs");
-  for (const [name] of Object.entries(outputsDef)) {
-    const { wrap } = createPin(name, "data-out");
-    outputsWrap.appendChild(wrap);
+    inputsWrap.appendChild(row);
   }
+  el.appendChild(inputsWrap);
 
-  body.append(left, inputsWrap, outputsWrap, right);
-  box.append(header, body);
-  return box;
+  // Outputs
+  const outputsWrap = document.createElement("div");
+  outputsWrap.className = "pins outputs";
+  for (const [key, spec] of Object.entries(meta.outputs || {})) {
+    const row = document.createElement("div");
+    row.className = "pin-row";
+
+    const sock = document.createElement("div");
+    sock.className = "pin var out";
+    row.appendChild(sock);
+
+    const label = document.createElement("label");
+    label.textContent = spec.label || key;
+    row.appendChild(label);
+
+    outputsWrap.appendChild(row);
+  }
+  el.appendChild(outputsWrap);
+
+  return el;
 }
