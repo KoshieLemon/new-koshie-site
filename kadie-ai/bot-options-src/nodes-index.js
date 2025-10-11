@@ -1,21 +1,24 @@
-import { BOT_BASE } from './config.js';
+// Fetch node catalog from the Kadie-AI node API and expose helpers.
+import { api } from "../../assets/api.js"; // expects api.get(url)
 
-export async function fetchNodesIndex(){
-  const r = await fetch(`${BOT_BASE}/nodes-index`).catch(()=>null);
-  if (!r || !r.ok) return { nodes: [] };
-  return r.json();
+let _catalog = null;
+
+export async function loadNodeCatalog() {
+  if (_catalog) return _catalog;
+  // API returns { nodes: [...] }
+  const res = await api.get("/nodes");
+  const body = await res.json();
+  _catalog = Array.isArray(body?.nodes) ? body.nodes : [];
+  // Index by id for fast lookup
+  _catalog._byId = Object.fromEntries(_catalog.map(n => [n.id, n]));
+  return _catalog;
 }
 
-export function groupNodesByCategory(nodes){
-  const tree = {};
-  for (const n of nodes || []){
-    const parts = String(n.id).split('.');
-    let cur = tree;
-    for (let i=0;i<parts.length;i++){
-      const p = parts[i];
-      if (!cur[p]) cur[p] = (i === parts.length-1 ? { __leaf: n } : {});
-      cur = cur[p];
-    }
-  }
-  return tree;
+export function getNodeDef(id) {
+  if (!_catalog) return null;
+  return _catalog._byId[id] || null;
+}
+
+export function listNodes() {
+  return _catalog || [];
 }

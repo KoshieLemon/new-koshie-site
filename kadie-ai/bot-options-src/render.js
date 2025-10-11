@@ -1,69 +1,87 @@
-import { state } from './state.js';
-import { els } from './dom.js';
+// Renders nodes with exec pins plus typed variable inputs.
+// Shows inline input for primitive pins when not connected.
+import { getNodeDef } from "./nodes-index.js";
+import { state, setNodeParam, isPinConnected } from "./state.js";
 
-let nodeInteractionHook = null;
-export function registerNodeInteractions(fn){ nodeInteractionHook = fn; }
+const PRIMITIVES = new Set(["string", "number", "boolean"]);
 
-export function fitSvg(){
-  const r = els.editor.getBoundingClientRect();
-  els.wiresSvg.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
 }
 
-export function bezierPath(x1,y1,x2,y2){
-  const dx = Math.max(60, Math.abs(x2-x1)*0.5);
-  const c1x = x1 + dx, c1y = y1;
-  const c2x = x2 - dx, c2y = y2;
-  return `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
+function createPin(label, colorClass) {
+  const pin = el("div", `pin ${colorClass}`);
+  pin.dataset.label = label;
+  pin.title = label;
+  const name = el("span", "pin-label", label);
+  const wrap = el("div", "pin-wrap");
+  wrap.append(pin, name);
+  return { wrap, pin, name };
 }
 
-export function getPinCenter(nid, pinName, side){
-  const el = document.querySelector(`[data-nid="${nid}"] .pin.${side}[data-pin="${pinName}"] .jack`);
-  if (!el) return null;
-  const er = els.editor.getBoundingClientRect();
-  const r = el.getBoundingClientRect();
-  return { x: r.left - er.left + r.width/2, y: r.top - er.top + r.height/2 };
-}
-
-export function drawWires(){
-  els.wiresSvg.innerHTML = '';
-  for (const e of state.edges.values()){
-    const from = getPinCenter(e.from.nid, e.from.pin, 'right');
-    const to   = getPinCenter(e.to.nid,   e.to.pin,   'left');
-    if (!from || !to) continue;
-    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-    path.setAttribute('class', `wire ${e.kind==='data'?'data':''}`);
-    path.setAttribute('d', bezierPath(from.x, from.y, to.x, to.y));
-    els.wiresSvg.appendChild(path);
+function createInlineInput(nodeId, pinName, type, value) {
+  const wrap = el("div", "inline-input");
+  let input;
+  if (type === "boolean") {
+    input = el("input"); input.type = "checkbox"; input.checked = !!value;
+    input.addEventListener("change", () => setNodeParam(nodeId, pinName, input.checked));
+  } else if (type === "number") {
+    input = el("input"); input.type = "number"; input.value = value ?? 0;
+    input.addEventListener("input", () => setNodeParam(nodeId, pinName, Number(input.value)));
+  } else {
+    input = el("input"); input.type = "text"; input.value = value ?? "";
+    input.addEventListener("input", () => setNodeParam(nodeId, pinName, input.value));
   }
+  wrap.appendChild(input);
+  return wrap;
 }
 
-export function renderNode(n){
-  let el = document.querySelector(`.node[data-nid="${n.id}"]`);
-  if (!el){
-    el = document.createElement('div');
-    el.className = 'node';
-    el.dataset.nid = n.id;
-    el.innerHTML = `
-      <div class="header">
-        <span>${n.defId}</span>
-        <span style="opacity:.6;font-size:12px;user-select:none">#</span>
-      </div>
-      <div class="pins">
-        <div class="pin left exec" data-pin="in"><span class="jack"></span><span>in</span></div>
-        <div class="pin right exec" data-pin="out"><span class="jack"></span><span>out</span></div>
-        <div class="pin left data" data-pin="a"><span class="jack"></span><span>a</span></div>
-        <div class="pin right data" data-pin="b"><span class="jack"></span><span>b</span></div>
-      </div>
-    `;
-    els.nodesLayer.appendChild(el);
-    if (nodeInteractionHook) nodeInteractionHook(el, n);
+export function renderNode(node) {
+  // node = { id, typeId, params, ... }
+  const def = getNodeDef(node.typeId);
+  const box = el("div", "node");
+  const header = el("div", "node-header", def?.name || node.typeId);
+  const body = el("div", "node-body");
+
+  // Exec pins
+  const left = el("div", "pins-left");
+  const right = el("div", "pins-right");
+  (def?.exec?.inputs || ["in"]).forEach(n => {
+    const { wrap } = createPin(n, "exec-in");
+    left.appendChild(wrap);
+  });
+  (def?.exec?.outputs || ["out"]).forEach(n => {
+    const { wrap } = createPin(n, "exec-out");
+    right.appendChild(wrap);
+  });
+
+  // Data pins
+  const inputsDef = def?.pins?.inputs || def?.inputs || {};
+  const outputsDef = def?.pins?.outputs || def?.outputs || {};
+
+  const inputsWrap = el("div", "pins-inputs");
+  for (const [name, meta] of Object.entries(inputsDef)) {
+    const { wrap } = createPin(name, "data-in");
+    // Inline field for primitives only when not connected
+    const t = (meta && meta.type) || "string";
+    const connected = isPinConnected(node.id, name, "in");
+    if (PRIMITIVES.has(t) && !connected) {
+      const current = (node.params && node.params[name]) ?? meta.default ?? (t === "number" ? 0 : (t === "boolean" ? false : ""));
+      wrap.appendChild(createInlineInput(node.id, name, t, current));
+    }
+    inputsWrap.appendChild(wrap);
   }
-  el.style.transform = `translate(${n.x}px, ${n.y}px)`;
-  el.classList.toggle('selected', state.sel.has(n.id));
-}
 
-export function renderAll(){
-  els.nodesLayer.innerHTML = '';
-  for (const n of state.nodes.values()) renderNode(n);
-  drawWires();
+  const outputsWrap = el("div", "pins-outputs");
+  for (const [name] of Object.entries(outputsDef)) {
+    const { wrap } = createPin(name, "data-out");
+    outputsWrap.appendChild(wrap);
+  }
+
+  body.append(left, inputsWrap, outputsWrap, right);
+  box.append(header, body);
+  return box;
 }
