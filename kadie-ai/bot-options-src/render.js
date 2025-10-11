@@ -1,4 +1,4 @@
-// render.js — typed pins, inline literals, safe redraw
+// render.js — typed pins, inline literals, safe redraw + robust def fallback + debug
 import { state } from './state.js';
 import { els } from './dom.js';
 
@@ -7,8 +7,20 @@ export function registerNodeInteractions(fn){ nodeInteractionHook = fn; }
 
 /* ---------- utils ---------- */
 function defFor(defId){
-  return (state.nodesIndex?.nodes || []).find(d => d.id === defId) || null;
+  // Try state first, then global debug cache populated by nodes-index.js
+  const list = (state.nodesIndex?.nodes || []);
+  const found = list.find(d => d.id === defId);
+  if (found) return found;
+  const alt = (window.NODE_DEFS && window.NODE_DEFS[defId]) || null;
+  if (!alt) {
+    console.warn('[render] node def not found:', defId, {
+      have: list.map(d=>d.id),
+      haveGlobal: window.NODE_DEFS ? Object.keys(window.NODE_DEFS) : []
+    });
+  }
+  return alt;
 }
+
 function execPins(arr){ return (arr || []).filter(p => p.type === 'exec'); }
 function dataPins(arr){ return (arr || []).filter(p => p.type !== 'exec'); }
 function hasIncomingEdge(nid, pin){
@@ -115,6 +127,18 @@ export function renderNode(n){
   let el = document.querySelector(`.node[data-nid="${n.id}"]`);
   const def = defFor(n.defId);
 
+  // ---- DEBUG per-node shape the UI will use ----
+  if (!def) {
+    console.warn('[render] using defaults for node with missing def:', n.defId);
+  } else {
+    console.debug('[render] def for', n.defId, {
+      inputs: def.inputs?.map(p=>`${p.name}:${p.type}`) || [],
+      outputs: def.outputs?.map(p=>`${p.name}:${p.type}`) || [],
+      kind: def.kind
+    });
+  }
+  // ---------------------------------------------
+
   if (!el){
     el = document.createElement('div');
     el.className = 'node';
@@ -130,8 +154,9 @@ export function renderNode(n){
 
     const inputs = document.createElement('div');
     inputs.className = 'side inputs';
-    const inExec = execPins(def?.inputs) || [{name:'in', type:'exec'}];
-    const inData = dataPins(def?.inputs) || [];
+    // Fallback ONLY when the def is missing
+    const inExec = def ? execPins(def.inputs) : [{name:'in', type:'exec'}];
+    const inData = def ? dataPins(def.inputs) : [];
     for (const p of [...inExec, ...inData]){
       const pe = mkPin('left', p);
       inputs.appendChild(pe);
@@ -145,8 +170,8 @@ export function renderNode(n){
 
     const outputs = document.createElement('div');
     outputs.className = 'side outputs';
-    const outExec = execPins(def?.outputs) || [{name:'out', type:'exec'}];
-    const outData = dataPins(def?.outputs) || [];
+    const outExec = def ? execPins(def.outputs) : [{name:'out', type:'exec'}];
+    const outData = def ? dataPins(def.outputs) : [];
     for (const p of [...outExec, ...outData]){
       const pe = mkPin('right', p);
       outputs.appendChild(pe);
