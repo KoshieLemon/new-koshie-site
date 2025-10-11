@@ -1,10 +1,8 @@
-import { state, hasIncomingEdge, setParam, getParam } from './state.js';
+import { state } from './state.js';
 import { els } from './dom.js';
-import { registerNodeInteractions } from './events-ui.js';
-import { typeColor, isInlineEditableType } from './nodes-index.js';
 
 let nodeInteractionHook = null;
-export function registerNodeInteractions(fn){ nodeInteractionHook = fn; } // kept API compatibility
+export function registerNodeInteractions(fn){ nodeInteractionHook = fn; }
 
 export function fitSvg(){
   const r = els.editor.getBoundingClientRect();
@@ -39,55 +37,8 @@ export function drawWires(){
   }
 }
 
-function pinRow(side, pin, def, node){
-  const type = pin.type || 'exec';
-  const el = document.createElement('div');
-  el.className = `pin ${side} ${type === 'exec' ? 'exec' : 'data'}`;
-  el.dataset.pin = pin.name;
-
-  const jack = document.createElement('span');
-  jack.className = 'jack';
-  jack.style.backgroundColor = typeColor(type);
-
-  const label = document.createElement('span');
-  label.textContent = pin.name;
-  label.style.color = '#cbd5e1';
-
-  el.appendChild(jack);
-  el.appendChild(label);
-
-  if (side === 'left' && type !== 'exec' && isInlineEditableType(type, def, pin.name)) {
-    const wired = hasIncomingEdge(node.id, pin.name);
-    const wrap = document.createElement('span');
-    wrap.className = 'inline-input';
-    wrap.style.marginLeft = '8px';
-
-    let input;
-    if (type === 'boolean') {
-      input = document.createElement('input');
-      input.type = 'checkbox';
-      input.checked = Boolean(getParam(node.id, pin.name));
-      input.onchange = () => setParam(node.id, pin.name, input.checked);
-    } else {
-      input = document.createElement('input');
-      input.type = (type === 'number' || type === 'int' || type === 'float') ? 'number' : 'text';
-      input.value = getParam(node.id, pin.name) ?? '';
-      input.placeholder = def?.ui?.inputsMeta?.[pin.name]?.placeholder || '';
-      input.oninput = () => setParam(node.id, pin.name, input.value);
-    }
-
-    wrap.appendChild(input);
-    wrap.style.display = wired ? 'none' : 'inline-block';
-    el.appendChild(wrap);
-  }
-
-  return el;
-}
-
 export function renderNode(n){
   let el = document.querySelector(`.node[data-nid="${n.id}"]`);
-  const def = state.nodesIndex.nodes.find(x => x.id === n.defId) || { inputs:[], outputs:[] };
-
   if (!el){
     el = document.createElement('div');
     el.className = 'node';
@@ -97,35 +48,16 @@ export function renderNode(n){
         <span>${n.defId}</span>
         <span style="opacity:.6;font-size:12px;user-select:none">#</span>
       </div>
-      <div class="pins"></div>
+      <div class="pins">
+        <div class="pin left exec" data-pin="in"><span class="jack"></span><span>in</span></div>
+        <div class="pin right exec" data-pin="out"><span class="jack"></span><span>out</span></div>
+        <div class="pin left data" data-pin="a"><span class="jack"></span><span>a</span></div>
+        <div class="pin right data" data-pin="b"><span class="jack"></span><span>b</span></div>
+      </div>
     `;
     els.nodesLayer.appendChild(el);
     if (nodeInteractionHook) nodeInteractionHook(el, n);
   }
-
-  // rebuild pins
-  const pins = el.querySelector('.pins');
-  pins.innerHTML = '';
-
-  // inputs (left)
-  for (const p of def.inputs || []){
-    pins.appendChild(pinRow('left', p, def, n));
-  }
-  // default exec input if none defined
-  if (!(def.inputs||[]).some(p=>p.type==='exec')) {
-    pins.appendChild(pinRow('left', { name:'in', type:'exec' }, def, n));
-  }
-
-  // outputs (right)
-  for (const p of def.outputs || []){
-    const row = pinRow('right', p, def, n);
-    pins.appendChild(row);
-  }
-  // default exec out if none defined
-  if (!(def.outputs||[]).some(p=>p.type==='exec')) {
-    pins.appendChild(pinRow('right', { name:'out', type:'exec' }, def, n));
-  }
-
   el.style.transform = `translate(${n.x}px, ${n.y}px)`;
   el.classList.toggle('selected', state.sel.has(n.id));
 }

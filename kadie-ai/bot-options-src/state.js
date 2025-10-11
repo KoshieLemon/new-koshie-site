@@ -55,28 +55,3 @@ export function clearDirty(dirtyEl){
   state.dirty = false;
   dirtyEl?.classList.remove('show');
 }
-
-// ---- blueprint param helpers ----
-export function ensureParams(node){
-  if (!node.params) node.params = {};
-  return node.params;
-}
-
-export function setParam(nid, name, value){
-  const n = state.nodes.get(nid);
-  if (!n) return;
-  ensureParams(n)[name] = value;
-}
-
-export function getParam(nid, name){
-  const n = state.nodes.get(nid);
-  if (!n) return undefined;
-  return ensureParams(n)[name];
-}
-
-export function hasIncomingEdge(nid, pin){
-  for (const e of state.edges.values()){
-    if (e.to?.nid === nid && e.to?.pin === pin) return true;
-  }
-  return false;
-}

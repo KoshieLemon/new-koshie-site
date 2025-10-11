@@ -19,33 +19,3 @@ export function groupNodesByCategory(nodes){
   }
   return tree;
 }
-
-// ---- UI helpers for pins ----
-const TYPE_COLORS = {
-  exec: '#57b2ff',
-  string: '#7aa2f7',
-  number: '#e0a96d',
-  float: '#e0a96d',
-  int: '#d99177',
-  boolean: '#8bd17c',
-  object: '#c3a6ff',
-  TextBasedChannel: '#ffd166',
-  Message: '#69dbff',
-  User: '#f4978e',
-  Guild: '#80ed99',
-  Channel: '#ffd166',
-  Snowflake: '#bdb2ff',
-};
-
-export function typeColor(t){
-  return TYPE_COLORS[t] || '#adb5bd';
-}
-
-const INLINE_EDITABLE = new Set(['string','number','int','float','boolean']);
-
-export function isInlineEditableType(t, def, pinName){
-  // allow schema to force inline editable
-  const inlineFlag = def?.ui?.inputsMeta?.[pinName]?.inline;
-  if (typeof inlineFlag === 'boolean') return inlineFlag;
-  return INLINE_EDITABLE.has(t);
-}
