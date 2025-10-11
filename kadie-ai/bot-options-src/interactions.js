@@ -1,7 +1,16 @@
+// bot-options-src/interactions.js
 import { els } from './dom.js';
 import { state, uid, pushHistory, markDirty, undo, redo } from './state.js';
 import { renderAll, drawWires, bezierPath, getPinCenter, registerNodeInteractions } from './render.js';
 import { openContextMenu } from './menu.js';
+
+// ---- guards (in case state was not initialized for some reason)
+if (!state.nodes) state.nodes = new Map();
+if (!state.edges) state.edges = new Map();
+if (!state.sel)   state.sel   = new Set();
+
+const NODE_W = 200;
+const NODE_H = 92;
 
 let drag = null;
 let dragWire = null;
@@ -11,9 +20,16 @@ function enableNodeInteractions(el, model){
   // drag node
   el.addEventListener('mousedown', (ev)=>{
     if (ev.button!==0) return;
-    if (!ev.shiftKey && !state.sel.has(model.id)) { state.sel.clear(); state.sel.add(model.id); renderAll(); }
+    if (!ev.shiftKey && !state.sel.has(model.id)) {
+      state.sel.clear();
+      state.sel.add(model.id);
+      renderAll();
+    }
     const start = { x: ev.clientX, y: ev.clientY };
-    const startPos = [...state.sel].map(id => ({ id, x: state.nodes.get(id).x, y: state.nodes.get(id).y }));
+    const startPos = [...state.sel].map(id => {
+      const n = state.nodes.get(id);
+      return { id, x: n.x, y: n.y };
+    });
     drag = { start, startPos };
     ev.preventDefault();
   });
@@ -23,17 +39,28 @@ function enableNodeInteractions(el, model){
     ev.preventDefault();
     const x = ev.clientX, y = ev.clientY;
     els.ctxMenu.innerHTML = '';
-    els.ctxMenu.style.left = x+'px'; els.ctxMenu.style.top = y+'px'; els.ctxMenu.style.display='block';
-    const mk = (label,fn)=>{ const d=document.createElement('div'); d.className='menu-item'; d.textContent=label; d.addEventListener('click',()=>{ fn(); els.ctxMenu.style.display='none';}); return d; };
+    els.ctxMenu.style.left = x + 'px';
+    els.ctxMenu.style.top  = y + 'px';
+    els.ctxMenu.style.display = 'block';
+    const mk = (label,fn)=>{
+      const d=document.createElement('div');
+      d.className='menu-item';
+      d.textContent=label;
+      d.addEventListener('click',()=>{ fn(); els.ctxMenu.style.display='none';});
+      return d;
+    };
     els.ctxMenu.appendChild(mk('Duplicate', ()=>{
       const n = structuredClone(state.nodes.get(model.id));
       n.id = uid('N'); n.x += 24; n.y += 24;
-      state.nodes.set(n.id, n); state.sel.clear(); state.sel.add(n.id);
+      state.nodes.set(n.id, n);
+      state.sel.clear(); state.sel.add(n.id);
       renderAll(); pushHistory(); markDirty(els.dirty);
     }));
     els.ctxMenu.appendChild(mk('Delete', ()=>{
       state.nodes.delete(model.id);
-      for (const [id,e] of [...state.edges]) if (e.from.nid===model.id || e.to.nid===model.id) state.edges.delete(id);
+      for (const [id,e] of [...state.edges]) {
+        if (e.from.nid===model.id || e.to.nid===model.id) state.edges.delete(id);
+      }
       renderAll(); pushHistory(); markDirty(els.dirty);
     }));
     window.addEventListener('click',()=>{ els.ctxMenu.style.display='none'; }, { once:true });
@@ -98,7 +125,7 @@ export function initInteractions(){
       state.sel.clear();
       const rx = x - er.left, ry = y - er.top;
       for (const n of state.nodes.values()){
-        const nx = n.x, ny = n.y, nw = 200, nh = 92;
+        const nx = n.x, ny = n.y, nw = NODE_W, nh = NODE_H;
         const inter = !(nx>rx+w || nx+nw<rx || ny>ry+h || ny+nh<ry);
         if (inter) state.sel.add(n.id);
       }
@@ -125,23 +152,26 @@ export function initInteractions(){
     }
   });
 
+  // editor context menu: spawn node at cursor
   els.editor.addEventListener('contextmenu', async (ev)=>{
     ev.preventDefault();
     const er = els.editor.getBoundingClientRect();
     await openContextMenu(ev.clientX, ev.clientY, (defId)=>{
-      addNodeAt(defId, ev.clientX - er.left - 90, ev.clientY - er.top - 20);
+      addNodeAt(defId, ev.clientX - er.left - NODE_W/2, ev.clientY - er.top - NODE_H/2);
     });
   });
 
+  // drag from menu
   els.editor.addEventListener('dragover', (e)=>{ e.preventDefault(); });
   els.editor.addEventListener('drop', (e)=>{
     e.preventDefault();
     const defId = e.dataTransfer.getData('text/x-node-id');
     if (!defId) return;
     const er = els.editor.getBoundingClientRect();
-    addNodeAt(defId, e.clientX - er.left - 90, e.clientY - er.top - 20);
+    addNodeAt(defId, e.clientX - er.left - NODE_W/2, e.clientY - er.top - NODE_H/2);
   });
 
+  // finish wire connection
   els.editor.addEventListener('mouseup',(ev)=>{
     if (!dragWire) return;
     const pinEl = ev.target.closest?.('.pin.left, .pin.right');
@@ -161,6 +191,7 @@ export function initInteractions(){
     dragWire=null;
   });
 
+  // shortcuts
   window.addEventListener('keydown',(e)=>{
     const z = e.key.toLowerCase()==='z';
     const y = e.key.toLowerCase()==='y';
@@ -168,6 +199,11 @@ export function initInteractions(){
     if ((e.ctrlKey||e.metaKey) && y){ e.preventDefault(); redo(renderAll); }
     if (e.key==='Delete'){
       for (const id of [...state.sel]) state.nodes.delete(id);
+      // remove connected edges as well
+      for (const [eid,e] of [...state.edges]) {
+        if (state.sel.has(e.from.nid) || state.sel.has(e.to.nid)) state.edges.delete(eid);
+      }
+      state.sel.clear();
       renderAll(); pushHistory(); markDirty(els.dirty);
     }
   });

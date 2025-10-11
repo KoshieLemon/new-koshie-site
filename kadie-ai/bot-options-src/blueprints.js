@@ -1,84 +1,134 @@
-import { els } from './dom.js';
-import { state, snapshot, loadSnapshot, clearDirty, markDirty } from './state.js';
-import { renderAll } from './render.js';
-import { listBlueprintsSafe, saveBlueprintSafe, deleteBlueprintSafe } from './providers.js';
+// load/save list + active blueprint
+import { els } from "./dom.js";
+import { state, snapshot, loadSnapshot, clearDirty } from "./state.js";
+import { renderAll } from "./render.js";
+import {
+  listBlueprints,
+  openBlueprint,
+  saveBlueprint,
+  createBlueprint,
+  renameBlueprint,
+  deleteBlueprint,
+} from "./providers.js";
+import { ensureNodesIndex } from "./nodes-index.js";
 
-async function refreshBlueprints(gid){
-  const list = await listBlueprintsSafe(gid) || [];
-  els.bpSelect.innerHTML = '';
-  if (list.length===0){
-    const opt = document.createElement('option'); opt.value=''; opt.textContent='(no blueprints)';
-    els.bpSelect.appendChild(opt);
-    els.overlay.style.display='flex';
-  } else {
-    for (const b of list){
-      const opt = document.createElement('option'); opt.value=b.id; opt.textContent=b.name || b.id;
-      els.bpSelect.appendChild(opt);
-    }
-    els.overlay.style.display='none';
+// ---------- UI wiring ----------
+async function refreshList(gid, selectId = "") {
+  await ensureNodesIndex(); // make sure NODE_DEFS exists before rendering any node
+  const list = await listBlueprints(gid);
+  const sel = els.bpSelect;
+  sel.innerHTML = "";
+
+  for (const bp of list) {
+    const o = document.createElement("option");
+    o.value = bp.id;
+    o.textContent = bp.name || bp.id;
+    sel.appendChild(o);
   }
-  return list;
+
+  if (list.length === 0) {
+    els.overlay.style.display = "";
+    return;
+  }
+
+  const id = selectId || state.bpId || list[0].id;
+  sel.value = id;
+  await openById(gid, id);
 }
 
-async function openBlueprint(gid, id){
-  const list = await listBlueprintsSafe(gid) || [];
-  const bp = list.find(x=>x.id===id);
-  if (!bp){ els.overlay.style.display='flex'; return; }
-  state.currentBlueprint = { id: bp.id, name: bp.name };
-  loadSnapshot(bp.data || { nodes:[], edges:[] }, renderAll);
+async function openById(gid, id) {
+  const bp = await openBlueprint(gid, id);
+  if (!bp) {
+    els.overlay.style.display = "";
+    return;
+  }
+  state.bpId = bp.id;
+  state.bpName = bp.name || bp.id;
+
+  // bp.data may be {graph,script} or a plain graph; normalize to {nodes,edges}
+  const graph = bp.data?.graph ?? bp.data ?? { nodes: [], edges: [] };
+  loadSnapshot(graph, renderAll);
   clearDirty(els.dirty);
-  [...els.bpSelect.options].forEach(o=>{ if (o.value===id) o.selected=true; });
-  els.overlay.style.display='none';
+  els.overlay.style.display = "none";
 }
 
-export async function initBlueprints(gid){
-  els.bpSelect.addEventListener('change', async ()=>{
-    const id = els.bpSelect.value;
-    if (!id){ els.overlay.style.display='flex'; return; }
-    await openBlueprint(gid, id);
+export async function initBlueprints(gid) {
+  const sel = els.bpSelect;
+  const btnCreate = els.bpCreate;
+  const btnRename = els.bpRename;
+  const btnDelete = els.bpDelete;
+
+  // Wire Save button(s) and Ctrl+S
+  const btnSave =
+    document.querySelector('[data-action="save"]') ||
+    document.getElementById('bpSave') ||
+    document.getElementById('saveBtn');
+
+  if (btnSave) {
+    btnSave.addEventListener("click", async () => {
+      await saveCurrentBlueprint(gid);
+    });
+  }
+  window.addEventListener("keydown", async (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      await saveCurrentBlueprint(gid);
+    }
   });
-  els.bpCreate.addEventListener('click', async ()=>{
-    const name = prompt('Name this blueprint:');
+
+  sel?.addEventListener("change", async () => {
+    const id = sel.value;
+    if (!id) return (els.overlay.style.display = "");
+    await openById(gid, id);
+  });
+
+  btnCreate?.addEventListener("click", async () => {
+    const name = prompt("New blueprint name?")?.trim();
     if (!name) return;
-    const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || `bp-${Date.now()}`;
-    const bp = { id, name, data:{ nodes:[], edges:[] } };
-    await saveBlueprintSafe(gid, bp);
-    await refreshBlueprints(gid);
-    await openBlueprint(gid, id);
+    const bp = await createBlueprint(gid, { name });
+    await refreshList(gid, bp.id);
   });
-  els.bpRename.addEventListener('click', async ()=>{
-    if (!state.currentBlueprint) return;
-    const name = prompt('New name:', state.currentBlueprint.name);
+
+  btnRename?.addEventListener("click", async () => {
+    if (!state.bpId) return;
+    const name = prompt("Rename blueprint to?", state.bpName)?.trim();
     if (!name) return;
-    const bp = { id: state.currentBlueprint.id, name, data: JSON.parse(snapshot()) };
-    await saveBlueprintSafe(gid, bp);
-    await refreshBlueprints(gid);
-    await openBlueprint(gid, bp.id);
+    await renameBlueprint(gid, { id: state.bpId, name });
+    await refreshList(gid, state.bpId);
   });
-  els.bpDelete.addEventListener('click', async ()=>{
-    if (!state.currentBlueprint) return;
-    if (!confirm('Delete this blueprint?')) return;
-    await deleteBlueprintSafe(gid, state.currentBlueprint.id);
-    state.currentBlueprint = null;
-    await refreshBlueprints(gid);
-    els.overlay.style.display='flex';
-    els.nodesLayer.innerHTML=''; els.wiresSvg.innerHTML='';
-    state.nodes.clear(); state.edges.clear(); state.sel.clear();
-    clearDirty(els.dirty);
-  });
-  els.saveBtn.addEventListener('click', async ()=>{
-    if (!state.currentBlueprint) return;
-    const bp = { id: state.currentBlueprint.id, name: state.currentBlueprint.name, data: JSON.parse(snapshot()) };
-    const ok = await saveBlueprintSafe(gid, bp);
-    if (ok) clearDirty(els.dirty);
-  });
-  els.revertBtn.addEventListener('click', async ()=>{
-    if (!state.currentBlueprint) return;
-    await openBlueprint(gid, state.currentBlueprint.id);
+
+  btnDelete?.addEventListener("click", async () => {
+    if (!state.bpId) return;
+    if (!confirm("Delete this blueprint?")) return;
+    await deleteBlueprint(gid, { id: state.bpId });
+    state.bpId = null;
+    state.bpName = null;
+    state.nodes.clear();
+    state.edges.clear();
+    els.overlay.style.display = "";
+    await refreshList(gid, "");
+    renderAll();
     clearDirty(els.dirty);
   });
 
-  const list = await refreshBlueprints(gid);
-  if (list.length>0 && els.bpSelect.value) await openBlueprint(gid, els.bpSelect.value);
-  else els.overlay.style.display='flex';
+  // initial load
+  await refreshList(gid);
+}
+
+export async function saveCurrentBlueprint(gid) {
+  if (!state.bpId) return false;
+
+  // Snapshot is the visual graph; separate execution script stays in memory if present
+  const graph = JSON.parse(snapshot());
+  const bp = { id: state.bpId, name: state.bpName, data: { graph, script: null } };
+
+  try {
+    const ok = await saveBlueprint(gid, bp);
+    if (ok) clearDirty(els.dirty);
+    console.log("[blueprints] saved", bp.id);
+    return ok;
+  } catch (e) {
+    console.error("[blueprints] save failed", e);
+    return false;
+  }
 }

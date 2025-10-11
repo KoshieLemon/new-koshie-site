@@ -1,100 +1,181 @@
-// ESM. Renders pins and inline editors for unconnected VARIABLE inputs.
-import { getGraphState, setNodeInputDefault, isInputConnected } from "./state.js";
+// render.js — typed pins, inline literals, safe redraw
+import { state } from './state.js';
+import { els } from './dom.js';
 
-function editorForType(t) {
-  switch ((t || "string").toLowerCase()) {
-    case "number":
-    case "float":
-    case "int": return "number";
-    case "boolean": return "checkbox";
-    default: return "text";
+let nodeInteractionHook = null;
+export function registerNodeInteractions(fn){ nodeInteractionHook = fn; }
+
+/* ---------- utils ---------- */
+function defFor(defId){
+  return (state.nodesIndex?.nodes || []).find(d => d.id === defId) || null;
+}
+function execPins(arr){ return (arr || []).filter(p => p.type === 'exec'); }
+function dataPins(arr){ return (arr || []).filter(p => p.type !== 'exec'); }
+function hasIncomingEdge(nid, pin){
+  for (const e of state.edges.values()){
+    if (e.to?.nid === nid && e.to?.pin === pin) return true;
+  }
+  return false;
+}
+function toStr(type, v){
+  if (type === 'boolean') return v ? 'true' : 'false';
+  if (v == null) return '';
+  return String(v);
+}
+function parseLiteral(type, raw){
+  if (type === 'number' || type === 'float' || type === 'int'){
+    if (raw === '' || raw == null) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (type === 'boolean') return !!raw;
+  return raw;
+}
+
+/* ---------- svg wires ---------- */
+export function fitSvg(){
+  const r = els.editor.getBoundingClientRect();
+  els.wiresSvg.setAttribute('width', r.width);
+  els.wiresSvg.setAttribute('height', r.height);
+  els.wiresSvg.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
+}
+
+export function bezierPath(x1,y1,x2,y2){
+  const dx = Math.max(60, Math.abs(x2-x1)*0.5);
+  const c1x = x1 + dx, c1y = y1;
+  const c2x = x2 - dx, c2y = y2;
+  return `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
+}
+
+export function getPinCenter(nid, pinName, side){
+  const el = document.querySelector(
+    `[data-nid="${nid}"] .pin.${side}[data-pin="${pinName}"] .jack`
+  );
+  if (!el) return null;
+  const er = els.editor.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  return { x: r.left - er.left + r.width/2, y: r.top - er.top + r.height/2 };
+}
+
+export function drawWires(){
+  els.wiresSvg.innerHTML = '';
+  for (const e of state.edges.values()){
+    const from = getPinCenter(e.from.nid, e.from.pin, 'right');
+    const to   = getPinCenter(e.to.nid,   e.to.pin,   'left');
+    if (!from || !to) continue;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('class', `wire ${e.kind==='data'?'data':''}`);
+    path.setAttribute('d', bezierPath(from.x, from.y, to.x, to.y));
+    els.wiresSvg.appendChild(path);
   }
 }
 
-export function renderNode(node, catalog) {
-  const meta = catalog[node.type];
-  const el = document.createElement("div");
-  el.className = "node";
+/* ---------- node UI ---------- */
+function mkPin(side, pinDef){
+  const kind = pinDef.type === 'exec' ? 'exec' : 'data';
+  const el = document.createElement('div');
+  el.className = `pin ${side} ${kind} ${kind==='data' ? (pinDef.type || 'string') : ''}`;
+  el.dataset.pin  = pinDef.name;
+  el.dataset.kind = kind;
+  el.dataset.type = pinDef.type || 'string';
+  el.innerHTML = `<span class="jack"></span><span class="label">${pinDef.name}</span>`;
+  return el;
+}
 
-  const title = document.createElement("div");
-  title.className = "node-title";
-  title.textContent = meta.label || node.type;
-  el.appendChild(title);
+function mkLiteral(n, pinDef){
+  const wrap = document.createElement('div');
+  wrap.className = 'literal-wrap';
+  let input;
 
-  // Exec pins
-  const execIn = document.createElement("div");
-  execIn.className = "pin pin-exec in";
-  execIn.textContent = "in";
-  el.appendChild(execIn);
+  if (pinDef.type === 'boolean'){
+    input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = !!(n.params?.[pinDef.name]);
+    input.addEventListener('change',()=>{
+      if (!n.params) n.params = {};
+      n.params[pinDef.name] = input.checked;
+    });
+  } else {
+    input = document.createElement('input');
+    input.type = (pinDef.type === 'number' || pinDef.type === 'float' || pinDef.type === 'int') ? 'number' : 'text';
+    input.placeholder = pinDef.type || 'string';
+    input.value = toStr(pinDef.type, n.params?.[pinDef.name]);
+    input.className = 'literal';
+    input.addEventListener('input',()=>{
+      if (!n.params) n.params = {};
+      n.params[pinDef.name] = parseLiteral(pinDef.type, input.value);
+    });
+  }
+  input.classList.add('pin-input');
+  wrap.appendChild(input);
+  return wrap;
+}
 
-  const execOut = document.createElement("div");
-  execOut.className = "pin pin-exec out";
-  execOut.textContent = "out";
-  el.appendChild(execOut);
+export function renderNode(n){
+  let el = document.querySelector(`.node[data-nid="${n.id}"]`);
+  const def = defFor(n.defId);
 
-  // Inputs with inline editors when not connected
-  const inputsWrap = document.createElement("div");
-  inputsWrap.className = "pins inputs";
-  for (const [key, spec] of Object.entries(meta.inputs || {})) {
-    const row = document.createElement("div");
-    row.className = "pin-row";
+  if (!el){
+    el = document.createElement('div');
+    el.className = 'node';
+    el.dataset.nid = n.id;
 
-    const sock = document.createElement("div");
-    sock.className = "pin var in";
-    row.appendChild(sock);
+    const header = document.createElement('div');
+    header.className = 'header';
+    header.innerHTML = `<span class="title">${n.defId}</span>`;
+    el.appendChild(header);
 
-    const label = document.createElement("label");
-    label.textContent = spec.label || key;
-    row.appendChild(label);
+    const pins = document.createElement('div');
+    pins.className = 'pins';
 
-    const showEditor = !isInputConnected(node.id, key);
-    if (showEditor) {
-      const typeAttr = editorForType(spec.type);
-      let input;
-      if (typeAttr === "checkbox") {
-        input = document.createElement("input");
-        input.type = "checkbox";
-        input.checked = !!(node.defaults?.[key]);
-      } else {
-        input = document.createElement("input");
-        input.type = typeAttr;
-        input.value = (node.defaults?.[key] ?? "");
+    const inputs = document.createElement('div');
+    inputs.className = 'side inputs';
+    const inExec = execPins(def?.inputs) || [{name:'in', type:'exec'}];
+    const inData = dataPins(def?.inputs) || [];
+    for (const p of [...inExec, ...inData]){
+      const pe = mkPin('left', p);
+      inputs.appendChild(pe);
+      if (p.type !== 'exec'){
+        const wired = hasIncomingEdge(n.id, p.name);
+        const lit = mkLiteral(n, p);
+        lit.style.display = wired ? 'none' : '';
+        pe.appendChild(lit);
       }
-      input.className = "pin-editor";
-      input.addEventListener("input", () => {
-        const val = typeAttr === "checkbox" ? input.checked : input.value;
-        setNodeInputDefault(node.id, key, val);
-      });
-      row.appendChild(input);
-    } else {
-      const hint = document.createElement("span");
-      hint.className = "pin-hint";
-      hint.textContent = "connected";
-      row.appendChild(hint);
     }
 
-    inputsWrap.appendChild(row);
+    const outputs = document.createElement('div');
+    outputs.className = 'side outputs';
+    const outExec = execPins(def?.outputs) || [{name:'out', type:'exec'}];
+    const outData = dataPins(def?.outputs) || [];
+    for (const p of [...outExec, ...outData]){
+      const pe = mkPin('right', p);
+      outputs.appendChild(pe);
+    }
+
+    pins.appendChild(inputs);
+    pins.appendChild(outputs);
+    el.appendChild(pins);
+
+    els.nodesLayer.appendChild(el);
+    if (nodeInteractionHook) nodeInteractionHook(el, n);
   }
-  el.appendChild(inputsWrap);
 
-  // Outputs
-  const outputsWrap = document.createElement("div");
-  outputsWrap.className = "pins outputs";
-  for (const [key, spec] of Object.entries(meta.outputs || {})) {
-    const row = document.createElement("div");
-    row.className = "pin-row";
+  // position and selection state
+  el.style.transform = `translate(${n.x}px, ${n.y}px)`;
+  el.classList.toggle('selected', state.sel.has(n.id));
 
-    const sock = document.createElement("div");
-    sock.className = "pin var out";
-    row.appendChild(sock);
-
-    const label = document.createElement("label");
-    label.textContent = spec.label || key;
-    row.appendChild(label);
-
-    outputsWrap.appendChild(row);
+  // toggle literal visibility when wiring changes
+  for (const pin of el.querySelectorAll('.pin.left.data')){
+    const name = pin.dataset.pin;
+    const wired = hasIncomingEdge(n.id, name);
+    const lit = pin.querySelector('.literal-wrap');
+    if (lit) lit.style.display = wired ? 'none' : '';
   }
-  el.appendChild(outputsWrap);
+}
 
-  return el;
+export function renderAll(){
+  els.nodesLayer.innerHTML = '';
+  for (const n of state.nodes.values()) renderNode(n);
+  fitSvg();
+  drawWires();
 }
