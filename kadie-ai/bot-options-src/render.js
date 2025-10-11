@@ -1,42 +1,13 @@
-// render.js — typed pins, inline literals, safe redraw
-import { state } from './state.js';
+import { state, hasIncomingEdge, setParam, getParam } from './state.js';
 import { els } from './dom.js';
+import { registerNodeInteractions } from './events-ui.js';
+import { typeColor, isInlineEditableType } from './nodes-index.js';
 
 let nodeInteractionHook = null;
-export function registerNodeInteractions(fn){ nodeInteractionHook = fn; }
+export function registerNodeInteractions(fn){ nodeInteractionHook = fn; } // kept API compatibility
 
-/* ---------- utils ---------- */
-function defFor(defId){
-  return (state.nodesIndex?.nodes || []).find(d => d.id === defId) || null;
-}
-function execPins(arr){ return (arr || []).filter(p => p.type === 'exec'); }
-function dataPins(arr){ return (arr || []).filter(p => p.type !== 'exec'); }
-function hasIncomingEdge(nid, pin){
-  for (const e of state.edges.values()){
-    if (e.to?.nid === nid && e.to?.pin === pin) return true;
-  }
-  return false;
-}
-function toStr(type, v){
-  if (type === 'boolean') return v ? 'true' : 'false';
-  if (v == null) return '';
-  return String(v);
-}
-function parseLiteral(type, raw){
-  if (type === 'number' || type === 'float' || type === 'int'){
-    if (raw === '' || raw == null) return null;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
-  }
-  if (type === 'boolean') return !!raw;
-  return raw;
-}
-
-/* ---------- svg wires ---------- */
 export function fitSvg(){
   const r = els.editor.getBoundingClientRect();
-  els.wiresSvg.setAttribute('width', r.width);
-  els.wiresSvg.setAttribute('height', r.height);
   els.wiresSvg.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
 }
 
@@ -48,9 +19,7 @@ export function bezierPath(x1,y1,x2,y2){
 }
 
 export function getPinCenter(nid, pinName, side){
-  const el = document.querySelector(
-    `[data-nid="${nid}"] .pin.${side}[data-pin="${pinName}"] .jack`
-  );
+  const el = document.querySelector(`[data-nid="${nid}"] .pin.${side}[data-pin="${pinName}"] .jack`);
   if (!el) return null;
   const er = els.editor.getBoundingClientRect();
   const r = el.getBoundingClientRect();
@@ -70,112 +39,99 @@ export function drawWires(){
   }
 }
 
-/* ---------- node UI ---------- */
-function mkPin(side, pinDef){
-  const kind = pinDef.type === 'exec' ? 'exec' : 'data';
+function pinRow(side, pin, def, node){
+  const type = pin.type || 'exec';
   const el = document.createElement('div');
-  el.className = `pin ${side} ${kind} ${kind==='data' ? (pinDef.type || 'string') : ''}`;
-  el.dataset.pin  = pinDef.name;
-  el.dataset.kind = kind;
-  el.dataset.type = pinDef.type || 'string';
-  el.innerHTML = `<span class="jack"></span><span class="label">${pinDef.name}</span>`;
-  return el;
-}
+  el.className = `pin ${side} ${type === 'exec' ? 'exec' : 'data'}`;
+  el.dataset.pin = pin.name;
 
-function mkLiteral(n, pinDef){
-  const wrap = document.createElement('div');
-  wrap.className = 'literal-wrap';
-  let input;
+  const jack = document.createElement('span');
+  jack.className = 'jack';
+  jack.style.backgroundColor = typeColor(type);
 
-  if (pinDef.type === 'boolean'){
-    input = document.createElement('input');
-    input.type = 'checkbox';
-    input.checked = !!(n.params?.[pinDef.name]);
-    input.addEventListener('change',()=>{
-      if (!n.params) n.params = {};
-      n.params[pinDef.name] = input.checked;
-    });
-  } else {
-    input = document.createElement('input');
-    input.type = (pinDef.type === 'number' || pinDef.type === 'float' || pinDef.type === 'int') ? 'number' : 'text';
-    input.placeholder = pinDef.type || 'string';
-    input.value = toStr(pinDef.type, n.params?.[pinDef.name]);
-    input.className = 'literal';
-    input.addEventListener('input',()=>{
-      if (!n.params) n.params = {};
-      n.params[pinDef.name] = parseLiteral(pinDef.type, input.value);
-    });
+  const label = document.createElement('span');
+  label.textContent = pin.name;
+  label.style.color = '#cbd5e1';
+
+  el.appendChild(jack);
+  el.appendChild(label);
+
+  if (side === 'left' && type !== 'exec' && isInlineEditableType(type, def, pin.name)) {
+    const wired = hasIncomingEdge(node.id, pin.name);
+    const wrap = document.createElement('span');
+    wrap.className = 'inline-input';
+    wrap.style.marginLeft = '8px';
+
+    let input;
+    if (type === 'boolean') {
+      input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = Boolean(getParam(node.id, pin.name));
+      input.onchange = () => setParam(node.id, pin.name, input.checked);
+    } else {
+      input = document.createElement('input');
+      input.type = (type === 'number' || type === 'int' || type === 'float') ? 'number' : 'text';
+      input.value = getParam(node.id, pin.name) ?? '';
+      input.placeholder = def?.ui?.inputsMeta?.[pin.name]?.placeholder || '';
+      input.oninput = () => setParam(node.id, pin.name, input.value);
+    }
+
+    wrap.appendChild(input);
+    wrap.style.display = wired ? 'none' : 'inline-block';
+    el.appendChild(wrap);
   }
-  input.classList.add('pin-input');
-  wrap.appendChild(input);
-  return wrap;
+
+  return el;
 }
 
 export function renderNode(n){
   let el = document.querySelector(`.node[data-nid="${n.id}"]`);
-  const def = defFor(n.defId);
+  const def = state.nodesIndex.nodes.find(x => x.id === n.defId) || { inputs:[], outputs:[] };
 
   if (!el){
     el = document.createElement('div');
     el.className = 'node';
     el.dataset.nid = n.id;
-
-    const header = document.createElement('div');
-    header.className = 'header';
-    header.innerHTML = `<span class="title">${n.defId}</span>`;
-    el.appendChild(header);
-
-    const pins = document.createElement('div');
-    pins.className = 'pins';
-
-    const inputs = document.createElement('div');
-    inputs.className = 'side inputs';
-    const inExec = execPins(def?.inputs) || [{name:'in', type:'exec'}];
-    const inData = dataPins(def?.inputs) || [];
-    for (const p of [...inExec, ...inData]){
-      const pe = mkPin('left', p);
-      inputs.appendChild(pe);
-      if (p.type !== 'exec'){
-        const wired = hasIncomingEdge(n.id, p.name);
-        const lit = mkLiteral(n, p);
-        lit.style.display = wired ? 'none' : '';
-        pe.appendChild(lit);
-      }
-    }
-
-    const outputs = document.createElement('div');
-    outputs.className = 'side outputs';
-    const outExec = execPins(def?.outputs) || [{name:'out', type:'exec'}];
-    const outData = dataPins(def?.outputs) || [];
-    for (const p of [...outExec, ...outData]){
-      const pe = mkPin('right', p);
-      outputs.appendChild(pe);
-    }
-
-    pins.appendChild(inputs);
-    pins.appendChild(outputs);
-    el.appendChild(pins);
-
+    el.innerHTML = `
+      <div class="header">
+        <span>${n.defId}</span>
+        <span style="opacity:.6;font-size:12px;user-select:none">#</span>
+      </div>
+      <div class="pins"></div>
+    `;
     els.nodesLayer.appendChild(el);
     if (nodeInteractionHook) nodeInteractionHook(el, n);
   }
 
-  // position and selection state
+  // rebuild pins
+  const pins = el.querySelector('.pins');
+  pins.innerHTML = '';
+
+  // inputs (left)
+  for (const p of def.inputs || []){
+    pins.appendChild(pinRow('left', p, def, n));
+  }
+  // default exec input if none defined
+  if (!(def.inputs||[]).some(p=>p.type==='exec')) {
+    pins.appendChild(pinRow('left', { name:'in', type:'exec' }, def, n));
+  }
+
+  // outputs (right)
+  for (const p of def.outputs || []){
+    const row = pinRow('right', p, def, n);
+    pins.appendChild(row);
+  }
+  // default exec out if none defined
+  if (!(def.outputs||[]).some(p=>p.type==='exec')) {
+    pins.appendChild(pinRow('right', { name:'out', type:'exec' }, def, n));
+  }
+
   el.style.transform = `translate(${n.x}px, ${n.y}px)`;
   el.classList.toggle('selected', state.sel.has(n.id));
-
-  // toggle literal visibility when wiring changes
-  for (const pin of el.querySelectorAll('.pin.left.data')){
-    const name = pin.dataset.pin;
-    const wired = hasIncomingEdge(n.id, name);
-    const lit = pin.querySelector('.literal-wrap');
-    if (lit) lit.style.display = wired ? 'none' : '';
-  }
 }
 
 export function renderAll(){
   els.nodesLayer.innerHTML = '';
   for (const n of state.nodes.values()) renderNode(n);
-  fitSvg();
   drawWires();
 }

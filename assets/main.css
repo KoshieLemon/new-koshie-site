@@ -1,130 +1,36 @@
-:root{
-  --bg:#0b0c10;
-  --fg:#e6e9ef;
-  --muted:#96a0ad;
-  --card:#14161b;
-  --border:#2b2f3a;
-  --accent:#5ac8fa;
-  --accent-2:#a7f3d0;
-  --bad:#fda4af;
-}
+/* /assets/main.css */
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+.container { max-width: 1120px; margin: 0 auto; padding: 16px; }
+h1 { margin: 16px 0; font-size: 28px; }
+h2 { margin: 8px 0 16px; font-size: 20px; }
 
-*{ box-sizing:border-box; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap: 12px; }
+.card { display: block; padding: 16px; border: 1px solid #8883; border-radius: 12px; text-decoration: none; color: inherit; background: #fff1; backdrop-filter: blur(2px); }
+.card:hover { border-color: #09f8; box-shadow: 0 2px 10px #0002; }
 
-body{
-  margin:0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-  background:var(--bg);
-  color:var(--fg);
-}
+.center { min-height: 60vh; display: grid; place-items: center; }
+.btn { padding: 8px 12px; border-radius: 10px; border: 1px solid #09f; background: #09f; color: #fff; font-weight: 600; cursor: pointer; }
+.btn.secondary { background: transparent; color: inherit; border-color: #8886; }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.error { color: #c00; }
 
-a{ color:var(--accent); text-decoration:none; }
+.small { opacity: .8; font-size: 12px; }
+.hidden { display: none !important; }
 
-.container{ max-width:1100px; margin:0 auto; padding:24px; }
+.guild-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 1200px){ .guild-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 900px){ .guild-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px){ .guild-grid { grid-template-columns: 1fr; } }
 
-.card{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:12px;
-  padding:14px;
-  box-shadow:0 14px 30px #000a;
-}
-.card + .card{ margin-top:16px; }
-
-h1,h2,h3{ margin:0 0 8px 0; }
-
-.small{ color:var(--muted); font-size:12px; }
-
-.list{ display:grid; gap:10px; }
-
-.badge{
-  display:inline-flex; align-items:center; gap:6px;
-  padding:4px 6px; border-radius:8px;
-  background:#0e1520; color:#c9e3ff; font-weight:600; font-size:12px;
-}
-.badge .dot{ width:8px; height:8px; border-radius:50%; background:#28c76f; }
-
-.grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-
-.actions{
-  display:grid;
-  grid-template-columns:auto auto auto;
-  justify-content:end;
-  gap:8px;
-}
-
-/* =========================
-   Kadie-AI Graph UI extras
-   ========================= */
-
-/* tiny orange “last fired” badge shown inside each node (we inject it in JS) */
-.editor-wrap .node .fire-badge{
-  position:absolute; top:-10px; right:8px;
-  background:#f59e0b; color:#111;
-  padding:2px 6px; border-radius:6px;
-  font-size:11px; font-weight:700;
-  box-shadow:0 2px 8px #0008; user-select:none;
-}
-
-/* flash outline when a node fires (we toggle .active in JS) */
-.editor-wrap .node.active{
-  outline:2px solid #f59e0b66;
-  box-shadow:0 0 0 3px #f59e0b22 inset, 0 10px 20px #0008;
-  transition:outline-color .15s ease, box-shadow .15s ease;
-}
-
-/* pin visuals
-   - exec pins = triangles (arrows) pointing right
-   - data pins = circles, colored by type (string/number/boolean/etc) */
-.editor-wrap .pin{ align-items:center; gap:6px; }
-.editor-wrap .pin .label{ opacity:.9; }
-
-/* make exec jacks triangular; !important to override inline defaults */
-.editor-wrap .pin.exec .jack{
-  width:0 !important; height:0 !important; border-radius:0 !important;
-  background:transparent !important; box-shadow:none !important;
-  border-top:6px solid transparent; border-bottom:6px solid transparent;
-  border-left:10px solid #60a5fa; /* exec color */
-}
-
-/* data jacks keep circular shape; tint by type (optional future-proof classes) */
-.editor-wrap .pin.data .jack{
-  width:10px !important; height:10px !important; border-radius:50% !important;
-  border:2px solid #0008; box-sizing:content-box;
-  background:#a6f08a; /* default data color if no type class present */
-}
-.editor-wrap .pin.data.string .jack{ background:#fbbf24 !important; }  /* yellow */
-.editor-wrap .pin.data.number .jack{ background:#34d399 !important; }  /* green */
-.editor-wrap .pin.data.boolean .jack{ background:#a78bfa !important; } /* purple */
-.editor-wrap .pin.data.float .jack{ background:#22d3ee !important; }   /* teal */
-.editor-wrap .pin.data.int .jack{ background:#38bdf8 !important; }     /* blue */
-
-/* inline value inputs that appear when a data pin isn’t wired */
-.editor-wrap .pin .pin-input{
-  min-width:120px; max-width:180px;
-  background:#0f1116; color:#e5e7eb;
-  border:1px solid #2b2f3a; border-radius:8px;
-  padding:4px 6px; outline:none;
-}
-.editor-wrap .pin .pin-input:focus{
-  border-color:#5ac8fa; box-shadow:0 0 0 3px #5ac8fa22;
-}
-
-/* wires hover emphasis (pairs nicely with existing inline wire styles) */
-.editor-wrap svg.wires path.wire:hover{
-  filter:drop-shadow(0 0 6px #7dd3fcff);
-}
-.editor-wrap svg.wires path.wire.data:hover{
-  filter:drop-shadow(0 0 6px #a7f3d0ff);
-}
-
-/* context menu tweaks */
-.context .menu-item{ cursor:grab; }
-.context .menu-item:active{ cursor:grabbing; }
-
-/* rubber-band selection box */
-.rubber{
-  position:absolute; border:1px dashed var(--accent);
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  display:none; z-index:55;
-}
+.guild-card { display: grid; grid-template-rows: auto 1fr auto; gap: 10px; padding: 14px; border-radius: 14px; border: 1px solid #8883; background: #fff1; }
+.guild-card.manageable { border-color: #2ecc71aa; box-shadow: 0 0 0 2px #2ecc7133 inset; }
+.guild-head { display: grid; grid-template-columns: 54px 1fr; gap: 10px; align-items: center; }
+.guild-icon { width: 54px; height: 54px; border-radius: 12px; background: #0002; display: grid; place-items: center; font-weight: 700; }
+.guild-name { margin: 0; font-size: 15px; line-height: 1.2; }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge { padding: 2px 6px; border-radius: 8px; font-size: 11px; border: 1px solid #8884; }
+.badge.mgmt { background: #2ecc7122; border-color: #2ecc7166; }
+.guild-meta { font-size: 12px; opacity: .85; display: flex; gap: 10px; }
+.actions { display: grid; grid-auto-flow: column; gap: 8px; }
