@@ -29,7 +29,9 @@ function hasIncomingEdge(nid, pin){
 }
 
 export function renderNode(n){
-  const def = defFor(n.defId);
+  const base = defFor(n.defId);
+  const def  = n._defOverride ? n._defOverride : base;
+
   const el = buildNodeDOM(def, { preview:false, params: (n.params||{}), nid: n.id });
 
   el.style.transform = `translate(${n.x}px, ${n.y}px)`;

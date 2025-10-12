@@ -1,4 +1,4 @@
-// Shared types, colors, and CSS injection for node UI.
+// Shared types, colors, shapes, and CSS for node UI.
 
 export const TYPE_EQUIV = {
   boolean:'boolean', string:'string', int:'number', float:'number', number:'number', bigint:'bigint',
@@ -39,7 +39,6 @@ export const TYPE_COLORS = {
   Message:'#60a5fa', Attachment:'#94a3b8', Webhook:'#8b5cf6', Invite:'#fde047',
 
   TextBasedChannel:'#38bdf8', VoiceBasedChannel:'#06b6d4', CategoryChannel:'#a3e635',
-
   Interaction:'#fb7185',
 
   Embed:'#eab308', ComponentRow:'#f97316', AllowedMentions:'#4ade80',
@@ -69,49 +68,22 @@ export function ensureTypeStylesInjected(){
   .node .header .title{font:600 12px/1.2 system-ui,Segoe UI,Roboto,Arial,sans-serif}
   .node .header .subtitle{opacity:.6;font:500 10px/1.2 system-ui,Segoe UI,Roboto,Arial,sans-serif}
 
-  /* two columns: inputs left, outputs right
-     add right padding so output jacks have natural inset from edge */
   .node .pins{display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;padding:10px 14px 10px 10px}
-
   .side.inputs{display:flex;flex-direction:column;align-items:flex-start}
-
-  /* outputs align to the right, items keep natural width */
   .side.outputs{display:flex;flex-direction:column;align-items:flex-end}
 
-  /* inputs: jack then label, left aligned */
   .pin.left{display:flex;align-items:center;justify-content:flex-start;min-height:18px}
   .pin.left .jack{order:0;margin-right:6px}
   .pin.left .label{order:1;font:12px/1.2 system-ui,Segoe UI,Roboto,Arial,sans-serif}
 
-  /* outputs: label then jack; label right-aligned against jack */
-  .pin.right{
-    display:grid;
-    grid-template-columns:max-content auto; /* label shrinks to content */
-    align-items:center;
-    width:100%;
-  }
-  .pin.right .label{
-    grid-column:1;
-    justify-self:end;      /* push label against jack */
-    text-align:right;      /* right edge of text next to jack */
-    margin:0 6px 0 0;      /* 6px gap before jack */
-    font:12px/1.2 system-ui,Segoe UI,Roboto,Arial,sans-serif;
-  }
-  .pin.right .jack{
-    grid-column:2;
-    justify-self:end;      /* jack stays at the far right */
-    margin:0;
-  }
+  .pin.right{display:grid;grid-template-columns:max-content auto;align-items:center;width:100%;}
+  .pin.right .label{grid-column:1;justify-self:end;text-align:right;margin:0 6px 0 0;font:12px/1.2 system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  .pin.right .jack{grid-column:2;justify-self:end;margin:0}
 
-  /* Jack */
   .pin .jack{width:14px;height:14px;box-sizing:border-box;display:inline-block;position:relative}
-
-  /* Data pins */
   .pin.data{color:#9ca3af}
   .pin.data .jack{border-radius:50%;border:2px solid currentColor;background:transparent}
   .pin.data .label{color:currentColor}
-
-  /* Exec pins */
   .pin.exec .jack{border:none;background:transparent}
   .pin.exec .label{color:#ffffff}
   .pin.left.exec .jack::after,
@@ -121,12 +93,10 @@ export function ensureTypeStylesInjected(){
   .pin.left.exec .jack::after{border-right:10px solid #ffffff;margin-left:-2px}
   .pin.right.exec .jack::after{border-left:10px solid #ffffff;margin-left:2px}
 
-  /* Inputs with inline literals */
   .pin .literal-wrap{display:inline-flex;align-items:center;margin-left:6px}
   .pin .literal{border:1px solid #374151;background:#111827;color:#e5e7eb;border-radius:6px;padding:2px 6px;min-width:120px}
   .pin input[type="checkbox"].pin-input{width:14px;height:14px}
 
-  /* Wires: color set via CSS var --wire */
   svg#wires path.wire{stroke:var(--wire, #64748b);stroke-width:2;fill:none;opacity:.95}
   `;
   for (const [key, hex] of Object.entries(TYPE_COLORS)){
@@ -138,4 +108,113 @@ export function ensureTypeStylesInjected(){
   }
   style.textContent = css;
   document.head.appendChild(style);
+}
+
+/** Canonical field lists for common Discord.js objects (raw types). */
+export const DISCORD_SHAPES = {
+  Message: [
+    { name:'id',              type:'snowflake' },
+    { name:'content',         type:'string' },
+    { name:'authorId',        type:'snowflake' },
+    { name:'channelId',       type:'snowflake' },
+    { name:'guildId',         type:'snowflake' },
+    { name:'createdTimestamp',type:'timestamp_ms' },
+    { name:'pinned',          type:'boolean' },
+    { name:'tts',             type:'boolean' },
+    { name:'attachmentsCount',type:'number' },
+    { name:'embedsCount',     type:'number' },
+    { name:'hasThread',       type:'boolean' },
+    { name:'url',             type:'url' },
+    { name:'type',            type:'string' },
+  ],
+  User: [
+    { name:'id',              type:'snowflake' },
+    { name:'username',        type:'string' },
+    { name:'globalName',      type:'string' },
+    { name:'bot',             type:'boolean' },
+    { name:'createdTimestamp',type:'timestamp_ms' },
+  ],
+  GuildMember: [
+    { name:'userId',          type:'snowflake' },
+    { name:'nickname',        type:'string' },
+    { name:'joinedTimestamp', type:'timestamp_ms' },
+    { name:'pending',         type:'boolean' },
+    { name:'rolesCount',      type:'number' },
+    { name:'guildId',         type:'snowflake' },
+  ],
+  Guild: [
+    { name:'id',              type:'snowflake' },
+    { name:'name',            type:'string' },
+    { name:'memberCount',     type:'number' },
+    { name:'createdTimestamp',type:'timestamp_ms' },
+    { name:'ownerId',         type:'snowflake' },
+  ],
+  TextBasedChannel: [
+    { name:'id',              type:'snowflake' },
+    { name:'name',            type:'string' },
+    { name:'guildId',         type:'snowflake' },
+    { name:'nsfw',            type:'boolean' },
+    { name:'topic',           type:'string' },
+    { name:'type',            type:'string' },
+    { name:'createdTimestamp',type:'timestamp_ms' },
+  ],
+  VoiceBasedChannel: [
+    { name:'id',              type:'snowflake' },
+    { name:'name',            type:'string' },
+    { name:'guildId',         type:'snowflake' },
+    { name:'bitrate',         type:'number' },
+    { name:'userLimit',       type:'number' },
+    { name:'parentId',        type:'snowflake' },
+    { name:'createdTimestamp',type:'timestamp_ms' },
+  ],
+  Role: [
+    { name:'id',              type:'snowflake' },
+    { name:'name',            type:'string' },
+    { name:'color',           type:'color' },
+    { name:'hoist',           type:'boolean' },
+    { name:'managed',         type:'boolean' },
+    { name:'position',        type:'number' },
+    { name:'permissions',     type:'Permissions' },
+  ],
+  Interaction: [
+    { name:'id',              type:'snowflake' },
+    { name:'userId',          type:'snowflake' },
+    { name:'channelId',       type:'snowflake' },
+    { name:'guildId',         type:'snowflake' },
+    { name:'commandName',     type:'string' },
+    { name:'customId',        type:'string' },
+    { name:'createdTimestamp',type:'timestamp_ms' },
+    { name:'type',            type:'string' },
+  ],
+  Invite: [
+    { name:'code',             type:'string' },
+    { name:'url',              type:'url' },
+    { name:'channelId',        type:'snowflake' },
+    { name:'guildId',          type:'snowflake' },
+    { name:'inviterId',        type:'snowflake' }, // may be null at runtime
+    { name:'createdTimestamp', type:'timestamp_ms' },
+    { name:'expiresTimestamp', type:'timestamp_ms' },
+    { name:'maxAge',           type:'int' },
+    { name:'maxUses',          type:'int' },
+    { name:'temporary',        type:'boolean' },
+    { name:'uses',             type:'int' },
+  ],
+};
+
+/** Map domain types to “final form” primitives for Break Object pins. */
+export function toFinalPrimitive(type){
+  const k = colorKeyFor(type);
+  switch (k) {
+    case 'snowflake':     return 'string';      // id → string
+    case 'timestamp_ms':
+    case 'duration_ms':   return 'int';         // explicit integer
+    case 'number':
+    case 'int':
+    case 'float':         return 'number';
+    case 'boolean':       return 'boolean';
+    case 'bigint':        return 'bigint';
+    case 'url':           return 'string';
+    case 'color':         return 'string';      // hex string
+    default:              return 'string';      // safe fallback
+  }
 }

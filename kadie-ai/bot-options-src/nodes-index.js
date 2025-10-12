@@ -10,7 +10,6 @@ function normalize(def) {
   const ins  = Array.isArray(def?.inputs)  ? def.inputs  : [];
   const outs = Array.isArray(def?.outputs) ? def.outputs : [];
 
-  // Build pins the way the legacy UI expects
   const pins = {
     in:  ins.map(p => ({ name: String(p.name),  type: String(p.type || 'any') })),
     out: outs.map(p => ({ name: String(p.name), type: String(p.type || 'any') })),
@@ -20,27 +19,35 @@ function normalize(def) {
     id:        String(def.id),
     name:      String(def.name || def.id),
     category:  String(def.category || ''),
-    kind:      String(def.kind || 'exec'), // 'event' | 'exec'
+    kind:      String(def.kind || 'exec'),
     version:   String(def.version || '1.0.0'),
-
-    // canonical
     inputs:  pins.in,
     outputs: pins.out,
-
-    // legacy aliases used by older site code
     pins,
     params:  pins.in,
     returns: pins.out,
-
-    // convenience flags
     hasExecIn:  pins.in.some(p => p.type === 'exec'),
     hasExecOut: pins.out.some(p => p.type === 'exec'),
-
     runtime: def.runtime || null,
     discord: def.discord || null,
   };
-
   return compat;
+}
+
+function injectVirtualNodes(nodes, byId){
+  if (!byId.has('utils.breakObject')) {
+    const v = normalize({
+      id: 'utils.breakObject',
+      name: 'Break Object',
+      category: 'Utilities',
+      kind: 'exec',
+      version: '1.0.0',
+      inputs:  [{ name:'in', type:'exec' }, { name:'object', type:'any' }],
+      outputs: [{ name:'out', type:'exec' }],
+    });
+    nodes.push(v);
+    byId.set(v.id, v);
+  }
 }
 
 export async function fetchNodesIndex() {
@@ -61,24 +68,19 @@ export async function fetchNodesIndex() {
   const nodes = raw.map(normalize);
   const byId  = new Map(nodes.map(n => [n.id, n]));
 
+  injectVirtualNodes(nodes, byId);
+
   CACHE = { nodes, byId };
   LOADED = true;
 
-  // expose for renderer + debugging
   window.NODE_INDEX = nodes;
   window.NODE_DEFS  = Object.fromEntries(byId);
 
-  // ---- DEBUG OUTPUTS YOU ASKED FOR ----
-  console.groupCollapsed('[nodes-index] loaded', nodes.length, 'defs (normalized for UI)');
+  console.groupCollapsed('[nodes-index] loaded', nodes.length, 'defs');
   console.table(nodes.map(n => ({
-    id: n.id,
-    kind: n.kind,
-    in: n.inputs.length,
-    out: n.outputs.length,
-    execIn: n.hasExecIn,
-    execOut: n.hasExecOut
+    id: n.id, kind: n.kind, in: n.inputs.length, out: n.outputs.length,
+    execIn: n.hasExecIn, execOut: n.hasExecOut
   })));
-  // helper to inspect a single node shape in detail
   window.__printNode = (id) => {
     const n = byId.get(id);
     if (!n) return console.warn('node not found', id);
@@ -90,12 +92,10 @@ export async function fetchNodesIndex() {
     return n;
   };
   console.groupEnd();
-  // -------------------------------------
 
   return CACHE;
 }
 
-// Back-compat for older imports
 export async function ensureNodesIndex() {
   if (!LOADED || CACHE.nodes.length === 0) return fetchNodesIndex();
   return CACHE;
