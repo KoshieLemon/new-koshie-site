@@ -12,6 +12,30 @@
     .select,.btn{border:1px solid #0003;background:#111;color:#eee;padding:6px 8px;border-radius:8px}
     .btn{cursor:pointer}
     .btn[disabled]{opacity:.5;cursor:not-allowed}
+
+    /* Left variables bar + editor layout */
+    .editor-layout{display:grid;grid-template-columns:300px 1fr;gap:12px;align-items:stretch}
+    .leftdock{
+      min-height:68vh; min-width:300px; background:#0b0c0f; border:1px solid #0004; border-radius:12px;
+      padding:10px; overflow:auto;
+    }
+    .leftdock .section-title{font-size:12px;color:#9aa3af;margin:8px 0 6px 0;text-transform:uppercase;letter-spacing:.06em}
+    .leftdock .search{position:sticky;top:0;background:#0b0c0f;padding-bottom:8px;z-index:1}
+    .leftdock input[type="search"]{
+      width:100%; box-sizing:border-box; border:1px solid #2b2f3a; background:#11131a; color:#eaeaea;
+      padding:6px 8px; border-radius:8px; outline:none;
+    }
+    .leftdock .list{display:flex;flex-direction:column;gap:4px}
+    .leftdock .item{
+      display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #1e2230;border-radius:8px;
+      background:#11131a;color:#e5e7eb;font-size:13px;cursor:grab;
+    }
+    .leftdock .item.dragging{opacity:.6}
+    .leftdock .pill{font-size:10px;padding:2px 6px;border-radius:999px;background:#182032;border:1px solid #2a3550;color:#93c5fd}
+    .leftdock .group-title{margin-top:6px;margin-bottom:4px;color:#a3a3a3;font-weight:600;font-size:12px}
+    .leftdock .divider{height:1px;background:#1a1f2a;margin:10px 0}
+    .copy-hint{font-size:11px;color:#9aa3af;margin:6px 0 0 0}
+
     .editor-wrap{position:relative;height:68vh;min-height:420px;border:1px solid #0004;border-radius:12px;overflow:hidden;background:#0b0b0c}
     .grid{position:absolute;inset:0;background:
       linear-gradient(#1a1a1a 1px, transparent 1px),
@@ -73,13 +97,32 @@
         </div>
       </div>
 
-      <div class="editor-wrap" id="editor">
-        <div class="grid"></div>
-        <svg class="wires" id="wires" viewBox="0 0 1000 1000" preserveAspectRatio="none"></svg>
-        <div class="nodes" id="nodes"></div>
-        <div class="disabled-overlay" id="disabledOverlay">Select or create a blueprint to edit</div>
-        <div class="context" id="ctx" style="display:none"></div>
-        <div class="rubber" id="rubber"></div>
+      <div class="editor-layout">
+        <!-- Left variables bar -->
+        <aside class="leftdock" id="leftdock">
+          <div class="search">
+            <input id="leftdockSearch" type="search" placeholder="Search channels or roles" autocomplete="off">
+            <p class="copy-hint">Click copies ID. Drag to graph.</p>
+          </div>
+
+          <div class="section-title">Channels</div>
+          <div id="channelsList" class="list" aria-label="Channels"></div>
+
+          <div class="divider"></div>
+
+          <div class="section-title">Roles</div>
+          <div id="rolesList" class="list" aria-label="Roles"></div>
+        </aside>
+
+        <!-- Graph editor -->
+        <div class="editor-wrap" id="editor">
+          <div class="grid"></div>
+          <svg class="wires" id="wires" viewBox="0 0 1000 1000" preserveAspectRatio="none"></svg>
+          <div class="nodes" id="nodes"></div>
+          <div class="disabled-overlay" id="disabledOverlay">Select or create a blueprint to edit</div>
+          <div class="context" id="ctx" style="display:none"></div>
+          <div class="rubber" id="rubber"></div>
+        </div>
       </div>
 
       <div class="statusbar">

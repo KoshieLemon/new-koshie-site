@@ -1,12 +1,16 @@
-// Main interactions and wiring.
+// /bot-options-src/interactions.js
+// Graph interactions: selection, drag, pan/zoom, wiring, context menus,
+// DnD from node menu and Guild Browser, inline literal editing persistence.
+
 import { els } from './dom.js';
 import { state, uid, pushHistory, markDirty, undo, redo } from './state.js';
-import { renderAll, drawWires, bezierPath, getPinCenter, registerNodeInteractions } from './render.js';
+import { renderAll, registerNodeInteractions } from './render.editor.js';
+import { drawWires, bezierPath, getPinCenter } from './render.wires.js';
 import { openContextMenu } from './menu.js';
 import { TYPE_COLORS, colorKeyFor, DISCORD_SHAPES, toFinalPrimitive } from './render.types.js';
 import { ensureViewport, applyView, unprojectClient, positionCtxMenuAt, recenter } from './interactions.view.js';
 
-// ---- guards
+// ---- init guards
 if (!state.nodes) state.nodes = new Map();
 if (!state.edges) state.edges = new Map();
 if (!state.sel)   state.sel   = new Set();
@@ -15,9 +19,13 @@ if (!state.view)  state.view  = { x: 0, y: 0, z: 1 };
 const NODE_W = 200;
 const NODE_H = 92;
 
-let drag = null;
-let dragWire = null;
-let panning = null; // left-drag panning on empty space
+let drag = null;           // dragging selected nodes
+let dragWire = null;       // active wire being drawn
+let panning = null;        // dragging the canvas
+
+function isInteractiveTarget(t){
+  return !!t.closest?.('input, textarea, select, button, [contenteditable], .pin-input, .literal-wrap');
+}
 
 function cancelDragWire(redraw){
   if (dragWire?.tempPath){ dragWire.tempPath.remove(); dragWire.tempPath = null; }
@@ -25,7 +33,7 @@ function cancelDragWire(redraw){
   if (redraw) drawWires();
 }
 
-// ---- helpers
+// ---- node def helpers
 function getDef(defId){
   const list = (state.nodesIndex?.nodes || window.NODE_INDEX || []);
   const found = list.find(d => d.id === defId);
@@ -73,10 +81,16 @@ function applyBreakObjectShape(nid, sourceType){
   renderAll();
 }
 
+// ---- per-node DOM interaction wiring
 function enableNodeInteractions(el, model){
-  // drag node
+  // drag node (ignore when interacting with inputs)
   el.addEventListener('mousedown', (ev)=>{
     if (ev.button!==0) return;
+    if (isInteractiveTarget(ev.target)) return;
+
+    const ae = document.activeElement;
+    if (ae && ae.classList?.contains('pin-input') && !el.contains(ae)) ae.blur();
+
     if (!ev.shiftKey && !state.sel.has(model.id)) {
       state.sel.clear();
       state.sel.add(model.id);
@@ -93,10 +107,13 @@ function enableNodeInteractions(el, model){
 
   // node context menu (Duplicate/Delete) only
   el.addEventListener('contextmenu', (ev)=>{
+    if (isInteractiveTarget(ev.target)) return;
     ev.preventDefault();
     ev.stopPropagation(); // prevents canvas palette
+
     els.ctxMenu.innerHTML = '';
     positionCtxMenuAt(ev.clientX, ev.clientY);
+
     const mk = (label,fn)=>{
       const d=document.createElement('div');
       d.className='menu-item';
@@ -104,6 +121,7 @@ function enableNodeInteractions(el, model){
       d.addEventListener('click',()=>{ fn(); els.ctxMenu.style.display='none';});
       return d;
     };
+
     els.ctxMenu.appendChild(mk('Duplicate', ()=>{
       const n = structuredClone(state.nodes.get(model.id));
       n.id = uid('N'); n.x += 24; n.y += 24;
@@ -118,6 +136,7 @@ function enableNodeInteractions(el, model){
       }
       renderAll(); pushHistory(); markDirty(els.dirty);
     }));
+
     window.addEventListener('click',()=>{ els.ctxMenu.style.display='none'; }, { once:true });
   });
 
@@ -142,15 +161,35 @@ function enableNodeInteractions(el, model){
       ev.preventDefault();
     });
   });
+
+  // persist literal edits immediately (params live on node)
+  el.addEventListener('input', (ev)=>{
+    const t = ev.target;
+    if (!t.classList || !t.classList.contains('pin-input')) return;
+    const pinEl = t.closest('.pin');
+    if (!pinEl) return;
+    const pinName = pinEl.dataset.pin;
+    const n = state.nodes.get(model.id);
+    if (!n.params) n.params = {};
+    n.params[pinName] = t.type === 'checkbox' ? !!t.checked : t.value;
+    markDirty(els.dirty);
+  });
+  el.addEventListener('change', (ev)=>{
+    const t = ev.target;
+    if (!t.classList || !t.classList.contains('pin-input')) return;
+    pushHistory(); // commit on blur/enter
+  });
 }
 
-function addNodeAt(defId, x, y){
-  const n = { id: uid('N'), defId, x: Math.round(x), y: Math.round(y) };
+// ---- node creation
+function addNodeAt(defId, x, y, params = {}){
+  const n = { id: uid('N'), defId, x: Math.round(x), y: Math.round(y), params: { ...(params||{}) } };
   state.nodes.set(n.id, n);
   state.sel.clear(); state.sel.add(n.id);
   renderAll(); pushHistory(); markDirty(els.dirty);
 }
 
+// ---- exported initializer
 export function initInteractions(){
   ensureViewport();
   registerNodeInteractions(enableNodeInteractions);
@@ -171,11 +210,15 @@ export function initInteractions(){
     applyView();
   }, { passive:false });
 
-  // Left-drag panning on blank space
+  // Left-drag panning on blank space. Also exit any active input cleanly.
   els.editor.addEventListener('mousedown', (ev)=>{
     if (ev.button === 0){
       const hitNode = ev.target.closest?.('.node');
       const hitPin  = ev.target.closest?.('.pin, .jack, .label, .literal-wrap, .pin-input');
+
+      const ae = document.activeElement;
+      if (ae && ae.classList?.contains('pin-input') && !ev.target.closest('.pin-input')) ae.blur();
+
       if (!hitNode && !hitPin){
         panning = { startX: ev.clientX, startY: ev.clientY, vx: state.view.x, vy: state.view.y };
         ev.preventDefault();
@@ -200,7 +243,7 @@ export function initInteractions(){
       const to = { x: ev.clientX - er.left, y: ev.clientY - er.top };
       if (dragWire.tempPath) dragWire.tempPath.remove();
       const p = document.createElementNS('http://www.w3.org/2000/svg','path');
-      p.setAttribute('class', `wire`);
+      p.setAttribute('class', `wire${dragWire.kind==='data' ? ' data' : ''}`);
       p.setAttribute('d', bezierPath(from.x, from.y, to.x, to.y));
       const stroke = dragWire.kind==='data'
         ? (TYPE_COLORS[dragWire.colorKey] || '#94a3b8')
@@ -233,14 +276,17 @@ export function initInteractions(){
     });
   });
 
-  // DnD from menu
+  // DnD from menu and Guild Browser
   els.editor.addEventListener('dragover', (e)=>{ e.preventDefault(); });
   els.editor.addEventListener('drop', (e)=>{
     e.preventDefault();
     const defId = e.dataTransfer.getData('text/x-node-id');
     if (!defId) return;
+    let extras = {};
+    const json = e.dataTransfer.getData('application/x-node-params');
+    if (json){ try{ extras = JSON.parse(json) || {}; } catch {} }
     const w = unprojectClient(e.clientX, e.clientY);
-    addNodeAt(defId, w.x - NODE_W/2, w.y - NODE_H/2);
+    addNodeAt(defId, w.x - NODE_W/2, w.y - NODE_H/2, extras);
   });
 
   // Finish wire connection with checks + Break expansion
@@ -293,11 +339,13 @@ export function initInteractions(){
     // Expand Break Object outputs using the true source type.
     const toNode = state.nodes.get(toNid);
     if (toNode && toNode.defId === 'utils.breakObject' && toPin === 'object' && fromKind === 'data'){
-      // Prefer DOM dataset; fall back to node def to be robust.
-      const fallType = getOutputType(dragWire.from.nid ? state.nodes.get(dragWire.from.nid)?.defId : null, dragWire.from.pin);
+      const fallType = getOutputType(state.nodes.get(dragWire.from.nid)?.defId, dragWire.from.pin);
       const sourceType = dragWire.fromType || fallType || 'any';
       applyBreakObjectShape(toNid, sourceType);
     }
+
+    // Immediate UI refresh so literal fields hide without nudging.
+    renderAll();
 
     cancelDragWire(false);
     drawWires(); pushHistory(); markDirty(els.dirty);

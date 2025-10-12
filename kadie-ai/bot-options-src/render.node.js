@@ -14,7 +14,7 @@ function mkPin(side, pinDef){
   el.dataset.pin  = pinDef.name;
   el.dataset.kind = kind;
   el.dataset.type = pinDef.type || 'string';
-  el.title = pinDef.type || (kind==='exec' ? 'exec' : 'string'); // tooltip
+  el.title = pinDef.type || (kind==='exec' ? 'exec' : 'string');
 
   const jack = document.createElement('span');
   jack.className = 'jack';
@@ -22,15 +22,8 @@ function mkPin(side, pinDef){
   label.className = 'label';
   label.textContent = pinDef.name;
 
-  // Inputs: [jack][label]
-  // Outputs: [label][jack]  <-- THIS decides which comes first
-  if (side === 'right') {
-    el.appendChild(label);
-    el.appendChild(jack);
-  } else {
-    el.appendChild(jack);
-    el.appendChild(label);
-  }
+  if (side === 'right') { el.appendChild(label); el.appendChild(jack); }
+  else { el.appendChild(jack); el.appendChild(label); }
 
   return el;
 }
@@ -39,25 +32,37 @@ function mkLiteral(preview, paramsRef, pinDef){
   const wrap = document.createElement('div');
   wrap.className = 'literal-wrap';
   let input;
+
   if (pinDef.type === 'boolean'){
     input = document.createElement('input');
     input.type = 'checkbox';
     input.className = 'pin-input';
     input.checked = !!(paramsRef?.[pinDef.name]);
-    if (!preview){
-      input.addEventListener('change',()=>{ paramsRef[pinDef.name] = input.checked; });
-    }
   } else {
     input = document.createElement('input');
     input.type = (pinDef.type === 'number' || pinDef.type === 'float' || pinDef.type === 'int') ? 'number' : 'text';
     input.placeholder = pinDef.type || 'string';
     input.value = paramsRef?.[pinDef.name] ?? '';
     input.className = 'literal pin-input';
-    if (!preview){
-      input.addEventListener('input',()=>{ paramsRef[pinDef.name] = input.value; });
-    }
   }
-  if (preview) input.disabled = true;
+
+  if (preview){
+    input.disabled = true;
+  } else {
+    // Ensure inputs are interactive: do not start node drag.
+    input.addEventListener('mousedown', e => e.stopPropagation());
+    // Enter commits and exits edit mode.
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        e.stopPropagation();
+        input.blur();
+      }
+    });
+    // Right-click inside input should not open node context menu.
+    input.addEventListener('contextmenu', e => e.stopPropagation());
+  }
+
   wrap.appendChild(input);
   return wrap;
 }
@@ -79,12 +84,8 @@ export function buildNodeDOM(def, options = {}){
   const title = document.createElement('span');
   title.className = 'title';
   title.textContent = def?.name || def?.id || 'Node';
-  const subtitle = document.createElement('span');
-  subtitle.className = 'subtitle';
-  subtitle.textContent = def?.name ? (def?.id || '') : '';
   header.appendChild(title);
-  header.appendChild(subtitle);
-  node.appendChild(header);
+  node.appendChild(header); // subtitle removed intentionally
 
   const pins = document.createElement('div');
   pins.className = 'pins';
@@ -106,7 +107,7 @@ export function buildNodeDOM(def, options = {}){
   const outExec = execPins(def?.outputs || []);
   const outData = dataPins(def?.outputs || []);
   for (const p of [...outExec, ...outData]){
-    outputs.appendChild(mkPin('right', p)); // text then pin
+    outputs.appendChild(mkPin('right', p));
   }
 
   pins.appendChild(inputs);

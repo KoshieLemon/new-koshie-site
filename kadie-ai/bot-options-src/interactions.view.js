@@ -109,20 +109,23 @@ export function unprojectClient(clientX, clientY){
   return { x: (sx - x)/z, y: (sy - y)/z };
 }
 
+/* Position the small node context menu (Duplicate/Delete) at the cursor.
+   Use document.body + position:fixed so it matches the main palette behavior. */
 export function positionCtxMenuAt(clientX, clientY){
-  const er = els.editor.getBoundingClientRect();
-  const x = clientX - er.left;
-  const y = clientY - er.top;
-  els.ctxMenu.style.position = 'absolute';
-  els.ctxMenu.style.left = `${x}px`;
-  els.ctxMenu.style.top  = `${y}px`;
+  if (els.ctxMenu.parentElement !== document.body) document.body.appendChild(els.ctxMenu);
+  const vw = Math.max(document.documentElement.clientWidth,  window.innerWidth  || 0);
+  const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+
+  els.ctxMenu.style.position = 'fixed';
+  els.ctxMenu.style.left = `${clientX}px`;
+  els.ctxMenu.style.top  = `${clientY}px`;
   els.ctxMenu.style.display = 'block';
   requestAnimationFrame(()=>{
     const mw = els.ctxMenu.offsetWidth  || 0;
     const mh = els.ctxMenu.offsetHeight || 0;
-    let lx = x, ly = y;
-    if (lx + mw > er.width)  lx = Math.max(0, er.width  - mw - 8);
-    if (ly + mh > er.height) ly = Math.max(0, er.height - mh - 8);
+    let lx = clientX, ly = clientY;
+    if (lx + mw > vw) lx = Math.max(0, vw - mw - 8);
+    if (ly + mh > vh) ly = Math.max(0, vh - mh - 8);
     els.ctxMenu.style.left = `${lx}px`;
     els.ctxMenu.style.top  = `${ly}px`;
   });

@@ -5,17 +5,14 @@ import { BOT_BASE as API } from './config.js';
 let CACHE = { nodes: [], byId: new Map() };
 let LOADED = false;
 
-/** Normalize a node def from the API to what the UI expects. */
 function normalize(def) {
   const ins  = Array.isArray(def?.inputs)  ? def.inputs  : [];
   const outs = Array.isArray(def?.outputs) ? def.outputs : [];
-
   const pins = {
     in:  ins.map(p => ({ name: String(p.name),  type: String(p.type || 'any') })),
     out: outs.map(p => ({ name: String(p.name), type: String(p.type || 'any') })),
   };
-
-  const compat = {
+  return {
     id:        String(def.id),
     name:      String(def.name || def.id),
     category:  String(def.category || ''),
@@ -30,8 +27,9 @@ function normalize(def) {
     hasExecOut: pins.out.some(p => p.type === 'exec'),
     runtime: def.runtime || null,
     discord: def.discord || null,
+    hidden: !!def.hidden,
+    tags: Array.isArray(def.tags) ? def.tags.slice() : [],
   };
-  return compat;
 }
 
 function injectVirtualNodes(nodes, byId){
@@ -56,43 +54,23 @@ export async function fetchNodesIndex() {
   const txt = await r.text().catch(() => '');
   if (!r.ok) {
     console.error('[nodes-index] GET /nodes-index failed', r.status, txt);
-    CACHE = { nodes: [], byId: new Map() };
-    LOADED = false;
-    window.NODE_INDEX = [];
-    window.NODE_DEFS = {};
+    CACHE = { nodes: [], byId: new Map() }; LOADED = false;
+    window.NODE_INDEX = []; window.NODE_DEFS = {};
     return CACHE;
   }
 
   const data = txt ? JSON.parse(txt) : {};
   const raw  = Array.isArray(data?.nodes) ? data.nodes : [];
-  const nodes = raw.map(normalize);
-  const byId  = new Map(nodes.map(n => [n.id, n]));
+
+  const all   = raw.map(normalize);
+  const byId  = new Map(all.map(n => [n.id, n]));
+  let nodes   = all.filter(n => !n.hidden); // hide impl variants
 
   injectVirtualNodes(nodes, byId);
 
-  CACHE = { nodes, byId };
-  LOADED = true;
-
+  CACHE = { nodes, byId }; LOADED = true;
   window.NODE_INDEX = nodes;
   window.NODE_DEFS  = Object.fromEntries(byId);
-
-  console.groupCollapsed('[nodes-index] loaded', nodes.length, 'defs');
-  console.table(nodes.map(n => ({
-    id: n.id, kind: n.kind, in: n.inputs.length, out: n.outputs.length,
-    execIn: n.hasExecIn, execOut: n.hasExecOut
-  })));
-  window.__printNode = (id) => {
-    const n = byId.get(id);
-    if (!n) return console.warn('node not found', id);
-    console.group(`[node] ${id}`);
-    console.log('inputs:', n.inputs);
-    console.log('outputs:', n.outputs);
-    console.log('pins:', n.pins);
-    console.groupEnd();
-    return n;
-  };
-  console.groupEnd();
-
   return CACHE;
 }
 
@@ -101,17 +79,14 @@ export async function ensureNodesIndex() {
   return CACHE;
 }
 
-export function getNodeDef(defId) {
-  return CACHE.byId.get(defId) || null;
-}
+export function getNodeDef(defId) { return CACHE.byId.get(defId) || null; }
 
 export function groupNodesByCategory(list) {
   const root = {};
   for (const def of list) {
     const parts = String(def.category || '').split('.').filter(Boolean);
-    let cur = root;
-    for (const p of parts) cur = (cur[p] ||= {});
-    cur[def.name] = { __leaf: def, id: def.id };
+    let cur = root; for (const p of parts) cur = (cur[p] ||= {});
+    cur[def.name] = def.id;
   }
   return root;
 }

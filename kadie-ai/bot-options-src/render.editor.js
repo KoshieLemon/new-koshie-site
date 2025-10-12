@@ -52,7 +52,10 @@ export function renderNode(n){
 
 export function renderAll(){
   els.nodesLayer.innerHTML = '';
-  for (const n of state.nodes.values()) renderNode(n);
+  for (const n of state.nodes.values()){
+    if (!n.params) n.params = {};             // ensure storage exists for literals
+    renderNode(n);
+  }
   fitSvg();
   drawWires();
 }
