@@ -1,4 +1,3 @@
-// bot-options-src/nodes-index.js
 /* eslint-disable no-console */
 import { BOT_BASE as API } from './config.js';
 
@@ -64,7 +63,7 @@ export async function fetchNodesIndex() {
 
   const all   = raw.map(normalize);
   const byId  = new Map(all.map(n => [n.id, n]));
-  let nodes   = all.filter(n => !n.hidden); // hide impl variants
+  let nodes   = all.filter(n => !n.hidden);
 
   injectVirtualNodes(nodes, byId);
 

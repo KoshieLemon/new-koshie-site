@@ -77,17 +77,17 @@ function applyBreakObjectShape(nid, sourceType){
     params: baseIn,
     returns: outPins,
   };
-
   renderAll();
 }
 
-// ---- per-node DOM interaction wiring
+// ---- per-node interactions (drag, context menu, literals, start wire)
 function enableNodeInteractions(el, model){
-  // drag node (ignore when interacting with inputs)
+  // drag node
   el.addEventListener('mousedown', (ev)=>{
-    if (ev.button!==0) return;
+    if (ev.button !== 0) return;
     if (isInteractiveTarget(ev.target)) return;
 
+    // focus management for inline inputs
     const ae = document.activeElement;
     if (ae && ae.classList?.contains('pin-input') && !el.contains(ae)) ae.blur();
 
@@ -105,7 +105,7 @@ function enableNodeInteractions(el, model){
     ev.preventDefault();
   });
 
-  // node context menu (Duplicate/Delete) only
+  // node context menu (Duplicate/Delete)
   el.addEventListener('contextmenu', (ev)=>{
     if (isInteractiveTarget(ev.target)) return;
     ev.preventDefault();
@@ -118,7 +118,7 @@ function enableNodeInteractions(el, model){
       const d=document.createElement('div');
       d.className='menu-item';
       d.textContent=label;
-      d.addEventListener('click',()=>{ fn(); els.ctxMenu.style.display='none';});
+      d.addEventListener('click', ()=>{ fn(); els.ctxMenu.style.display='none';});
       return d;
     };
 
@@ -131,13 +131,13 @@ function enableNodeInteractions(el, model){
     }));
     els.ctxMenu.appendChild(mk('Delete', ()=>{
       state.nodes.delete(model.id);
-      for (const [id,e] of [...state.edges]) {
+      for (const [id,e] of state.edges) {
         if (e.from.nid===model.id || e.to.nid===model.id) state.edges.delete(id);
       }
       renderAll(); pushHistory(); markDirty(els.dirty);
     }));
 
-    window.addEventListener('click',()=>{ els.ctxMenu.style.display='none'; }, { once:true });
+    window.addEventListener('click', ()=>{ els.ctxMenu.style.display='none'; }, { once:true });
   });
 
   // start wire drag only from OUTPUT pins on the right
@@ -166,17 +166,14 @@ function enableNodeInteractions(el, model){
   el.addEventListener('input', (ev)=>{
     const t = ev.target;
     if (!t.classList || !t.classList.contains('pin-input')) return;
-    const pinEl = t.closest('.pin');
-    if (!pinEl) return;
+    const pinEl = t.closest('.pin'); if (!pinEl) return;
     const pinName = pinEl.dataset.pin;
     const n = state.nodes.get(model.id);
     if (!n.params) n.params = {};
     n.params[pinName] = t.type === 'checkbox' ? !!t.checked : t.value;
     markDirty(els.dirty);
   });
-  el.addEventListener('change', (ev)=>{
-    const t = ev.target;
-    if (!t.classList || !t.classList.contains('pin-input')) return;
+  el.addEventListener('change', ()=>{
     pushHistory(); // commit on blur/enter
   });
 }
@@ -238,88 +235,58 @@ export function initInteractions(){
       }
       renderAll(); markDirty(els.dirty);
     } else if (dragWire){
-      const from = getPinCenter(dragWire.from.nid, dragWire.from.pin, 'right');
+      const from = getPinCenter(dragWire.from.nid, 'right', dragWire.from.pin);
       const er = els.editor.getBoundingClientRect();
       const to = { x: ev.clientX - er.left, y: ev.clientY - er.top };
       if (dragWire.tempPath) dragWire.tempPath.remove();
       const p = document.createElementNS('http://www.w3.org/2000/svg','path');
       p.setAttribute('class', `wire${dragWire.kind==='data' ? ' data' : ''}`);
-      p.setAttribute('d', bezierPath(from.x, from.y, to.x, to.y));
       const stroke = dragWire.kind==='data'
-        ? (TYPE_COLORS[dragWire.colorKey] || '#94a3b8')
-        : '#ffffff';
+        ? (TYPE_COLORS[dragWire.colorKey] || '#93c5fd')
+        : '#9ca3af';
       p.style.setProperty('--wire', stroke);
+      p.setAttribute('stroke', stroke);
+      p.setAttribute('d', bezierPath(from.x, from.y, to.x, to.y));
       els.wiresSvg.appendChild(p);
       dragWire.tempPath = p;
     } else if (panning){
-      state.view.x = panning.vx + (ev.clientX - panning.startX);
-      state.view.y = panning.vy + (ev.clientY - panning.startY);
+      const dx = ev.clientX - panning.startX;
+      const dy = ev.clientY - panning.startY;
+      state.view.x = panning.vx + dx;
+      state.view.y = panning.vy + dy;
       applyView();
     }
   });
 
-  window.addEventListener('mouseup',()=>{
-    if (drag){ drag=null; pushHistory(); }
-    if (dragWire){ cancelDragWire(true); }
-    if (panning){ panning=null; }
-  });
-
-  // Editor context menu (palette) on blank space
-  els.editor.addEventListener('contextmenu', async (ev)=>{
-    const inNode = ev.target.closest?.('.node');
-    const inPin  = ev.target.closest?.('.pin, .jack, .label, .literal-wrap, .pin-input');
-    if (inNode || inPin) return;
-    ev.preventDefault();
-    await openContextMenu(ev.clientX, ev.clientY, (defId)=>{
-      const w = unprojectClient(ev.clientX, ev.clientY);
-      addNodeAt(defId, w.x - NODE_W/2, w.y - NODE_H/2);
-    });
-  });
-
-  // DnD from menu and Guild Browser
-  els.editor.addEventListener('dragover', (e)=>{ e.preventDefault(); });
-  els.editor.addEventListener('drop', (e)=>{
-    e.preventDefault();
-    const defId = e.dataTransfer.getData('text/x-node-id');
-    if (!defId) return;
-    let extras = {};
-    const json = e.dataTransfer.getData('application/x-node-params');
-    if (json){ try{ extras = JSON.parse(json) || {}; } catch {} }
-    const w = unprojectClient(e.clientX, e.clientY);
-    addNodeAt(defId, w.x - NODE_W/2, w.y - NODE_H/2, extras);
-  });
-
-  // Finish wire connection with checks + Break expansion
-  els.editor.addEventListener('mouseup',(ev)=>{
+  els.editor.addEventListener('mouseup', (ev)=>{
+    if (drag){
+      drag = null;
+      pushHistory();
+      return;
+    }
     if (!dragWire) return;
 
-    const pinEl = ev.target.closest?.('.pin.left, .pin.right');
-    const toNodeEl = ev.target.closest?.('.node');
-    if (!pinEl || !toNodeEl){ cancelDragWire(true); return; }
+    const pinEl = ev.target.closest?.('.pin.left');
+    if (!pinEl) { cancelDragWire(true); return; }
 
-    const toSide = pinEl.classList.contains('right') ? 'right' : 'left';
-    if (toSide === 'right'){ cancelDragWire(true); return; }
-
-    const toNid  = toNodeEl.dataset.nid;
-    const toPin  = pinEl.dataset.pin;
-    const toKind = pinEl.classList.contains('exec') ? 'exec' : 'data';
-    const toType = pinEl.dataset.type || (toKind==='exec' ? 'exec' : 'string');
-
-    if (dragWire.from.nid === toNid){ cancelDragWire(true); return; }
-    if (dragWire.kind !== toKind){ cancelDragWire(true); return; }
-
-    // Data type check with wildcard 'any'
+    const toNodeEl = pinEl.closest('.node');
+    const toNid = toNodeEl?.dataset?.nid;
+    const toPin = pinEl.dataset.pin;
     const fromKind = dragWire.kind;
-    if (fromKind === 'data'){
-      const ckFrom = colorKeyFor(dragWire.fromType);
-      const ckTo   = colorKeyFor(toType);
-      const wildcard = (String(dragWire.fromType) === 'any' || String(toType) === 'any');
-      if (!wildcard && ckFrom !== ckTo){ cancelDragWire(true); return; }
+    const toKind = pinEl.classList.contains('exec') ? 'exec' : 'data';
+
+    // Type direction and kind checks
+    if (fromKind !== toKind) { cancelDragWire(true); return; }
+    if (fromKind === 'exec' && pinEl.classList.contains('right')) { cancelDragWire(true); return; }
+
+    // Enforce single incoming edge per input pin
+    for (const [id,e] of state.edges) {
+      if (e.to.nid === toNid && e.to.pin === toPin) state.edges.delete(id);
     }
 
     // Exec outputs: single fan-out
     if (fromKind === 'exec'){
-      for (const [id,e] of [...state.edges]){
+      for (const [id,e] of state.edges){
         if (e.kind!=='exec') continue;
         const sameFrom = e.from.nid===dragWire.from.nid && e.from.pin===dragWire.from.pin;
         if (sameFrom) state.edges.delete(id);
@@ -332,11 +299,11 @@ export function initInteractions(){
       to: { nid: toNid, pin: toPin },              // input (left)
       kind: fromKind,
       fromType: dragWire.fromType,
-      colorKey: fromKind==='data' ? colorKeyFor(dragWire.fromType) : null,
+      type: dragWire.fromType || null,
     };
     state.edges.set(edge.id, edge);
 
-    // Expand Break Object outputs using the true source type.
+    // Expand Break Object outputs using the true source type
     const toNode = state.nodes.get(toNid);
     if (toNode && toNode.defId === 'utils.breakObject' && toPin === 'object' && fromKind === 'data'){
       const fallType = getOutputType(state.nodes.get(dragWire.from.nid)?.defId, dragWire.from.pin);
@@ -344,9 +311,7 @@ export function initInteractions(){
       applyBreakObjectShape(toNid, sourceType);
     }
 
-    // Immediate UI refresh so literal fields hide without nudging.
     renderAll();
-
     cancelDragWire(false);
     drawWires(); pushHistory(); markDirty(els.dirty);
   });
@@ -359,7 +324,7 @@ export function initInteractions(){
     if ((e.ctrlKey||e.metaKey) && y){ e.preventDefault(); redo(()=>{ renderAll(); applyView(); }); }
     if (e.key==='Delete'){
       for (const id of [...state.sel]) state.nodes.delete(id);
-      for (const [eid,e] of [...state.edges]) {
+      for (const [eid,e] of state.edges) {
         if (state.sel.has(e.from.nid) || state.sel.has(e.to.nid)) state.edges.delete(eid);
       }
       state.sel.clear();
