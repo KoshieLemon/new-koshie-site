@@ -3,7 +3,7 @@
 // Version: api.js v6
 
 // ---------- Config ----------
-export const NODE_API_BASE = 'https://api.koshiesstudios.com';
+export const NODE_API_BASE = 'https://api.koshiestudios.com';
 
 // Detect local vs prod from the page you're on.
 export const IS_LOCAL = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
