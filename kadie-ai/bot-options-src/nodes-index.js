@@ -1,4 +1,3 @@
-// bot-options-src/nodes-index.js
 /* eslint-disable no-console */
 import { BOT_BASE as API } from './config.js';
 
@@ -34,15 +33,84 @@ function normalize(def) {
 
 function injectVirtualNodes(nodes, byId){
   if (!byId.has('utils.breakObject')) {
+    // Data outputs are a superset across Message, User, Member, Channel, VoiceChannel, Role,
+    // Interaction, Invite, plus common primitives. Executor will set only what exists.
+    const breakOutputs = [
+      { name:'out', type:'exec' },
+
+      // Generic identifiers and timestamps
+      { name:'id', type:'string' },
+      { name:'guildId', type:'snowflake' },
+      { name:'channelId', type:'snowflake' },
+      { name:'createdTimestamp', type:'timestamp_ms' },
+
+      // Message
+      { name:'content', type:'string' },
+      { name:'authorId', type:'snowflake' },
+      { name:'pinned', type:'boolean' },
+      { name:'tts', type:'boolean' },
+      { name:'attachmentsCount', type:'int' },
+      { name:'embedsCount', type:'int' },
+      { name:'hasThread', type:'boolean' },
+      { name:'url', type:'url' },
+      { name:'type', type:'string' },
+
+      // User
+      { name:'username', type:'string' },
+      { name:'globalName', type:'string' },
+      { name:'bot', type:'boolean' },
+
+      // Member
+      { name:'userId', type:'snowflake' },
+      { name:'nickname', type:'string' },
+      { name:'joinedTimestamp', type:'timestamp_ms' },
+      { name:'rolesCount', type:'int' },
+
+      // Channel
+      { name:'name', type:'string' },
+      { name:'nsfw', type:'boolean' },
+      { name:'topic', type:'string' },
+
+      // VoiceChannel
+      { name:'bitrate', type:'int' },
+      { name:'userLimit', type:'int' },
+      { name:'parentId', type:'snowflake' },
+
+      // Role
+      { name:'color', type:'color' },
+      { name:'hoist', type:'boolean' },
+      { name:'managed', type:'boolean' },
+      { name:'position', type:'int' },
+      { name:'permissions', type:'string' },
+
+      // Interaction
+      { name:'commandName', type:'string' },
+      { name:'customId', type:'string' },
+
+      // Invite
+      { name:'code', type:'string' },
+      { name:'expiresTimestamp', type:'timestamp_ms' },
+      { name:'maxAge', type:'int' },
+      { name:'maxUses', type:'int' },
+      { name:'temporary', type:'boolean' },
+      { name:'uses', type:'int' },
+    ];
+
     const v = normalize({
       id: 'utils.breakObject',
       name: 'Break Object',
       category: 'Utilities',
       kind: 'exec',
       version: '1.0.0',
-      inputs:  [{ name:'in', type:'exec' }, { name:'object', type:'any' }],
-      outputs: [{ name:'out', type:'exec' }],
+      // Accept both names since the executor checks "object" or "payload".
+      inputs:  [
+        { name:'in', type:'exec' },
+        { name:'object', type:'any' },
+        { name:'payload', type:'any' }
+      ],
+      outputs: breakOutputs,
     });
+
     nodes.push(v);
     byId.set(v.id, v);
   }
@@ -64,7 +132,7 @@ export async function fetchNodesIndex() {
 
   const all   = raw.map(normalize);
   const byId  = new Map(all.map(n => [n.id, n]));
-  let nodes   = all.filter(n => !n.hidden); // hide impl variants
+  let nodes   = all.filter(n => !n.hidden);
 
   injectVirtualNodes(nodes, byId);
 
