@@ -1,3 +1,4 @@
+// bot-options-src/providers.js
 // Kadie AI editor <-> kadie-ai-node API adapter.
 // Uses correct query key `guild_id` and always sends {id, name} on create.
 // Saves payload as { data: { graph, script } }.
