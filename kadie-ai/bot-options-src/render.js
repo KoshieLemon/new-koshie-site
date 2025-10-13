@@ -1,3 +1,5 @@
-// /bot-options-src/render.js
-export { renderAll, registerNodeInteractions } from './render.editor.js';
-export { fitSvg, drawWires, bezierPath, getPinCenter } from './render.wires.js';
+// Orchestrator: re-exports modular renderer pieces.
+// Keep existing imports in other files working.
+export { fitSvg, bezierPath, getPinCenter, drawWires } from './render.wires.js';
+export { buildNodeDOM } from './render.node.js';
+export { renderNode, renderAll, registerNodeInteractions } from './render.editor.js';
