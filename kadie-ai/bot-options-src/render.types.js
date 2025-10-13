@@ -95,7 +95,7 @@ export function ensureTypeStylesInjected(){
   style.textContent = css; document.head.appendChild(style);
 }
 
-// Shapes and helpers unchanged…
+// Shapes and helpers unchangedâ€¦
 export const DISCORD_SHAPES = {
   // keep existing shapes; no change needed for MessagePayload
 };
