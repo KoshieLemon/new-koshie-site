@@ -1,6 +1,5 @@
-// /kadie-ai/server-listings.js  v4
+// /kadie-ai/server-listings.js v8
 import {
-  IS_LOCAL,
   apiGet,
   apiGetFirst,
   ME_URL,
@@ -14,125 +13,195 @@ import {
   GUILDS_URLS_LABEL
 } from '/assets/api.js';
 
-const statusEl = document.getElementById('status');
-const gridEl = document.getElementById('grid');
+printDiagnostics('server-listings v8');
 
-printDiagnostics('server-listings.html v4');
+/* ---------- DOM helpers (self-initialize if HTML not updated) ---------- */
+function byId(id){ return document.getElementById(id); }
 
-function setStatus(msg, isError = false) {
-  if (!IS_LOCAL && !isError) { statusEl.classList.add('hidden'); return; }
-  statusEl.classList.remove('hidden');
-  statusEl.classList.toggle('error', isError);
-  statusEl.innerHTML = msg;
+function ensureDOM(){
+  let page = document.querySelector('.page');
+  if (!page) {
+    page = document.createElement('main');
+    page.className = 'page';
+    document.body.appendChild(page);
+  }
+  if (!byId('q')) {
+    const bar = document.createElement('div'); bar.className='searchbar';
+    const wrap = document.createElement('div'); wrap.className='searchwrap';
+    const input = document.createElement('input'); input.id='q'; input.type='search'; input.placeholder='Search servers…'; input.autocomplete='off'; input.spellcheck=false;
+    wrap.appendChild(input); bar.appendChild(wrap); page.appendChild(bar);
+  }
+  if (!byId('status')) {
+    const s = document.createElement('div'); s.id='status'; s.className='status';
+    page.appendChild(s);
+  }
+  if (!byId('section-manageable')) {
+    const sec = document.createElement('section'); sec.id='section-manageable';
+    sec.innerHTML = `<h2 class="group-title">You can manage</h2><div id="list-manageable" class="list"></div>`;
+    page.appendChild(sec);
+  }
+  if (!byId('section-popular')) {
+    const sec = document.createElement('section'); sec.id='section-popular';
+    sec.innerHTML = `<h2 class="group-title">Most popular</h2><div id="list-popular" class="list"></div>`;
+    page.appendChild(sec);
+  }
+  return {
+    qEl: byId('q'),
+    statEl: byId('status'),
+    listA: byId('list-manageable'),
+    listB: byId('list-popular')
+  };
 }
 
-function hasManagePerms(g) {
-  const ADMIN = 1 << 3;        // 8
-  const MANAGE_GUILD = 1 << 5; // 32
+const { qEl, statEl, listA, listB } = ensureDOM();
+
+/* ---------- utilities ---------- */
+function setError(msg){ statEl.textContent = msg; statEl.classList.add('show'); }
+function clearError(){ statEl.textContent = ''; statEl.classList.remove('show'); }
+
+function hasManagePerms(g){
+  const ADMIN = 1<<3, MANAGE_GUILD = 1<<5;
   const perms = Number(g.permissions || 0);
   return Boolean(g.owner || (perms & ADMIN) || (perms & MANAGE_GUILD));
 }
+function iconUrl(g){ return g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=128` : null; }
 
-function iconUrl(g) {
-  return g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=128` : null;
+function informMasterOpen(g){
+  try{
+    if (window.top && window.top !== window) {
+      window.top.postMessage({ type: 'openServer', guild: { id: g.id, name: g.name || '', icon: g.icon || '' } }, '*');
+      return true;
+    }
+  }catch{}
+  return false;
 }
 
-function el(tag, cls, html) {
-  const x = document.createElement(tag);
-  if (cls) x.className = cls;
-  if (html != null) x.innerHTML = html;
-  return x;
-}
+/* ---------- render ---------- */
+function makeRow(data){
+  const { g, manageable, isBotIn, counts } = data;
 
-function renderCard(g, appId, isBotIn, manageable, counts) {
-  const card = el('div', 'guild-card' + (manageable ? ' manageable' : ''), '');
-  const head = el('div', 'guild-head', '');
+  const card = document.createElement('div'); card.className = 'card';
   const url = iconUrl(g);
   if (url) {
-    const i = new Image(); i.src = url; i.className = 'guild-icon'; head.appendChild(i);
+    const i = new Image(); i.src = url; i.className = 'ico'; card.appendChild(i);
   } else {
-    const img = el('div', 'guild-icon', (g.name || '?').slice(0,1).toUpperCase());
-    head.appendChild(img);
+    const d = document.createElement('div'); d.className='fallback';
+    d.textContent = (g.name || '?').slice(0,1).toUpperCase();
+    card.appendChild(d);
   }
-  const titleBox = el('div', '', '');
-  titleBox.appendChild(el('h3', 'guild-name', g.name ?? '(unnamed)'));
-  const badgeRow = el('div', 'badges', '');
-  if (manageable) badgeRow.appendChild(el('span', 'badge mgmt', 'manageable'));
-  if (g.owner) badgeRow.appendChild(el('span', 'badge', 'owner'));
-  titleBox.appendChild(badgeRow);
-  head.appendChild(titleBox);
-  card.appendChild(head);
 
-  const meta = el('div', 'guild-meta', '');
-  meta.appendChild(el('div', '', `ID: <span class="small">${g.id}</span>`));
-  const countsEl = el('div', 'small', '');
-  if (counts) {
-    const parts = [];
-    if (typeof counts.online === 'number') parts.push(`${counts.online} online`);
-    if (typeof counts.total === 'number') parts.push(`${counts.total} members`);
-    countsEl.textContent = parts.join(' • ');
-  }
-  meta.appendChild(countsEl);
+  const meta = document.createElement('div'); meta.className='meta';
+  const name = document.createElement('div'); name.className='name'; name.textContent = g.name ?? '(unnamed)';
+  const sub  = document.createElement('div'); sub.className='sub';
+  const parts = [];
+  if (g.owner) parts.push('owner');
+  else if (hasManagePerms(g)) parts.push('admin');
+  if (isBotIn) parts.push('bot installed');
+  if (counts?.total) parts.push(`${counts.total} members`);
+  sub.textContent = parts.join(' • ');
+  meta.appendChild(name); meta.appendChild(sub);
   card.appendChild(meta);
 
-  const actions = el('div', 'actions', '');
-  const showManage = Boolean(manageable || isBotIn);
-  console.info('[render]', g.id, { manageable, isBotIn, showManage });
+  const spacer = document.createElement('div'); spacer.className='spacer'; card.appendChild(spacer);
 
-  if (showManage) {
-    const cfg = el('a', 'btn secondary', 'Manage server');
-    const q = new URLSearchParams({
-      guild_id: g.id,
-      guild_name: g.name || '',
-      guild_icon: g.icon || ''
-    }).toString();
-    cfg.href = `/kadie-ai/bot-options.html?${q}`;
-    actions.appendChild(cfg);
+  const a = document.createElement('a');
+  a.className = 'btn' + (manageable ? '' : ' secondary');
+  a.textContent = manageable ? 'Open' : (isBotIn ? 'View' : 'Add bot');
+
+  if (manageable || isBotIn) {
+    a.href = '#';
+    a.addEventListener('click', (e)=>{ e.preventDefault(); if (!informMasterOpen(g)) a.blur(); });
+    card.style.cursor='pointer';
+    card.addEventListener('click', ()=>{ if (!informMasterOpen(g)) a.blur(); });
   } else {
-    const add = el('a', 'btn', 'Add bot');
-    if (appId) {
-      add.href = buildInviteUrl(appId, g.id, 0);
-      add.target = '_blank';
-    } else {
-      add.href = '#';
-      add.setAttribute('aria-disabled', 'true');
-      add.classList.add('disabled', 'secondary');
-      add.textContent = 'Add bot (app id missing)';
-    }
-    actions.appendChild(add);
+    a.target = '_blank';
+    a.href = appId ? buildInviteUrl(appId, g.id, 0) : '#';
+    if (!appId) a.setAttribute('aria-disabled','true');
   }
-  card.appendChild(actions);
+  card.appendChild(a);
 
   return card;
 }
 
+function render(filtered){
+  // guard if DOM missing for any reason
+  if (!listA || !listB) return;
+
+  const manageable = filtered.filter(r => r.manageable || (r.isBotIn && hasManagePerms(r.g)));
+  const others     = filtered.filter(r => !manageable.includes(r));
+
+  manageable.sort((a,b)=>{
+    const wa = a.g.owner ? 0 : hasManagePerms(a.g) ? 1 : 2;
+    const wb = b.g.owner ? 0 : hasManagePerms(b.g) ? 1 : 2;
+    return wa - wb || a.g.name.localeCompare(b.g.name);
+  });
+
+  others.sort((a,b)=>{
+    const at = a.counts?.total ?? -1, bt = b.counts?.total ?? -1;
+    const ao = a.counts?.online ?? -1, bo = b.counts?.online ?? -1;
+    return (bt - at) || (bo - ao) || a.g.name.localeCompare(b.g.name);
+  });
+
+  listA.innerHTML = manageable.length ? '' : '<div class="empty">No manageable servers found.</div>';
+  listB.innerHTML = others.length ? '' : '<div class="empty">No other servers to show.</div>';
+
+  const fragA = document.createDocumentFragment();
+  manageable.forEach(r => fragA.appendChild(makeRow(r)));
+  listA.appendChild(fragA);
+
+  const fragB = document.createDocumentFragment();
+  others.forEach(r => fragB.appendChild(makeRow(r)));
+  listB.appendChild(fragB);
+}
+
+/* ---------- search ---------- */
+function applySearch(){
+  const q = qEl.value.trim().toLowerCase();
+  if (!q) { render(rows); return; }
+  const f = rows.filter(r => (r.g.name||'').toLowerCase().includes(q) || String(r.g.id).includes(q));
+  render(f);
+}
+
+/* ---------- data flow ---------- */
+let appId = null;
+let rows = [];
+
 (async () => {
   try {
+    // session check (errors only)
     const meRes = await apiGet(ME_URL, ME_URL_LABEL);
-    if (meRes.status === 401) { setStatus(`Not logged in. <a href="/kadie-ai/kadie-ai.html">Sign in with Discord</a>`, true); return; }
-    if (!meRes.ok) { setStatus(`Unexpected /me: ${meRes.status}`, true); return; }
+    if (meRes.status === 401) setError(`Not logged in. <a href="/kadie-ai/kadie-ai.html">Sign in with Discord</a>`);
 
-    const { res: gRes, url: usedUrl } = await apiGetFirst(GUILDS_URLS, GUILDS_URLS_LABEL);
-    if (!gRes.ok) { setStatus(`Guilds error: ${gRes.status} ${gRes.statusText}`, true); return; }
+    // guilds
+    const { res: gRes } = await apiGetFirst(GUILDS_URLS, GUILDS_URLS_LABEL);
+    if (!gRes.ok) { setError(`Guilds error: ${gRes.status} ${gRes.statusText}`); return; }
     const guilds = await gRes.json();
-    if (!Array.isArray(guilds)) { setStatus('Guilds payload invalid.', true); return; }
-    if (IS_LOCAL) setStatus(`Loaded ${guilds.length} server(s) from ${usedUrl}`);
+    if (!Array.isArray(guilds)) { setError('Guilds payload invalid.'); return; }
 
-    const [appId, botSet] = await Promise.all([fetchAppId(), fetchBotGuildSet()]);
+    // app + bot membership set
+    const [appid, botSet] = await Promise.all([fetchAppId(), fetchBotGuildSet()]);
+    appId = appid || null;
 
-    const frag = document.createDocumentFragment();
-    for (const g of guilds) {
-      const manageable = hasManagePerms(g);
-      const isBotIn = botSet ? botSet.has(String(g.id)) : false;
-      const counts = await fetchGuildCounts(g.id); // returns null (disabled)
-      frag.appendChild(renderCard(g, appId, isBotIn, manageable, counts));
-    }
-    gridEl.replaceChildren(frag);
+    // counts in parallel, tolerant
+    const countEntries = await Promise.all(guilds.map(async g => {
+      try { return [g.id, await fetchGuildCounts(g.id)]; }
+      catch { return [g.id, null]; }
+    }));
+    const countMap = new Map(countEntries);
+
+    rows = guilds.map(g => ({
+      g,
+      manageable: hasManagePerms(g) || g.owner,
+      isBotIn: botSet ? botSet.has(String(g.id)) : false,
+      counts: countMap.get(g.id) || null
+    }));
+
+    clearError();
+    render(rows);
+
+    qEl.addEventListener('input', applySearch);
   } catch (err) {
-    const attemptsHtml = Array.isArray(err?.attempts)
-      ? `<br>Attempts: ${err.attempts.map(a => `<code>${a.url}</code> (${a.status || a.error || 'error'})`).join(', ')}`
-      : '';
-    setStatus('Network or CORS error. ' + attemptsHtml, true);
+    setError('Network or CORS error.');
     console.error('[server-listings] fatal', err);
   }
 })();

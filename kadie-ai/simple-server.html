@@ -1,0 +1,37 @@
+<!-- /kadie-ai/simple-server.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Kadie AI • Server</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  <link rel="stylesheet" href="/assets/main.css" />
+  <style>
+    .bar{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:12px}
+    .btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:8px 12px;border-radius:10px;cursor:pointer}
+  </style>
+</head>
+<body>
+  <!-- No local server header here. Back button only. -->
+  <header class="container">
+    <div class="bar">
+      <button id="backBtn" class="btn" title="Back to server listings">Back</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="card">
+      <h3>Server tools</h3>
+      <p class="small" style="color:#9aa4b2">Use the Blueprints tab in the header to edit automations.</p>
+    </div>
+  </main>
+
+  <script type="module">
+    // Back → tell parent to clear selection and return to listings
+    document.getElementById('backBtn').addEventListener('click', () => {
+      parent?.postMessage({ type: 'exitServer' }, '*');
+    });
+  </script>
+</body>
+</html>
