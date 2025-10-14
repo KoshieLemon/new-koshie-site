@@ -1,35 +1,85 @@
-<!-- /kadie-ai/community-forums.html -->
+<!-- /kadie-ai/kadie-home.html -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kadie AI • Community</title>
+  <title>Kadie AI • Home</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3366084057758708"
-     crossorigin="anonymous"></script>
   <link rel="stylesheet" href="/assets/main.css" />
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3366084057758708" crossorigin="anonymous"></script>
+  <style>
+    :root{ --header-h:72px; --gap-y:10px; }
+    html,body{height:100%; margin:0}
+    /* Header stays visible above iframes */
+    #siteHeader{
+      position:sticky; top:0; z-index:100;
+      background:#0b0b0c; border-bottom:1px solid #151923;
+    }
+    .header{display:flex;align-items:center;justify-content:space-between;padding:12px 0}
+    .left{display:flex;align-items:center;gap:14px}
+    .brand{margin:0}
+    .server-badge{display:none;align-items:center;gap:10px;padding:6px 10px;border:1px solid #2b2f3a;border-radius:999px;background:#11131a}
+    .server-badge.show{display:flex}
+    .server-ico{width:22px;height:22px;border-radius:6px;background:#0002;object-fit:cover}
+    .server-name{font-weight:600;font-size:13px}
+    .server-id{font-size:11px;color:#9aa4b2}
+    .leave-btn{border:1px solid #3a1f1f;background:#1a1111;color:#fca5a5;padding:4px 8px;border-radius:8px;cursor:pointer}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap}
+    .tab-btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:8px 12px;border-radius:10px;cursor:pointer}
+    .tab-btn[hidden]{display:none}
+    .tab-btn.active{outline:2px solid #5ac8fa}
+    /* Full-bleed viewport under header */
+    .full-bleed{width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}
+    .viewport-wrap{position:relative;height:calc(100dvh - var(--header-h) - var(--gap-y));}
+    .content{position:absolute;inset:0;border:0;border-radius:0;overflow:hidden;background:#0b0b0c}
+    .frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:none}
+    .frame.active{display:block}
+    .auth-block{position:absolute;inset:0;background:linear-gradient(160deg,#0b0f1a,#0f1324);display:none;align-items:center;justify-content:center;z-index:50}
+    .auth-card{background:#0e1116;border:1px solid #2b2f3a;border-radius:12px;padding:18px;max-width:420px;box-shadow:0 10px 24px #000a}
+    .auth-block.show{display:flex}
+    .btn{border:1px solid #0003;background:#111;color:#eee;padding:8px 12px;border-radius:10px;cursor:pointer}
+    .muted{color:#9aa4b2;font-size:12px}
+  </style>
 </head>
 <body>
-  <header class="container"><h1>Community</h1></header>
-  <main class="container">
-    <div class="card">
-      <h2>Forums</h2>
-      <p class="small" style="color:#9aa4b2">Welcome to the Kadie AI community area.</p>
-      <ul>
-        <li><strong>Announcements</strong> — release notes and updates</li>
-        <li><strong>Help</strong> — ask questions, share fixes</li>
-        <li><strong>Showcase</strong> — post blueprints and ideas</li>
-      </ul>
+  <header class="container header" id="siteHeader">
+    <div class="left">
+      <h1 class="brand">Kadie AI</h1>
+      <div id="serverBadge" class="server-badge" aria-live="polite">
+        <img id="sbIcon" class="server-ico" alt="">
+        <div style="display:flex;flex-direction:column;line-height:1.1">
+          <span id="sbName" class="server-name"></span>
+          <span id="sbId" class="server-id"></span>
+        </div>
+        <button id="leaveServerBtn" class="leave-btn" title="Leave server">Leave</button>
+      </div>
     </div>
-    <div class="card">
-      <h3>Guidelines</h3>
-      <ol>
-        <li>Stay on topic.</li>
-        <li>No harassment or spam.</li>
-        <li>Redact secrets and tokens in screenshots.</li>
-      </ol>
+    <nav class="tabs" id="tabs">
+      <button class="tab-btn active" data-tab="simple" id="tab-simple">Simple Server</button>
+      <button class="tab-btn" data-tab="community" id="tab-community" hidden>Community</button>
+      <button class="tab-btn" data-tab="blueprints" id="tab-blueprints" hidden>Blueprints</button>
+    </nav>
+  </header>
+
+  <main class="viewport-wrap full-bleed">
+    <div class="content" id="content">
+      <iframe id="frame-simple" class="frame active" src="/kadie-ai/server-listings.html" title="Server listings"></iframe>
+      <iframe id="frame-community" class="frame" src="/kadie-ai/community-forums.html" title="Community"></iframe>
+      <iframe id="frame-blueprints" class="frame" src="about:blank" title="Blueprints"></iframe>
+
+      <div class="auth-block" id="authBlock" aria-live="polite">
+        <div class="auth-card">
+          <h3 style="margin:0 0 8px 0">Sign in required</h3>
+          <p id="authStatus" class="muted" style="margin:0 0 12px 0">Checking session…</p>
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn" id="signinDirect">Sign in with Discord</button>
+          </div>
+        </div>
+      </div>
     </div>
   </main>
+
+  <script type="module" src="/kadie-ai/kadie-home.js"></script>
 </body>
 </html>

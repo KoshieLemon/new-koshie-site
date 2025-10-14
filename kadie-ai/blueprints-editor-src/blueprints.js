@@ -1,11 +1,11 @@
-// Blueprint list + active loader with single-step diagnostics.
+// Blueprint loader with single-step diagnostics and hard verification.
 // Steps:
 // 1) Bubble event received
 // 2) Sync legacy <select>
-// 3) Load blueprint (ensure defs, fetch, normalize)
+// 3) Load blueprint (ensure defs, fetch, normalize, ID match)
 // 4) Update runtime state
-// 5) Render graph + VERIFY active node and DOM consistency
-// 6) Notify legacy listeners
+// 5) Render graph + VERIFY (clears state first; checks DOM + active node)
+// 6) Notify legacy listeners (disabled; we only drive from bp:selected)
 // 7) Finalize UI
 
 import { els } from "./dom.js";
@@ -21,10 +21,58 @@ import {
 } from "./providers.js";
 import { ensureNodesIndex } from "./nodes-index.js";
 
-// ---------- diagnostics (one line per step) ----------
+// ---------- diagnostics ----------
 function stepLog(n, label, status, extra) {
   const tail = extra ? ` | ${extra}` : "";
   console.info(`[BP STEP ${n}] ${label}: ${status}${tail}`);
+}
+
+// ---------- util ----------
+function pickActiveNodeId(graph) {
+  const selId = state.sel && state.sel.size ? [...state.sel][0] : null;
+  if (selId && graph.nodes?.some(n => n.id === selId)) return selId;
+  return graph.nodes?.[0]?.id || null;
+}
+
+function verifyGraphRendered(graph) {
+  const wantCount = Array.isArray(graph.nodes) ? graph.nodes.length : 0;
+  const haveCount = state.nodes instanceof Map ? state.nodes.size : 0;
+
+  const missingInState = [];
+  const missingInDom = [];
+
+  const idsFromGraph = new Set((graph.nodes || []).map(n => n.id));
+  for (const id of idsFromGraph) {
+    if (!state.nodes.has(id)) missingInState.push(id);
+  }
+  for (const id of state.nodes.keys()) {
+    const nodeEl = els.nodesLayer?.querySelector?.(`.node[data-nid="${CSS.escape(id)}"]`);
+    if (!nodeEl) missingInDom.push(id);
+  }
+
+  const activeId = pickActiveNodeId(graph);
+  const activeOK = activeId
+    ? !!els.nodesLayer?.querySelector?.(`.node[data-nid="${CSS.escape(activeId)}"]`)
+    : wantCount === 0;
+
+  const ok =
+    wantCount === haveCount &&
+    missingInState.length === 0 &&
+    missingInDom.length === 0 &&
+    activeOK;
+
+  const details = [
+    `expected=${wantCount}`,
+    `state=${haveCount}`,
+    missingInState.length ? `missingInState=[${missingInState.join(",")}]` : "",
+    missingInDom.length ? `missingInDom=[${missingInDom.join(",")}]` : "",
+    `active=${activeId || "none"}`,
+    `activeOK=${activeOK}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return { ok, details };
 }
 
 // ---------- list + open ----------
@@ -51,72 +99,27 @@ async function refreshList(gid, selectId = "") {
   await openById(gid, id);
 }
 
-function pickActiveNodeId(graph) {
-  // Prefer a currently selected node that exists; else first node in graph; else null
-  const selId = state.sel && state.sel.size ? [...state.sel][0] : null;
-  if (selId && graph.nodes?.some(n => n.id === selId)) return selId;
-  return graph.nodes?.[0]?.id || null;
-}
+let loadSeq = 0; // concurrency guard
 
-function verifyGraphRendered(graph) {
-  // Invariants:
-  // - state.nodes size must equal graph.nodes length
-  // - for each state node there must be a DOM element .node[data-nid=id]
-  // - chosen active node must exist in DOM
-  const wantCount = Array.isArray(graph.nodes) ? graph.nodes.length : 0;
-  const haveCount = state.nodes instanceof Map ? state.nodes.size : 0;
-
-  const missingInState = [];
-  const missingInDom = [];
-
-  const idsFromGraph = new Set((graph.nodes || []).map(n => n.id));
-  for (const id of idsFromGraph) {
-    if (!state.nodes.has(id)) missingInState.push(id);
-  }
-
-  for (const id of state.nodes.keys()) {
-    const nodeEl = els.nodesLayer?.querySelector?.(`.node[data-nid="${CSS.escape(id)}"]`);
-    if (!nodeEl) missingInDom.push(id);
-  }
-
-  const activeId = pickActiveNodeId(graph);
-  const activeOK = activeId
-    ? !!els.nodesLayer?.querySelector?.(`.node[data-nid="${CSS.escape(activeId)}"]`)
-    : wantCount === 0; // if no nodes expected, treat as OK
-
-  const ok =
-    wantCount === haveCount &&
-    missingInState.length === 0 &&
-    missingInDom.length === 0 &&
-    activeOK;
-
-  const details = [
-    `expected=${wantCount}`,
-    `state=${haveCount}`,
-    missingInState.length ? `missingInState=[${missingInState.join(",")}]` : "",
-    missingInDom.length ? `missingInDom=[${missingInDom.join(",")}]` : "",
-    `active=${activeId || "none"}`,
-    `activeOK=${activeOK}`,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return { ok, details };
-}
-
-async function openById(gid, id) {
+async function openById(gid, requestedId, seq = 0) {
   // Step 3: Load blueprint
   let bp = null;
   let graph = { nodes: [], edges: [] };
+
   try {
     await ensureNodesIndex();
 
-    bp = await openBlueprint(gid, id);
+    bp = await openBlueprint(gid, requestedId);
     if (!bp) {
       stepLog(3, "Load blueprint", "FAIL", "provider returned null");
       stepLog(4, "Update runtime state", "FAIL", "blocked by step 3");
       stepLog(5, "Render graph + VERIFY", "FAIL", "blocked by step 3");
       return { ok: false, reason: "no-blueprint" };
+    }
+
+    if (String(bp.id) !== String(requestedId)) {
+      stepLog(3, "Load blueprint", "FAIL", `id-mismatch requested=${requestedId} got=${bp.id}`);
+      return { ok: false, reason: "id-mismatch" };
     }
 
     const raw = bp.data?.graph ?? bp.data ?? {};
@@ -132,6 +135,9 @@ async function openById(gid, id) {
     return { ok: false, reason: "exception" };
   }
 
+  // abort if a newer request superseded this one
+  if (seq && seq !== loadSeq) return { ok: false, reason: "superseded" };
+
   // Step 4: Update runtime state
   try {
     state.bpId = bp.id;
@@ -143,9 +149,16 @@ async function openById(gid, id) {
     return { ok: false, reason: "state-failure" };
   }
 
-  // Step 5: Render graph + VERIFY active node and DOM consistency
+  if (seq && seq !== loadSeq) return { ok: false, reason: "superseded" };
+
+  // Step 5: Render graph + VERIFY
   let verify = { ok: false, details: "" };
   try {
+    // hard reset like delete-path does
+    state.nodes?.clear?.();
+    state.edges?.clear?.();
+    renderAll(); // clear DOM before re-hydration
+
     loadSnapshot(graph, () => renderAll());
     verify = verifyGraphRendered(graph);
     stepLog(5, "Render graph + VERIFY", verify.ok ? "OK" : "FAIL", verify.details);
@@ -154,84 +167,63 @@ async function openById(gid, id) {
     return { ok: false, reason: "render-failure" };
   }
 
-  // Return status so caller can decide steps 6 and 7 behavior
   return { ok: verify.ok, reason: verify.ok ? "ok" : "verify-failed" };
 }
 
 // ---------- init + events ----------
-let suppressSelectChange = false;
-
 export async function initBlueprints(gid) {
   const sel = els.bpSelect;
   const btnCreate = els.bpCreate;
   const btnRename = els.bpRename;
   const btnDelete = els.bpDelete;
 
-  // Save buttons (top bar or legacy)
+  // Save buttons
   const btnSave =
     document.querySelector('[data-action="save"]') ||
     document.getElementById("bpSave") ||
     document.getElementById("saveBtn");
+  if (btnSave) btnSave.addEventListener("click", async () => { await saveCurrentBlueprint(gid); });
 
-  if (btnSave) {
-    btnSave.addEventListener("click", async () => {
-      await saveCurrentBlueprint(gid);
-    });
-  }
-
-  // Legacy <select> path
-  sel?.addEventListener("change", async () => {
-    if (suppressSelectChange) return;
+  // Ignore programmatic <select> changes; only handle real user selection from dropdown
+  sel?.addEventListener("change", async (e) => {
+    if (!e.isTrusted) return; // dock fires synthetic; we ignore
     const id = sel.value;
     if (!id) { els.overlay.style.display = ""; return; }
-    const res = await openById(gid, id);
-    // Step 7: Finalize UI
+    if (String(id) === String(state.bpId)) { stepLog(1, "Bubble event received", "OK", `id=${id} (already active; ignored)`); return; }
+    const mySeq = ++loadSeq;
+    const res = await openById(gid, id, mySeq);
     clearDirty(els.dirty);
     els.overlay.style.display = res.ok ? "none" : "";
     stepLog(7, "Finalize UI", res.ok ? "OK" : "FAIL", res.ok ? "overlay hidden" : "overlay shown");
   });
 
-  // Bubble click path with strict 1..7 step logs
+  // Bubble click path with strict 1..7 logs
   window.addEventListener("bp:selected", async (ev) => {
     const picked = String(ev?.detail?.id || "");
-    stepLog(1, "Bubble event received", picked ? "OK" : "FAIL", picked ? `id=${picked}` : "missing id");
-    if (!picked) return;
+    const same = picked && String(picked) === String(state.bpId);
+    stepLog(1, "Bubble event received", picked ? "OK" : "FAIL", picked ? `id=${picked}${same ? " (already active; ignored)" : ""}` : "missing id");
+    if (!picked || same) return;
 
     // Step 2: Sync legacy <select>
     let step2Status = "OK";
     try {
-      if (sel) {
-        suppressSelectChange = true;
-        sel.value = picked;
-        if (sel.value !== picked) step2Status = "FAIL";
+      if (els.bpSelect) {
+        els.bpSelect.value = picked;
+        if (els.bpSelect.value !== picked) step2Status = "FAIL";
       } else {
         step2Status = "FAIL";
       }
-    } catch {
-      step2Status = "FAIL";
-    }
+    } catch { step2Status = "FAIL"; }
     stepLog(2, "Sync legacy <select>", step2Status);
-    if (step2Status === "FAIL") suppressSelectChange = false;
 
-    // Steps 3,4,5 handled inside openById
-    const res = await openById(gid, picked);
+    // Steps 3,4,5
+    const mySeq = ++loadSeq;
+    const res = await openById(gid, picked, mySeq);
 
-    // Step 6: Notify legacy listeners
-    let step6Status = "OK";
-    try {
-      if (res.ok && sel) {
-        sel.dispatchEvent(new Event("change", { bubbles: true }));
-      } else if (!res.ok) {
-        step6Status = "FAIL";
-      }
-    } catch {
-      step6Status = "FAIL";
-    } finally {
-      suppressSelectChange = false;
-    }
-    stepLog(6, "Notify legacy listeners", step6Status);
+    // Step 6: disabled to avoid double-loads
+    stepLog(6, "Notify legacy listeners", "SKIP");
 
-    // Step 7: Finalize UI
+    // Step 7
     clearDirty(els.dirty);
     els.overlay.style.display = res.ok ? "none" : "";
     stepLog(7, "Finalize UI", res.ok ? "OK" : "FAIL", res.ok ? "overlay hidden" : "overlay shown");
@@ -280,7 +272,5 @@ export async function saveCurrentBlueprint(gid) {
     const ok = await saveBlueprint(gid, bp);
     if (ok) clearDirty(els.dirty);
     return ok;
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
