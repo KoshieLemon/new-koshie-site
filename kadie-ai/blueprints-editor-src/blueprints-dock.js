@@ -25,77 +25,36 @@
     const s = document.createElement('style');
     s.id = 'bp-dock-override-styles';
     s.textContent = `
-      #bpdock .bp-list{
-        display:flex; flex-direction:column;
-        align-items:center; gap:8px;
-      }
-      /* chips have uniform width; height grows with wrapping */
+      #bpdock .bp-list{ display:flex; flex-direction:column; align-items:center; gap:8px; }
       #bpdock .chip{
-        position:relative;
-        width:90%;
-        min-height:42px;
-        padding:6px 10px;
-        border-radius:10px;
-        background:#1f2330; color:#e5e7eb;
-        cursor:pointer; user-select:none;
-        text-align:center;
-        display:flex; align-items:center; justify-content:center;
-        overflow:visible;
+        position:relative; width:90%; min-height:42px; padding:6px 10px; border-radius:10px;
+        background:#1f2330; color:#e5e7eb; cursor:pointer; user-select:none; text-align:center;
+        display:flex; align-items:center; justify-content:center; overflow:visible;
       }
       #bpdock .chip.active{ background:#2a3144; }
-      #bpdock .chip .name{
-        display:block;
-        max-width:calc(100% - 14px); /* reserve for red sidebar */
-        white-space:normal;
-        overflow-wrap:anywhere;
-        word-break:break-word;
-        line-height:1.15;
-      }
-      #bpdock .chip .name[contenteditable="true"]{
-        outline:none; cursor:text; min-width:60px;
-      }
+      #bpdock .chip .name{ display:block; max-width:calc(100% - 14px); white-space:normal; overflow-wrap:anywhere; word-break:break-word; line-height:1.15; }
+      #bpdock .chip .name[contenteditable="true"]{ outline:none; cursor:text; min-width:60px; }
       #bpdock .chip .name[contenteditable="true"]:empty::before{ content:""; }
       #bpdock .chip.editing{ outline:1px dashed #2b2f3a; }
       #bpdock .chip.add{ background:#283042; }
       #bpdock .chip.add.disabled{ opacity:.5; cursor:not-allowed; }
 
-      /* red delete/cancel sidebar overlay (no size change) */
+      /* red delete sidebar overlay (no size change) */
       #bpdock .chip .bar{
-        position:absolute; top:0; right:0;
-        width:12px; height:100%;
-        background:#dc2626;
+        position:absolute; top:0; right:0; width:12px; height:100%; background:#dc2626;
         opacity:0; transform:translateX(8px);
         transition:opacity .12s ease, transform .12s ease;
         border-top-right-radius:10px; border-bottom-right-radius:10px;
       }
       #bpdock .chip:hover .bar, #bpdock .chip:focus-within .bar{ opacity:1; transform:translateX(0); }
-      #bpdock .chip .bar-btn{
-        position:absolute; inset:0; left:auto; right:0; width:12px; height:100%;
-        background:transparent; border:none; padding:0; margin:0; cursor:pointer;
-      }
+      #bpdock .chip .bar-btn{ position:absolute; inset:0; left:auto; right:0; width:12px; height:100%; background:transparent; border:none; padding:0; margin:0; cursor:pointer; }
 
       /* groups */
-      #bpdock .group{
-        width:90%;
-        background:#191d28;
-        border-radius:10px;
-        overflow:hidden;
-      }
-      #bpdock .group-header{
-        display:flex; align-items:center; gap:8px;
-        padding:6px 8px;
-        cursor:grab; user-select:none;
-        color:#e5e7eb; background:#222735;
-      }
+      #bpdock .group{ width:90%; background:#191d28; border-radius:10px; overflow:hidden; }
+      #bpdock .group-header{ display:flex; align-items:center; gap:8px; padding:6px 8px; cursor:grab; user-select:none; color:#e5e7eb; background:#222735; }
       #bpdock .group-header:active{ cursor:grabbing; }
-      #bpdock .group .caret{
-        border:none; background:transparent; color:#9aa4b2; cursor:pointer; padding:0 4px;
-        font-size:14px; line-height:1;
-      }
-      #bpdock .group .gname{
-        flex:1; text-align:left; font-weight:600;
-        white-space:normal; overflow-wrap:anywhere; word-break:break-word;
-      }
+      #bpdock .group .caret{ border:none; background:transparent; color:#9aa4b2; cursor:pointer; padding:0 4px; font-size:14px; line-height:1; }
+      #bpdock .group .gname{ flex:1; text-align:left; font-weight:600; white-space:normal; overflow-wrap:anywhere; word-break:break-word; }
       #bpdock .group .gname[contenteditable="true"]{ outline:none; cursor:text; }
       #bpdock .group-body{ padding:8px; display:flex; flex-direction:column; align-items:center; gap:8px; }
       #bpdock .group.collapsed .group-body{ display:none; }
@@ -107,11 +66,7 @@
       #bpdock .drop-into{   outline:2px dashed #60a5fa; }
 
       /* toast */
-      #bpdock .bp-toast{
-        width:90%; background:#2b3142; color:#e5e7eb;
-        border-left:4px solid #ef4444; padding:8px 10px; border-radius:8px;
-        font-size:12px; text-align:center;
-      }
+      #bpdock .bp-toast{ width:90%; background:#2b3142; color:#e5e7eb; border-left:4px solid #ef4444; padding:8px 10px; border-radius:8px; font-size:12px; text-align:center; }
 
       #bpdock.resizing{ cursor:ew-resize; }
     `;
@@ -167,20 +122,25 @@
 
   // --------- helpers ----------
   function trigger(el, type){ el.dispatchEvent(new Event(type, { bubbles:true })); }
-  function selectByValue(v){
-    if (!v) return;
-    let matched = false;
-    for (const o of sel.options){
-      const isMatch = String(o.value) === String(v);
-      o.selected = isMatch;
-      if (isMatch) matched = true;
-    }
-    if (!matched) return;
-    sel.value = String(v);
-    trigger(sel, 'input'); trigger(sel, 'change');
-    window.dispatchEvent(new CustomEvent('bp:selected', { detail:{ id:String(v) } }));
-    setTimeout(()=> trigger(sel, 'change'), 0);
+
+  // resolve canonical blueprint id from <select> options
+  function resolveId(v){
+    const opts = Array.from(sel.options);
+    let o = opts.find(x => String(x.value) === String(v));
+    if (o) return String(o.value);
+    o = opts.find(x => String(x.textContent || '').trim() === String(v));
+    return o ? String(o.value) : String(v);
   }
+
+  // programmatic selection -> do NOT fire legacy change; only emit bp:selected with canonical id
+  function selectByValue(v, source='dock'){
+    const resolved = resolveId(v);
+    if (!resolved) return;
+    if (sel.value === resolved) return; // already active
+    sel.value = resolved;
+    window.dispatchEvent(new CustomEvent('bp:selected', { detail:{ id: resolved, source } }));
+  }
+
   function overridePromptOnce(answer, fn){
     const orig = window.prompt; window.prompt = () => String(answer ?? '');
     try { fn(); } finally { window.prompt = orig; }
@@ -198,17 +158,15 @@
   function caretToEnd(el){
     if (!el || !el.isConnected) return;
     const doc = el.ownerDocument || document;
-    const sel = safeGetSelection(doc);
-    if (!sel) return;
+    const sel2 = safeGetSelection(doc);
+    if (!sel2) return;
     try{
       const range = doc.createRange();
       range.selectNodeContents(el);
       range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }catch(e){
-      // ignore "range isn't in document" and similar
-    }
+      sel2.removeAllRanges();
+      sel2.addRange(range);
+    }catch{}
   }
   function enforceMaxChars(el){
     if (!el) return;
@@ -373,10 +331,7 @@
       if (commit && val){ onCommit(val, el); } else { onCancel && onCancel(el); }
     }
     name.addEventListener('blur', ()=> finish(true));
-
-    // focus once the chip is attached
     focusWhenConnected(name);
-
     return el;
   }
 
@@ -415,19 +370,19 @@
     const bar = document.createElement('div'); bar.className = 'bar';
     const barBtn = document.createElement('button'); barBtn.className = 'bar-btn'; barBtn.setAttribute('aria-label','Delete');
     barBtn.addEventListener('click', (e)=>{
-      e.stopPropagation(); selectByValue(opt.id); overrideConfirmOnce(()=> btnDelete.click());
+      e.stopPropagation(); selectByValue(opt.id, 'dock-delete'); overrideConfirmOnce(()=> btnDelete.click());
     });
     bar.appendChild(barBtn);
 
     el.append(name, bar);
 
     // select
-    el.addEventListener('click', (e)=>{ if (e.target === barBtn) return; selectByValue(opt.id); rebuild(); });
+    el.addEventListener('click', (e)=>{ if (e.target === barBtn) return; selectByValue(opt.id, 'dock-click'); });
 
     // rename via dblclick
     el.addEventListener('dblclick', ()=>{
       const editorChip = buildInlineEditorChip(opt.name, (nextName)=>{
-        selectByValue(opt.id);
+        selectByValue(opt.id, 'dock-rename');
         overridePromptOnce(nextName, ()=> btnRename.click());
       }, ()=> rebuild());
       el.replaceWith(editorChip);

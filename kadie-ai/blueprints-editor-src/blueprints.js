@@ -1,12 +1,5 @@
 // Blueprint loader with single-step diagnostics and hard verification.
-// Steps:
-// 1) Bubble event received
-// 2) Sync legacy <select>
-// 3) Load blueprint (ensure defs, fetch, normalize, ID match)
-// 4) Update runtime state
-// 5) Render graph + VERIFY (clears state first; checks DOM + active node)
-// 6) Notify legacy listeners (disabled; we only drive from bp:selected)
-// 7) Finalize UI
+// Prevents reselecting the active blueprint. Resolves canonical IDs and retries on mismatch.
 
 import { els } from "./dom.js";
 import { state, snapshot, loadSnapshot, clearDirty } from "./state.js";
@@ -28,12 +21,18 @@ function stepLog(n, label, status, extra) {
 }
 
 // ---------- util ----------
+function canonicalId(idOrName){
+  const opts = Array.from(els.bpSelect?.options || []);
+  const byVal = opts.find(o => String(o.value) === String(idOrName));
+  if (byVal) return String(byVal.value);
+  const byText = opts.find(o => String(o.textContent || '').trim() === String(idOrName));
+  return byText ? String(byText.value) : String(idOrName);
+}
 function pickActiveNodeId(graph) {
   const selId = state.sel && state.sel.size ? [...state.sel][0] : null;
   if (selId && graph.nodes?.some(n => n.id === selId)) return selId;
   return graph.nodes?.[0]?.id || null;
 }
-
 function verifyGraphRendered(graph) {
   const wantCount = Array.isArray(graph.nodes) ? graph.nodes.length : 0;
   const haveCount = state.nodes instanceof Map ? state.nodes.size : 0;
@@ -42,9 +41,8 @@ function verifyGraphRendered(graph) {
   const missingInDom = [];
 
   const idsFromGraph = new Set((graph.nodes || []).map(n => n.id));
-  for (const id of idsFromGraph) {
-    if (!state.nodes.has(id)) missingInState.push(id);
-  }
+  for (const id of idsFromGraph) if (!state.nodes.has(id)) missingInState.push(id);
+
   for (const id of state.nodes.keys()) {
     const nodeEl = els.nodesLayer?.querySelector?.(`.node[data-nid="${CSS.escape(id)}"]`);
     if (!nodeEl) missingInDom.push(id);
@@ -55,23 +53,13 @@ function verifyGraphRendered(graph) {
     ? !!els.nodesLayer?.querySelector?.(`.node[data-nid="${CSS.escape(activeId)}"]`)
     : wantCount === 0;
 
-  const ok =
-    wantCount === haveCount &&
-    missingInState.length === 0 &&
-    missingInDom.length === 0 &&
-    activeOK;
-
+  const ok = wantCount === haveCount && missingInState.length === 0 && missingInDom.length === 0 && activeOK;
   const details = [
-    `expected=${wantCount}`,
-    `state=${haveCount}`,
+    `expected=${wantCount}`, `state=${haveCount}`,
     missingInState.length ? `missingInState=[${missingInState.join(",")}]` : "",
     missingInDom.length ? `missingInDom=[${missingInDom.join(",")}]` : "",
-    `active=${activeId || "none"}`,
-    `activeOK=${activeOK}`,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
+    `active=${activeId || "none"}`, `activeOK=${activeOK}`,
+  ].filter(Boolean).join(" ");
   return { ok, details };
 }
 
@@ -94,7 +82,7 @@ async function refreshList(gid, selectId = "") {
     return;
   }
 
-  const id = selectId || state.bpId || list[0].id;
+  const id = canonicalId(selectId || state.bpId || list[0].id);
   sel.value = id;
   await openById(gid, id);
 }
@@ -105,11 +93,12 @@ async function openById(gid, requestedId, seq = 0) {
   // Step 3: Load blueprint
   let bp = null;
   let graph = { nodes: [], edges: [] };
+  let req = canonicalId(requestedId);
 
   try {
     await ensureNodesIndex();
 
-    bp = await openBlueprint(gid, requestedId);
+    bp = await openBlueprint(gid, req);
     if (!bp) {
       stepLog(3, "Load blueprint", "FAIL", "provider returned null");
       stepLog(4, "Update runtime state", "FAIL", "blocked by step 3");
@@ -117,9 +106,21 @@ async function openById(gid, requestedId, seq = 0) {
       return { ok: false, reason: "no-blueprint" };
     }
 
-    if (String(bp.id) !== String(requestedId)) {
-      stepLog(3, "Load blueprint", "FAIL", `id-mismatch requested=${requestedId} got=${bp.id}`);
-      return { ok: false, reason: "id-mismatch" };
+    if (String(bp.id) !== String(req)) {
+      // Retry once with canonicalized ID from <select> text, if different
+      const retryId = canonicalId(bp.id);
+      if (retryId && retryId !== req) {
+        stepLog(3, "Load blueprint", "RETRY", `requested=${req} -> canonical=${retryId}`);
+        req = retryId;
+        bp = await openBlueprint(gid, req);
+        if (!bp || String(bp.id) !== String(req)) {
+          stepLog(3, "Load blueprint", "FAIL", `id-mismatch requested=${req} got=${bp?.id}`);
+          return { ok: false, reason: "id-mismatch" };
+        }
+      } else {
+        stepLog(3, "Load blueprint", "FAIL", `id-mismatch requested=${req} got=${bp.id}`);
+        return { ok: false, reason: "id-mismatch" };
+      }
     }
 
     const raw = bp.data?.graph ?? bp.data ?? {};
@@ -135,7 +136,6 @@ async function openById(gid, requestedId, seq = 0) {
     return { ok: false, reason: "exception" };
   }
 
-  // abort if a newer request superseded this one
   if (seq && seq !== loadSeq) return { ok: false, reason: "superseded" };
 
   // Step 4: Update runtime state
@@ -154,11 +154,9 @@ async function openById(gid, requestedId, seq = 0) {
   // Step 5: Render graph + VERIFY
   let verify = { ok: false, details: "" };
   try {
-    // hard reset like delete-path does
     state.nodes?.clear?.();
     state.edges?.clear?.();
-    renderAll(); // clear DOM before re-hydration
-
+    renderAll(); // clear DOM first
     loadSnapshot(graph, () => renderAll());
     verify = verifyGraphRendered(graph);
     stepLog(5, "Render graph + VERIFY", verify.ok ? "OK" : "FAIL", verify.details);
@@ -177,17 +175,16 @@ export async function initBlueprints(gid) {
   const btnRename = els.bpRename;
   const btnDelete = els.bpDelete;
 
-  // Save buttons
   const btnSave =
     document.querySelector('[data-action="save"]') ||
     document.getElementById("bpSave") ||
     document.getElementById("saveBtn");
   if (btnSave) btnSave.addEventListener("click", async () => { await saveCurrentBlueprint(gid); });
 
-  // Ignore programmatic <select> changes; only handle real user selection from dropdown
+  // Handle only trusted user changes on the dropdown
   sel?.addEventListener("change", async (e) => {
-    if (!e.isTrusted) return; // dock fires synthetic; we ignore
-    const id = sel.value;
+    if (!e.isTrusted) return;
+    const id = canonicalId(sel.value);
     if (!id) { els.overlay.style.display = ""; return; }
     if (String(id) === String(state.bpId)) { stepLog(1, "Bubble event received", "OK", `id=${id} (already active; ignored)`); return; }
     const mySeq = ++loadSeq;
@@ -197,33 +194,21 @@ export async function initBlueprints(gid) {
     stepLog(7, "Finalize UI", res.ok ? "OK" : "FAIL", res.ok ? "overlay hidden" : "overlay shown");
   });
 
-  // Bubble click path with strict 1..7 logs
+  // Dock bubble clicks
   window.addEventListener("bp:selected", async (ev) => {
-    const picked = String(ev?.detail?.id || "");
+    const pickedRaw = String(ev?.detail?.id || "");
+    const picked = canonicalId(pickedRaw);
     const same = picked && String(picked) === String(state.bpId);
     stepLog(1, "Bubble event received", picked ? "OK" : "FAIL", picked ? `id=${picked}${same ? " (already active; ignored)" : ""}` : "missing id");
     if (!picked || same) return;
 
-    // Step 2: Sync legacy <select>
-    let step2Status = "OK";
-    try {
-      if (els.bpSelect) {
-        els.bpSelect.value = picked;
-        if (els.bpSelect.value !== picked) step2Status = "FAIL";
-      } else {
-        step2Status = "FAIL";
-      }
-    } catch { step2Status = "FAIL"; }
-    stepLog(2, "Sync legacy <select>", step2Status);
+    // keep <select> in sync without firing its handler
+    if (els.bpSelect) els.bpSelect.value = picked;
 
-    // Steps 3,4,5
     const mySeq = ++loadSeq;
     const res = await openById(gid, picked, mySeq);
 
-    // Step 6: disabled to avoid double-loads
     stepLog(6, "Notify legacy listeners", "SKIP");
-
-    // Step 7
     clearDirty(els.dirty);
     els.overlay.style.display = res.ok ? "none" : "";
     stepLog(7, "Finalize UI", res.ok ? "OK" : "FAIL", res.ok ? "overlay hidden" : "overlay shown");
