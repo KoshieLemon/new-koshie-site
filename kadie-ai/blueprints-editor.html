@@ -47,10 +47,10 @@
     .chip{
       display:flex;align-items:center;justify-content:space-between;gap:10px;
       border:1px solid #1e2230;border-radius:12px;
-      padding:10px 12px;              /* taller */
+      padding:10px 12px;
       background:#11131a;color:#e5e7eb;
       font-size:13px;line-height:1.1;
-      width:100%;                     /* full row width */
+      width:100%;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     }
     .chip .name{max-width:calc(100% - 36px);overflow:hidden;text-overflow:ellipsis}
@@ -70,6 +70,25 @@
     .search input[type="search"]{flex:1;box-sizing:border-box;border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:6px 8px;border-radius:8px;outline:none}
     .btn{border:1px solid #0003;background:#111;color:#eee;padding:6px 8px;border-radius:8px;cursor:pointer}
     .copy-hint{font-size:11px;color:#9aa3af;margin:6px 0 0 0}
+
+    /* ---- Dirty bar (slide down on unsaved changes) ---- */
+    #dirty{
+      position:fixed; top:10px; left:50%; transform:translate(-50%,-140%);
+      background:#0b1020; color:#e5e7eb; border:1px solid #1f2937; border-radius:10px;
+      box-shadow:0 12px 36px rgba(0,0,0,.55);
+      padding:8px; display:flex; align-items:center; gap:8px;
+      font:600 12px/1.1 system-ui,Segoe UI,Roboto,Arial,sans-serif;
+      z-index:1000; opacity:0; transition:transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s ease;
+      pointer-events:auto;
+    }
+    #dirty .sp{flex:1;min-width:0}
+    #dirty .msg{opacity:.9}
+    #dirty .actions{display:flex;gap:6px}
+    #dirty .actions .btn{
+      border:1px solid #1f2937; background:#131a2a; color:#e5e7eb; padding:6px 10px; border-radius:8px;
+    }
+    #dirty .actions .btn.primary{ background:#1d4ed8; border-color:#1e40af; }
+    #dirty.show{ transform:translate(-50%,0); opacity:1; }
   </style>
 </head>
 <body>
@@ -81,6 +100,16 @@
     <button id="bpDelete" type="button">Delete</button>
     <button id="undoBtn" type="button">Undo</button>
     <button id="redoBtn" type="button">Redo</button>
+  </div>
+
+  <!-- dirty/save bar (appears only when there are unsaved changes) -->
+  <div id="dirty" aria-live="polite" role="region">
+    <span class="msg">Unsaved changes</span>
+    <span class="sp"></span>
+    <div class="actions">
+      <button id="revertBtn" class="btn" type="button" title="Revert changes">Revert</button>
+      <button id="saveBtn" class="btn primary" type="button" title="Save blueprint">Save</button>
+    </div>
   </div>
 
   <!-- editor -->
@@ -99,7 +128,7 @@
     <div class="bp-list" id="bpList"></div>
   </aside>
 
-  <!-- right: VARIABLES + Guild dock (managed by variables-dock.js) -->
+  <!-- right: VARIABLES + Guild dock -->
   <aside class="dock" id="varsDock" aria-label="Variables and Guild Objects">
     <div class="resizer" aria-hidden="true"></div>
 
@@ -111,6 +140,21 @@
 
     <div id="dockList" class="bp-list" aria-live="polite"></div>
   </aside>
+
+  <!-- Revert wiring: reload the current selection -->
+  <script>
+    (function(){
+      const rb = document.getElementById('revertBtn');
+      if (rb){
+        rb.addEventListener('click', ()=>{
+          const sel = document.getElementById('bpSelect');
+          if (!sel || !sel.value) return;
+          // trigger reload of the currently selected blueprint
+          sel.dispatchEvent(new Event('change', { bubbles:true }));
+        });
+      }
+    })();
+  </script>
 
   <script type="module" src="/kadie-ai/blueprints-editor.js?v=7"></script>
 </body>

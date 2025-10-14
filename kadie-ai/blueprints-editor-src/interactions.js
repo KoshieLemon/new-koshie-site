@@ -5,9 +5,10 @@ import { els } from './dom.js';
 import { state, uid, pushHistory, markDirty, undo, redo } from './state.js';
 import { renderAll, registerNodeInteractions } from './render.editor.js';
 import { drawWires, bezierPath, getPinCenter } from './render.wires.js';
-import { openContextMenu } from './menu.js';
+import { openContextMenu } from './node-menu.js';
+import { openActionsMenu } from './actions-menu.js';
 import { TYPE_COLORS, colorKeyFor, toFinalPrimitive } from './render.types.js';
-import { ensureViewport, applyView, unprojectClient, positionCtxMenuAt, recenter } from './interactions.view.js';
+import { ensureViewport, applyView, unprojectClient, recenter } from './interactions.view.js';
 
 // ---- init guards
 if (!state.nodes) state.nodes = new Map();
@@ -77,7 +78,6 @@ function getOutputType(defId, pinName){
 // ---- Break Object dynamic output expansion ----
 function shapeForType(t){
   const key = colorKeyFor(t);
-  // use DISCORD_SHAPES mapping if present on window; otherwise no-op
   const raw = (window.DISCORD_SHAPES && window.DISCORD_SHAPES[key]) || [];
   return raw;
 }
@@ -169,39 +169,30 @@ function enableNodeInteractions(el, model){
     ev.preventDefault();
   });
 
-  // node context menu (Duplicate/Delete)
+  // node context menu -> NEW compact actions menu
   el.addEventListener('contextmenu', (ev)=>{
     if (isInteractiveTarget(ev.target)) return;
     ev.preventDefault();
     ev.stopPropagation();
 
-    els.ctxMenu.innerHTML = '';
-    positionCtxMenuAt(ev.clientX, ev.clientY);
-
-    const mk = (label,fn)=>{
-      const d=document.createElement('div');
-      d.className='menu-item';
-      d.textContent=label;
-      d.addEventListener('click',()=>{ fn(); els.ctxMenu.style.display='none';});
-      return d;
-    };
-
-    els.ctxMenu.appendChild(mk('Duplicate', ()=>{
-      const n = structuredClone(state.nodes.get(model.id));
-      n.id = uid('N'); n.x += 24; n.y += 24;
-      state.nodes.set(n.id, n);
-      state.sel.clear(); state.sel.add(n.id);
-      renderAll(); pushHistory(); markDirty(els.dirty);
-    }));
-    els.ctxMenu.appendChild(mk('Delete', ()=>{
-      state.nodes.delete(model.id);
-      for (const [id,e] of [...state.edges]) {
-        if (e.from.nid===model.id || e.to.nid===model.id) state.edges.delete(id);
+    openActionsMenu(ev.clientX, ev.clientY, {
+      onDuplicate: ()=>{
+        const src = state.nodes.get(model.id);
+        if (!src) return;
+        const n = structuredClone(src);
+        n.id = uid('N'); n.x += 24; n.y += 24;
+        state.nodes.set(n.id, n);
+        state.sel.clear(); state.sel.add(n.id);
+        renderAll(); pushHistory(); markDirty(els.dirty);
+      },
+      onDelete: ()=>{
+        state.nodes.delete(model.id);
+        for (const [id,e] of [...state.edges]) {
+          if (e.from.nid===model.id || e.to.nid===model.id) state.edges.delete(id);
+        }
+        renderAll(); pushHistory(); markDirty(els.dirty);
       }
-      renderAll(); pushHistory(); markDirty(els.dirty);
-    }));
-
-    window.addEventListener('click',()=>{ els.ctxMenu.style.display='none'; }, { once:true });
+    });
   });
 
   // start wire drag from OUTPUT pins
@@ -352,7 +343,6 @@ export function initInteractions(){
 
       // Drop on empty canvas => lock wire and open palette
       if (!pinEl || !check.toNid){
-        // freeze current path
         lockedWire = dragWire;
         dragWire = null;
         hideHint();
@@ -364,11 +354,9 @@ export function initInteractions(){
           const def = getDef(defId);
           const pin = pickAvailableInput(def, lockedWire.kind, lockedWire.fromType, n.id);
           if (pin){
-            // replace any existing incoming edge for that pin
             const inId = incomingEdgeId(n.id, pin);
             if (inId) state.edges.delete(inId);
 
-            // fan-out rule for exec from-side
             if (lockedWire.kind === 'exec'){
               for (const [id,e] of [...state.edges]){
                 if (e.kind!=='exec') continue;
@@ -387,7 +375,6 @@ export function initInteractions(){
             };
             state.edges.set(edge.id, edge);
 
-            // Break Object expansion if applicable
             if (defId === 'utils.breakObject' && pin === 'object' && lockedWire.kind === 'data'){
               const fallType = getOutputType(state.nodes.get(edge.from.nid)?.defId, edge.from.pin);
               const sourceType = lockedWire.fromType || fallType || 'any';
@@ -398,16 +385,14 @@ export function initInteractions(){
           renderAll(); drawWires(); pushHistory(); markDirty(els.dirty);
         });
 
-        return; // do not cancel tempPath yet; palette flow will clear
+        return;
       }
 
       // Dropped on a pin
       if (check.status === 'unvalid'){ cancelDragWire(true); return; }
 
-      // replace existing incoming, if any
       if (check.replaceId) state.edges.delete(check.replaceId);
 
-      // Exec outputs: single fan-out
       if (dragWire.kind === 'exec'){
         for (const [id,e] of [...state.edges]){
           if (e.kind!=='exec') continue;
@@ -426,7 +411,6 @@ export function initInteractions(){
       };
       state.edges.set(edge.id, edge);
 
-      // Break Object expansion
       const toNode = state.nodes.get(check.toNid);
       if (toNode && toNode.defId === 'utils.breakObject' && check.toPin === 'object' && dragWire.kind === 'data'){
         const fallType = getOutputType(state.nodes.get(dragWire.from.nid)?.defId, dragWire.from.pin);

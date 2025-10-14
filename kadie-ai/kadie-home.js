@@ -1,3 +1,4 @@
+// /kadie-ai/kadie-home.js
 import { OAUTH_URL, ME_URL, apiGet, printDiagnostics } from '/assets/api.js';
 
 printDiagnostics('kadie-home');
@@ -31,6 +32,57 @@ function updateHeaderHeight(){
   document.documentElement.style.setProperty('--header-h', h + 'px');
 }
 
+/* ---------- top-right user pill (uses existing header) ---------- */
+function ensureUserStyles(){
+  if (document.getElementById('kadie-userpill-style')) return;
+  const style = document.createElement('style');
+  style.id = 'kadie-userpill-style';
+  style.textContent = `
+    #kadieUser { display:flex; align-items:center; }
+    .kadie-userwrap{ display:flex; align-items:center; gap:10px; }
+    .kadie-avatar{ width:28px; height:28px; border-radius:999px; object-fit:cover;
+                   background:#0e1218; border:1px solid #1f2432; }
+  `;
+  document.head.appendChild(style);
+}
+function ensureUserPill(){
+  ensureUserStyles();
+  let el = document.getElementById('kadieUser');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'kadieUser';
+    // append as a third child: left | tabs | user
+    headerEl.appendChild(el);
+  }
+  return el;
+}
+function avatarUrl(u){
+  return (u?.sub && u?.avatar)
+    ? `https://cdn.discordapp.com/avatars/${u.sub}/${u.avatar}.png?size=64`
+    : null;
+}
+function renderSignedOut(container){
+  container.innerHTML = '';
+  const a = document.createElement('a');
+  a.href = OAUTH_URL;
+  a.className = 'btn';
+  a.textContent = 'Sign in';
+  container.appendChild(a);
+}
+function renderSignedIn(container, user){
+  container.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'kadie-userwrap';
+  const img = document.createElement('img');
+  img.className = 'kadie-avatar';
+  const url = avatarUrl(user);
+  if (url) img.src = url;
+  img.alt = user?.username || 'profile';
+  wrap.appendChild(img);
+  container.appendChild(wrap);
+}
+
+/* ---------- events ---------- */
 signinBtn.addEventListener('click', () => { location.href = OAUTH_URL; });
 
 Object.entries(tabs).forEach(([key, { btn }]) => {
@@ -58,17 +110,29 @@ function setServerBadge(guild) {
 }
 
 async function tryAuthGate() {
+  const userSlot = ensureUserPill();
   try {
     const res = await apiGet(ME_URL, 'GET /me (kadie-home)');
-    const ok = res.ok;
-    authBlock.classList.toggle('show', !ok);
-    tabs.community.btn.hidden = !ok;
-    authStatus.textContent = ok ? 'Signed in.' : 'Not signed in.';
-    return ok;
+    if (res.ok) {
+      const data = await res.json().catch(()=>null);
+      const user = data?.user || null;
+      authBlock.classList.remove('show');
+      tabs.community.btn.hidden = false;
+      authStatus.textContent = 'Signed in.';
+      renderSignedIn(userSlot, user);
+      return true;
+    } else {
+      authBlock.classList.add('show');
+      tabs.community.btn.hidden = true;
+      authStatus.textContent = 'Not signed in.';
+      renderSignedOut(userSlot);
+      return false;
+    }
   } catch {
     authStatus.textContent = 'Network error. Try again.';
     authBlock.classList.add('show');
     tabs.community.btn.hidden = true;
+    renderSignedOut(userSlot);
     return false;
   }
 }
