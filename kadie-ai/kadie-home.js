@@ -11,6 +11,9 @@ const tabs = {
   simple:      { btn: byId('tab-simple'),      frame: byId('frame-simple') },
   community:   { btn: byId('tab-community'),   frame: byId('frame-community') },
   blueprints:  { btn: byId('tab-blueprints'),  frame: byId('frame-blueprints') },
+  nodes:       { btn: byId('tab-nodes'),       frame: byId('frame-nodes') },
+  tutorial:        { btn: byId('tab-tutorial'),        frame: byId('frame-tutorial') },
+  status:      { btn: byId('tab-status'),      frame: byId('frame-status') },
 };
 const authBlock   = byId('authBlock');
 const authStatus  = byId('authStatus');
@@ -143,5 +146,5 @@ window.addEventListener('message', (ev) => {
 });
 
 /* boot */
-showTab('simple');     // enforce default
+showTab('simple');     // default
 tryAuthGate();

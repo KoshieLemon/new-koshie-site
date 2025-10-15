@@ -11,7 +11,8 @@
   <style>
     :root{ --header-h:72px; --gap-y:10px; }
     html,body{height:100%; margin:0}
-    /* Header stays visible above iframes */
+
+    /* Header */
     #siteHeader{
       position:sticky; top:0; z-index:100;
       background:#0b0b0c; border-bottom:1px solid #151923;
@@ -19,6 +20,8 @@
     .header{display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:12px}
     .left{display:flex;align-items:center;gap:14px}
     .brand{margin:0}
+
+    /* Server badge */
     .server-badge{display:none;align-items:center;gap:10px;padding:6px 10px;border:1px solid #2b2f3a;border-radius:999px;background:#11131a}
     .server-badge.show{display:flex}
     .server-ico{width:22px;height:22px;border-radius:6px;background:#0002;object-fit:cover}
@@ -26,44 +29,28 @@
     .server-id{font-size:11px;color:#9aa4b2}
     .leave-btn{border:1px solid #3a1f1f;background:#1a1111;color:#fca5a5;padding:4px 8px;border-radius:8px;cursor:pointer}
 
-    /* GPU pill */
-    #gpuPill{display:none;align-items:center;gap:10px;margin-left:10px;padding:6px 10px;border:1px solid #2b2f3a;border-radius:999px;background:#0f1220}
-    #gpuPill.show{display:flex}
-    #gpuBar{position:relative;width:220px;height:10px;background:#0b0f17;border:1px solid #1c2233;border-radius:999px;overflow:hidden}
-    #gpuFill{position:absolute;inset:0 0 0 0;width:0%;background:linear-gradient(90deg,#22c55e,#3b82f6);box-shadow:0 0 10px #22c55e66 inset}
-    #gpuText{font-size:12px;color:#cbd5e1}
-
-    /* Tabs (center) */
+    /* Tabs group */
     .tabs{display:flex;gap:8px;flex-wrap:wrap}
     .tab-btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:8px 12px;border-radius:10px;cursor:pointer}
     .tab-btn[hidden]{display:none}
     .tab-btn.active{outline:2px solid #5ac8fa}
 
-    /* Static docs/status links (always visible, no auth) */
-    .top-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-    .top-links a{
-      display:inline-block; padding:8px 10px; border-radius:8px;
-      color:#eaeaea; text-decoration:none; border:1px solid #2b2f3a; background:#11131a; font-size:13px;
-    }
-    .top-links a:hover, .top-links a:focus{ background:#151923 }
-
-    /* Full-bleed viewport under header */
+    /* Viewport */
     .full-bleed{width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}
     .viewport-wrap{position:relative;height:calc(100dvh - var(--header-h) - var(--gap-y));}
     .content{position:absolute;inset:0;border:0;border-radius:0;overflow:hidden;background:#0b0b0c}
     .frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:none}
     .frame.active{display:block}
 
+    /* Auth gate */
     .auth-block{position:absolute;inset:0;background:linear-gradient(160deg,#0b0f1a,#0f1324);display:none;align-items:center;justify-content:center;z-index:50}
     .auth-card{background:#0e1116;border:1px solid #2b2f3a;border-radius:12px;padding:18px;max-width:420px;box-shadow:0 10px 24px #000a}
     .auth-block.show{display:flex}
     .btn{border:1px solid #0003;background:#111;color:#eee;padding:8px 12px;border-radius:10px;cursor:pointer}
     .muted{color:#9aa4b2;font-size:12px}
 
-    @media (max-width: 980px){
+    @media (max-width: 1100px){
       .header{flex-wrap:wrap}
-      .tabs{order:2}
-      .top-links{order:3}
     }
   </style>
 </head>
@@ -71,6 +58,7 @@
   <header class="container header" id="siteHeader">
     <div class="left">
       <h1 class="brand">Kadie AI</h1>
+
       <div id="serverBadge" class="server-badge" aria-live="polite">
         <img id="sbIcon" class="server-ico" alt="">
         <div style="display:flex;flex-direction:column;line-height:1.1">
@@ -79,32 +67,30 @@
         </div>
         <button id="leaveServerBtn" class="leave-btn" title="Leave server">Leave</button>
       </div>
-      <!-- GPU pill (server-scoped) -->
-      <div id="gpuPill" aria-live="polite">
-        <div id="gpuBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="gpuFill"></div></div>
-        <span id="gpuText">GPU: 0 / 0</span>
-      </div>
     </div>
 
+    <!-- One unified tab group (all identical style) -->
     <nav class="tabs" id="tabs" aria-label="Workspace">
-      <button class="tab-btn active" data-tab="simple" id="tab-simple">Simple Server</button>
-      <button class="tab-btn" data-tab="community" id="tab-community" hidden>Community</button>
-      <button class="tab-btn" data-tab="blueprints" id="tab-blueprints" hidden>Blueprints</button>
-    </nav>
-
-    <!-- New: static links, always visible -->
-    <nav class="top-links" aria-label="Docs">
-      <a id="nav-nodes"  href="/kadie-ai/nodes-docs.html">Nodes</a>
-      <a id="nav-help"   href="/kadie-ai/help-docs.html">Help</a>
-      <a id="nav-status" href="/kadie-ai/bot-status.html">Status</a>
+      <button class="tab-btn active" data-tab="simple"      id="tab-simple">Simple Server</button>
+      <button class="tab-btn"        data-tab="community"   id="tab-community" hidden>Community</button>
+      <button class="tab-btn"        data-tab="blueprints"  id="tab-blueprints" hidden>Blueprints</button>
+      <button class="tab-btn"        data-tab="nodes"       id="tab-nodes">Nodes</button>
+      <button class="tab-btn"        data-tab="tutorials"        id="tab-tutorial">Tutorials</button>
+      <button class="tab-btn"        data-tab="status"      id="tab-status">Status</button>
     </nav>
   </header>
 
   <main class="viewport-wrap full-bleed">
     <div class="content" id="content">
-      <iframe id="frame-simple" class="frame active" src="/kadie-ai/server-listings.html" title="Server listings"></iframe>
-      <iframe id="frame-community" class="frame" src="/kadie-ai/community-forums.html" title="Community"></iframe>
-      <iframe id="frame-blueprints" class="frame" src="about:blank" title="Blueprints"></iframe>
+      <!-- App tabs -->
+      <iframe id="frame-simple"     class="frame active" src="/kadie-ai/server-listings.html"   title="Server listings"></iframe>
+      <iframe id="frame-community"  class="frame"        src="/kadie-ai/community-forums.html"  title="Community"></iframe>
+      <iframe id="frame-blueprints" class="frame"        src="about:blank"                      title="Blueprints"></iframe>
+
+      <!-- Docs/status tabs -->
+      <iframe id="frame-nodes"      class="frame"        src="/kadie-ai/nodes-docs.html"        title="Nodes"></iframe>
+      <iframe id="frame-tutorials"       class="frame"        src="/kadie-ai/blueprint-tutorials.html"         title="Tutorial"></iframe>
+      <iframe id="frame-status"     class="frame"        src="/kadie-ai/bot-status.html"        title="Status"></iframe>
 
       <div class="auth-block" id="authBlock" aria-live="polite">
         <div class="auth-card">
