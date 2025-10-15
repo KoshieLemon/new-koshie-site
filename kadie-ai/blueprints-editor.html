@@ -1,4 +1,3 @@
-<!-- /kadie-ai/blueprints-editor.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -11,7 +10,6 @@
     :root{ --pad:12px; }
     html,body{height:100%;margin:0;background:#0b0b0c;}
 
-    /* Graph fills page */
     #editor{ position:fixed; inset:0; background:#0b0b0c; }
     .grid{position:absolute;inset:0;background:
       linear-gradient(#1a1a1a 1px, transparent 1px),
@@ -26,7 +24,6 @@
     .rubber{position:absolute;border:1px dashed #5ac8fa;background:#5ac8fa22;display:none;z-index:55}
     .disabled-overlay{position:absolute;inset:0;background:#000000aa;display:flex;align-items:center;justify-content:center;color:#aaa;font-weight:600;font-size:14px;z-index:40}
 
-    /* Docks */
     .dock{
       position:fixed; top:var(--pad); bottom:var(--pad); z-index:85;
       background:#0b0c0ff5;border:1px solid #0004;border-radius:12px;padding:10px;overflow:auto;
@@ -35,14 +32,12 @@
     #bpdock{ left:var(--pad); width:280px; }
     #varsDock{ right:var(--pad); width:320px; }
 
-    /* Dock resizers */
     .resizer{position:absolute;top:0;bottom:0;width:10px;opacity:0;transition:opacity .12s}
     .dock:hover .resizer{opacity:.6}
     #bpdock .resizer{ right:-5px; cursor:ew-resize; }
     #varsDock .resizer{ left:-5px; cursor:ew-resize; }
     .dock.resizing{cursor:ew-resize;user-select:none}
 
-    /* Blueprints dock: one bubble per row, taller not wider */
     .bp-list{display:flex;flex-direction:column;gap:10px}
     .chip{
       display:flex;align-items:center;justify-content:space-between;gap:10px;
@@ -59,19 +54,16 @@
     .chip:hover .x{display:inline}
     .chip.add{border-style:dashed;color:#9ca3af;justify-content:center}
 
-    /* Variable/guild chips inside right dock (variables-dock.js) */
     .chip .dot{width:10px;height:10px;border-radius:50%;border:1px solid #0006;flex:0 0 auto}
     .chip .type{opacity:.85;font-size:11px;border:1px solid #2b2f3a;border-radius:999px;padding:2px 6px;background:#0f1117}
     .chip input.rename{background:#0f1117;border:1px solid #292e3e;color:#e5e7eb;border-radius:6px;padding:2px 6px;font-size:12px;min-width:80px;max-width:200px}
 
-    /* Right dock header + search */
     .row{display:flex;gap:8px;align-items:center}
     .search{position:sticky;top:0;background:#0b0c0f;padding-bottom:8px;z-index:1}
     .search input[type="search"]{flex:1;box-sizing:border-box;border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:6px 8px;border-radius:8px;outline:none}
     .btn{border:1px solid #0003;background:#111;color:#eee;padding:6px 8px;border-radius:8px;cursor:pointer}
     .copy-hint{font-size:11px;color:#9aa3af;margin:6px 0 0 0}
 
-    /* ---- Dirty bar (slide down on unsaved changes) ---- */
     #dirty{
       position:fixed; top:10px; left:50%; transform:translate(-50%,-140%);
       background:#0b1020; color:#e5e7eb; border:1px solid #1f2937; border-radius:10px;
@@ -84,11 +76,17 @@
     #dirty .sp{flex:1;min-width:0}
     #dirty .msg{opacity:.9}
     #dirty .actions{display:flex;gap:6px}
-    #dirty .actions .btn{
-      border:1px solid #1f2937; background:#131a2a; color:#e5e7eb; padding:6px 10px; border-radius:8px;
-    }
+    #dirty .actions .btn{ border:1px solid #1f2937; background:#131a2a; color:#e5e7eb; padding:6px 10px; border-radius:8px; }
     #dirty .actions .btn.primary{ background:#1d4ed8; border-color:#1e40af; }
     #dirty.show{ transform:translate(-50%,0); opacity:1; }
+
+    /* Shard badge */
+    #shardBadge{
+      position:fixed; top:10px; right:10px; z-index:2000;
+      background:#0b1020; color:#e5e7eb; border:1px solid #1f2937; border-radius:10px;
+      padding:6px 10px; font:700 12px/1.1 system-ui,Segoe UI,Roboto,Arial,sans-serif;
+      box-shadow:0 10px 24px rgba(0,0,0,.55);
+    }
   </style>
 </head>
 <body>
@@ -109,6 +107,8 @@
       <button id="saveBtn" class="btn primary" type="button" title="Save blueprint">Save</button>
     </div>
   </div>
+
+  <div id="shardBadge">Shard —/—</div>
 
   <div class="editor-wrap" id="editor">
     <div class="grid"></div>
@@ -147,7 +147,43 @@
   </script>
 
   <script type="module" src="/kadie-ai/blueprints-editor.js?v=7"></script>
-  <!-- Correct path for pin actions -->
   <script type="module" src="/kadie-ai/blueprints-editor-src/pin-actions.js?v=2"></script>
+
+  <!-- SHARD DISPLAY + CONSOLE FILTER -->
+  <script type="module">
+    // silence all console.log/debug except our shard messages
+    const _log = console.log.bind(console);
+    const _dbg = console.debug.bind(console);
+    console.log = (...a)=>{ if (a.some(x=>typeof x==="string" && x.includes("[kadie-shard]"))) _log(...a); };
+    console.debug = (...a)=>{ if (a.some(x=>typeof x==="string" && x.includes("[kadie-shard]"))) _dbg(...a); };
+
+    const badge = document.getElementById("shardBadge");
+    const conf = await fetch("/api/shards").then(r=>r.json()).catch(()=>({count:1,concurrency:1}));
+    const COUNT = Number(conf?.count||1);
+    badge.textContent = `Shard —/${COUNT}`;
+
+    const shardFor = (gid)=>{
+      try { return Number((BigInt(gid) >> 22n) % BigInt(COUNT)); } catch { return 0; }
+    };
+
+    // Show shard when the editor requests channels/roles for a guild
+    const _fetch = window.fetch.bind(window);
+    window.fetch = async (...args)=>{
+      try{
+        const url = typeof args[0]==="string" ? args[0] : (args[0]?.url||"");
+        const m = url.match(/\/runtime\/guilds\/(\d+)\/(channels|roles)/);
+        if (m){
+          const gid = m[1];
+          const shard = shardFor(gid);
+          badge.textContent = `Shard ${shard+1}/${COUNT}`;
+          console.log(`[kadie-shard] guild ${gid} → shard ${shard+1}/${COUNT} (${m[2]})`);
+        }
+      }catch{}
+      return _fetch(...args);
+    };
+
+    // utility for manual checks from DevTools
+    window.kadieShardForGuild = (gid)=> shardFor(String(gid||""));
+  </script>
 </body>
 </html>
