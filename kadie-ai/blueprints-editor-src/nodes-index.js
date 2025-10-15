@@ -33,12 +33,11 @@ function normalize(def) {
 
 function injectVirtualNodes(nodes, byId){
   if (!byId.has('utils.breakObject')) {
-    // Data outputs are a superset across Message, User, Member, Channel, VoiceChannel, Role,
-    // Interaction, Invite, plus common primitives. Executor will set only what exists.
-    const breakOutputs = [
+    // Superset list kept for reference; dynamic expansion happens in interactions.js
+    const breakOutputsSuperset = [
       { name:'out', type:'exec' },
 
-      // Generic identifiers and timestamps
+      // Generic ids / timestamps
       { name:'id', type:'string' },
       { name:'guildId', type:'snowflake' },
       { name:'channelId', type:'snowflake' },
@@ -102,13 +101,14 @@ function injectVirtualNodes(nodes, byId){
       category: 'Utilities',
       kind: 'exec',
       version: '1.0.0',
-      // Accept both names since the executor checks "object" or "payload".
-      inputs:  [
-        { name:'in', type:'exec' },
-        { name:'object', type:'any' },
+      // accept both names; interactions.js expands on connect
+      inputs: [
+        { name:'in',      type:'exec' },
+        { name:'object',  type:'any' },
         { name:'payload', type:'any' }
       ],
-      outputs: breakOutputs,
+      // start collapsed; only 'out' is visible until a wire sets the shape
+      outputs: [{ name:'out', type:'exec' }],
     });
 
     nodes.push(v);

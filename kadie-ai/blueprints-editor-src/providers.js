@@ -1,101 +1,153 @@
-// bot-options-src/providers.js
-// Kadie AI editor <-> kadie-ai-node API adapter.
-// Uses correct query key `guild_id` and always sends {id, name} on create.
-// Saves payload as { data: { graph, script } }.
+// Kadie AI editor <-> kadie-ai-node API adapter
 
-/* eslint-disable no-console */
-import { BOT_BASE as API, gname } from './config.js';
+import { BOT_BASE as API, gname } from "./config.js";
 
-// ---------- helpers ----------
+/* ---------------- helpers ---------------- */
 function qs(guildId) {
-  return `guild_id=${encodeURIComponent(guildId)}&guild_name=${encodeURIComponent(gname || '')}`;
+  return `guild_id=${encodeURIComponent(guildId)}&guild_name=${encodeURIComponent(
+    gname || ""
+  )}`;
 }
 
 async function http(path, opts = {}) {
   const res = await fetch(`${API}${path}`, {
-    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
     ...opts,
   });
-  const text = await res.text().catch(() => '');
+  const text = await res.text().catch(() => "");
+  const ctype = res.headers.get("content-type") || "";
+
   if (!res.ok) {
-    console.error('[providers]', opts.method || 'GET', path, res.status, text);
-    throw new Error(text || `HTTP ${res.status}`);
+    console.error("[providers]", opts.method || "GET", path, res.status, text);
+    throw new Error(`HTTP ${res.status}`);
   }
-  return text ? JSON.parse(text) : null;
+  if (ctype.includes("application/json")) {
+    try {
+      return text ? JSON.parse(text) : null;
+    } catch {
+      return null;
+    }
+  }
+  return text || null;
 }
 
 function slugify(s) {
-  return String(s || '')
+  return String(s || "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
     .slice(0, 64) || `bp-${Date.now()}`;
 }
 
-// Normalize save format: { data: { graph, script } }
-function splitForSave(bp) {
-  const data = bp?.data ?? {};
-  const script = data?.script ?? null;
-  const graph = data?.graph ?? data; // backward compat when UI stores plain graph
-  return { id: bp.id, name: bp.name || bp.id, data: { graph, script } };
+function normalizeItem(x, fallbackId) {
+  if (!x) return null;
+  const id = x.id ?? fallbackId;
+  const name = x.name ?? id;
+  const graph = x.data?.graph ?? x.graph ?? x.data ?? { nodes: [], edges: [] };
+  const script = x.data?.script ?? x.script ?? null;
+  return { id, name, data: { graph, script } };
 }
 
-// ---------- API ----------
+/* ---------------- API ---------------- */
 export async function listBlueprints(guildId) {
   const payload = await http(`/blueprints?${qs(guildId)}`);
-  const arr = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
-  return arr.map(x => ({ id: x.id || x.name, name: x.name || x.id }));
+  const arr = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.items)
+    ? payload.items
+    : [];
+  return arr.map((x) => ({ id: x.id || x.name, name: x.name || x.id }));
 }
 
-export async function openBlueprint(guildId, id) {
-  const data = await http(`/blueprints?id=${encodeURIComponent(id)}&${qs(guildId)}`);
-  const bp = Array.isArray(data) ? data[0] : data;
-  if (!bp) return null;
+export async function openBlueprint(guildId, idOrName) {
+  const key = String(idOrName);
+  const keyL = key.toLowerCase();
 
-  // accept either {graph} at top-level or nested under data
-  const graph = bp.data?.graph ?? bp.graph ?? bp.data ?? null;
-  const script = bp.data?.script ?? bp.script ?? null;
+  const res = await http(
+    `/blueprints?id=${encodeURIComponent(key)}&${qs(guildId)}`
+  );
+  const arr = Array.isArray(res) ? res : res ? [res] : [];
 
-  return { id: bp.id || id, name: bp.name || id, data: { graph, script } };
+  let pick =
+    arr.find((x) => String(x?.id || "").toLowerCase() === keyL) ||
+    arr.find((x) => String(x?.name || "").toLowerCase() === keyL);
+
+  if (!pick) {
+    const all = await http(`/blueprints?${qs(guildId)}`);
+    const items = Array.isArray(all)
+      ? all
+      : Array.isArray(all?.items)
+      ? all.items
+      : [];
+    pick =
+      items.find((x) => String(x?.id || "").toLowerCase() === keyL) ||
+      items.find((x) => String(x?.name || "").toLowerCase() === keyL) ||
+      null;
+  }
+
+  if (!pick) return null;
+  return normalizeItem(pick, key);
 }
 
 export async function createBlueprint(guildId, { name }) {
-  const display = (name && name.trim()) ? name.trim() : `Blueprint ${new Date().toLocaleString()}`;
+  const display = (name && name.trim()) || `Blueprint ${new Date().toLocaleString()}`;
   const id = slugify(display);
   const payload = {
     id,
-    name: display,
-    data: { graph: { nodes: [], edges: [] }, script: null }
+    name: display,               // spaces preserved
+    data: { graph: { nodes: [], edges: [] }, script: null },
   };
   const res = await http(`/blueprints?${qs(guildId)}`, {
-    method: 'POST',
-    body: JSON.stringify(payload)
+    method: "POST",
+    body: JSON.stringify(payload),
   });
   return { id: res?.id || id, name: res?.name || display };
 }
 
 export async function renameBlueprint(guildId, { id, name }) {
-  await http(`/blueprints?${qs(guildId)}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ id, name })
-  });
-  return true;
+  // Some backends don't support PATCH; use POST upsert first.
+  const body = JSON.stringify({ id, name });
+  try {
+    await http(`/blueprints?${qs(guildId)}`, { method: "POST", body }); // upsert
+    return true;
+  } catch {
+    // Fallback to PATCH /blueprints/:id
+    try {
+      await http(`/blueprints/${encodeURIComponent(id)}?${qs(guildId)}`, {
+        method: "PATCH",
+        body,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
 export async function deleteBlueprint(guildId, { id }) {
   try {
-    await http(`/blueprints/${encodeURIComponent(id)}?${qs(guildId)}`, { method: 'DELETE' });
+    await http(`/blueprints/${encodeURIComponent(id)}?${qs(guildId)}`, {
+      method: "DELETE",
+    });
   } catch {
-    await http(`/blueprints?id=${encodeURIComponent(id)}&${qs(guildId)}`, { method: 'DELETE' });
+    await http(
+      `/blueprints?id=${encodeURIComponent(id)}&${qs(guildId)}`,
+      { method: "DELETE" }
+    );
   }
   return true;
 }
 
 export async function saveBlueprint(guildId, bp) {
-  const payload = splitForSave(bp);
+  const data = bp?.data ?? {};
+  const payload = {
+    id: bp.id,
+    name: bp.name || bp.id,      // spaces preserved
+    data: { graph: data.graph ?? data, script: data.script ?? null },
+  };
   await http(`/blueprints?${qs(guildId)}`, {
-    method: 'POST',
-    body: JSON.stringify(payload)
+    method: "POST",
+    body: JSON.stringify(payload),
   });
   return true;
 }

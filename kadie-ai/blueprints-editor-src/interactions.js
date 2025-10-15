@@ -81,14 +81,20 @@ function shapeForType(t){
   const raw = (window.DISCORD_SHAPES && window.DISCORD_SHAPES[key]) || [];
   return raw;
 }
-function applyBreakObjectShape(nid, sourceType){
+// whichPin is 'object' or 'payload'
+function applyBreakObjectShape(nid, sourceType, whichPin='object'){
   const n = state.nodes.get(nid);
   if (!n) return;
 
+  const objType = whichPin === 'object'  ? (sourceType || 'any') : 'any';
+  const payType = whichPin === 'payload' ? (sourceType || 'any') : 'any';
+
   const baseIn  = [
     { name:'in', type:'exec' },
-    { name:'object', type: sourceType || 'any' },
+    { name:'object',  type: objType },
+    { name:'payload', type: payType }
   ];
+
   const raw = shapeForType(sourceType);
   const finalDataPins = raw.map(f => ({ name: f.name, type: toFinalPrimitive(f.type) }));
   const outPins = [{ name:'out', type:'exec' }, ...finalDataPins];
@@ -169,7 +175,7 @@ function enableNodeInteractions(el, model){
     ev.preventDefault();
   });
 
-  // node context menu -> NEW compact actions menu
+  // node context menu -> actions menu
   el.addEventListener('contextmenu', (ev)=>{
     if (isInteractiveTarget(ev.target)) return;
     ev.preventDefault();
@@ -375,10 +381,10 @@ export function initInteractions(){
             };
             state.edges.set(edge.id, edge);
 
-            if (defId === 'utils.breakObject' && pin === 'object' && lockedWire.kind === 'data'){
+            if (defId === 'utils.breakObject' && ['object','payload'].includes(pin) && lockedWire.kind === 'data'){
               const fallType = getOutputType(state.nodes.get(edge.from.nid)?.defId, edge.from.pin);
               const sourceType = lockedWire.fromType || fallType || 'any';
-              applyBreakObjectShape(n.id, sourceType);
+              applyBreakObjectShape(n.id, sourceType, pin);
             }
           }
           clearLockedWire();
@@ -412,10 +418,10 @@ export function initInteractions(){
       state.edges.set(edge.id, edge);
 
       const toNode = state.nodes.get(check.toNid);
-      if (toNode && toNode.defId === 'utils.breakObject' && check.toPin === 'object' && dragWire.kind === 'data'){
+      if (toNode && toNode.defId === 'utils.breakObject' && ['object','payload'].includes(check.toPin) && dragWire.kind === 'data'){
         const fallType = getOutputType(state.nodes.get(dragWire.from.nid)?.defId, dragWire.from.pin);
         const sourceType = dragWire.fromType || fallType || 'any';
-        applyBreakObjectShape(check.toNid, sourceType);
+        applyBreakObjectShape(check.toNid, sourceType, check.toPin);
       }
 
       renderAll();

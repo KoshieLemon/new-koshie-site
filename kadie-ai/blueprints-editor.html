@@ -92,7 +92,6 @@
   </style>
 </head>
 <body>
-  <!-- hidden legacy controls for compatibility -->
   <div style="display:none">
     <select id="bpSelect"></select>
     <button id="bpCreate" type="button">Create</button>
@@ -102,7 +101,6 @@
     <button id="redoBtn" type="button">Redo</button>
   </div>
 
-  <!-- dirty/save bar (appears only when there are unsaved changes) -->
   <div id="dirty" aria-live="polite" role="region">
     <span class="msg">Unsaved changes</span>
     <span class="sp"></span>
@@ -112,7 +110,6 @@
     </div>
   </div>
 
-  <!-- editor -->
   <div class="editor-wrap" id="editor">
     <div class="grid"></div>
     <svg class="wires" id="wires" viewBox="0 0 1000 1000" preserveAspectRatio="none"></svg>
@@ -122,26 +119,20 @@
     <div class="rubber" id="rubber"></div>
   </div>
 
-  <!-- left: BLUEPRINTS dock -->
   <aside class="dock" id="bpdock" aria-label="Blueprints">
     <div class="resizer" aria-hidden="true"></div>
     <div class="bp-list" id="bpList"></div>
   </aside>
 
-  <!-- right: VARIABLES + Guild dock -->
   <aside class="dock" id="varsDock" aria-label="Variables and Guild Objects">
     <div class="resizer" aria-hidden="true"></div>
-
     <div class="search row">
       <input id="dockSearch" type="search" placeholder="Search variables, channels, or roles" autocomplete="off">
-      <button class="btn" id="varsAdd">+ Var</button>
+      <button class="btn" id="varsAdd">+</button>
     </div>
-    <p class="copy-hint">Click copies ID or name. Double-click a guild item to import as a variable. Drag chips to graph.</p>
-
     <div id="dockList" class="bp-list" aria-live="polite"></div>
   </aside>
 
-  <!-- Revert wiring: reload the current selection -->
   <script>
     (function(){
       const rb = document.getElementById('revertBtn');
@@ -149,7 +140,6 @@
         rb.addEventListener('click', ()=>{
           const sel = document.getElementById('bpSelect');
           if (!sel || !sel.value) return;
-          // trigger reload of the currently selected blueprint
           sel.dispatchEvent(new Event('change', { bubbles:true }));
         });
       }
@@ -157,5 +147,7 @@
   </script>
 
   <script type="module" src="/kadie-ai/blueprints-editor.js?v=7"></script>
+  <!-- Correct path for pin actions -->
+  <script type="module" src="/kadie-ai/blueprints-editor-src/pin-actions.js?v=2"></script>
 </body>
 </html>

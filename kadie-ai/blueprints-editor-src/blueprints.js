@@ -1,5 +1,6 @@
-// Blueprint loader with single-step diagnostics and hard verification.
-// Prevents reselecting the active blueprint. Resolves canonical IDs and retries on mismatch.
+// Loader with strict id matching, busy overlay, and verification.
+// No auto-load at startup or after delete. Busy overlay on switch/save/delete.
+// Supports external delete and rename requests without selecting.
 
 import { els } from "./dom.js";
 import { state, snapshot, loadSnapshot, clearDirty } from "./state.js";
@@ -14,34 +15,92 @@ import {
 } from "./providers.js";
 import { ensureNodesIndex } from "./nodes-index.js";
 
-// ---------- diagnostics ----------
+/* ----------------------------- diagnostics ----------------------------- */
 function stepLog(n, label, status, extra) {
   const tail = extra ? ` | ${extra}` : "";
   console.info(`[BP STEP ${n}] ${label}: ${status}${tail}`);
 }
 
-// ---------- util ----------
-function canonicalId(idOrName){
-  const opts = Array.from(els.bpSelect?.options || []);
-  const byVal = opts.find(o => String(o.value) === String(idOrName));
-  if (byVal) return String(byVal.value);
-  const byText = opts.find(o => String(o.textContent || '').trim() === String(idOrName));
-  return byText ? String(byText.value) : String(idOrName);
+/* ------------------------------ busy overlay --------------------------- */
+let BUSY = false;
+
+function ensureBusyUI() {
+  if (document.getElementById("bp-busy-style")) return;
+
+  const css = document.createElement("style");
+  css.id = "bp-busy-style";
+  css.textContent = `
+    #appBusy{
+      position:fixed; inset:0; z-index:2000;
+      display:none; align-items:center; justify-content:center;
+      background:rgba(10,12,18,.62); backdrop-filter:blur(2px);
+      cursor:progress; pointer-events:all;
+    }
+    #appBusy .wrap{ display:flex; flex-direction:column; align-items:center; gap:10px; }
+    #appBusy .spinner{
+      width:56px; height:56px; border-radius:50%;
+      border:4px solid #3b82f6; border-top-color:transparent;
+      animation:bpSpin .9s linear infinite; box-shadow:0 0 18px #3b82f688;
+    }
+    #appBusy .msg{ color:#e5e7eb; font:600 13px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; opacity:.95; }
+    @keyframes bpSpin{ to{ transform:rotate(360deg) } }
+  `;
+  document.head.appendChild(css);
+
+  const ov = document.createElement("div");
+  ov.id = "appBusy";
+  ov.innerHTML = `<div class="wrap"><div class="spinner"></div><div class="msg">Loading blueprint…</div></div>`;
+  document.body.appendChild(ov);
+
+  const stopAll = (e) => { if (BUSY) { e.preventDefault(); e.stopPropagation(); } };
+  window.addEventListener("pointerdown", stopAll, true);
+  window.addEventListener("wheel", stopAll, { passive: false, capture: true });
+  window.addEventListener("keydown", stopAll, true);
 }
+
+function showBusy(text = "Loading blueprint…") {
+  ensureBusyUI();
+  BUSY = true;
+  const el = document.getElementById("appBusy");
+  if (el) {
+    const msg = el.querySelector(".msg");
+    if (msg) msg.textContent = text;
+    el.style.display = "flex";
+  }
+}
+
+function hideBusy() {
+  BUSY = false;
+  const el = document.getElementById("appBusy");
+  if (el) el.style.display = "none";
+}
+
+/* --------------------------------- utils ------------------------------- */
+function canonicalId(idOrName) {
+  const opts = Array.from(els.bpSelect?.options || []);
+  const v = String(idOrName ?? "");
+  const byVal = opts.find((o) => String(o.value) === v);
+  if (byVal) return String(byVal.value);
+  const vTrim = v.trim().toLowerCase();
+  const byText = opts.find((o) => String(o.textContent || "").trim().toLowerCase() === vTrim);
+  return byText ? String(byText.value) : v;
+}
+
 function pickActiveNodeId(graph) {
   const selId = state.sel && state.sel.size ? [...state.sel][0] : null;
-  if (selId && graph.nodes?.some(n => n.id === selId)) return selId;
+  if (selId && graph.nodes?.some((n) => n.id === selId)) return selId;
   return graph.nodes?.[0]?.id || null;
 }
+
 function verifyGraphRendered(graph) {
-  const wantCount = Array.isArray(graph.nodes) ? graph.nodes.length : 0;
-  const haveCount = state.nodes instanceof Map ? state.nodes.size : 0;
+  const want = Array.isArray(graph.nodes) ? graph.nodes.length : 0;
+  const have = state.nodes instanceof Map ? state.nodes.size : 0;
 
   const missingInState = [];
   const missingInDom = [];
 
-  const idsFromGraph = new Set((graph.nodes || []).map(n => n.id));
-  for (const id of idsFromGraph) if (!state.nodes.has(id)) missingInState.push(id);
+  const ids = new Set((graph.nodes || []).map((n) => n.id));
+  for (const id of ids) if (!state.nodes.has(id)) missingInState.push(id);
 
   for (const id of state.nodes.keys()) {
     const nodeEl = els.nodesLayer?.querySelector?.(`.node[data-nid="${CSS.escape(id)}"]`);
@@ -51,20 +110,25 @@ function verifyGraphRendered(graph) {
   const activeId = pickActiveNodeId(graph);
   const activeOK = activeId
     ? !!els.nodesLayer?.querySelector?.(`.node[data-nid="${CSS.escape(activeId)}"]`)
-    : wantCount === 0;
+    : want === 0;
 
-  const ok = wantCount === haveCount && missingInState.length === 0 && missingInDom.length === 0 && activeOK;
+  const ok = want === have && missingInState.length === 0 && missingInDom.length === 0 && activeOK;
   const details = [
-    `expected=${wantCount}`, `state=${haveCount}`,
+    `expected=${want}`,
+    `state=${have}`,
     missingInState.length ? `missingInState=[${missingInState.join(",")}]` : "",
     missingInDom.length ? `missingInDom=[${missingInDom.join(",")}]` : "",
-    `active=${activeId || "none"}`, `activeOK=${activeOK}`,
-  ].filter(Boolean).join(" ");
+    `active=${activeId || "none"}`,
+    `activeOK=${activeOK}`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return { ok, details };
 }
 
-// ---------- list + open ----------
-async function refreshList(gid, selectId = "") {
+/* ----------------------------- list (no open) -------------------------- */
+async function refreshList(gid, selectId = null) {
   await ensureNodesIndex();
   const sel = els.bpSelect;
   const list = await listBlueprints(gid);
@@ -77,23 +141,19 @@ async function refreshList(gid, selectId = "") {
     sel.appendChild(o);
   }
 
-  if (list.length === 0) {
-    els.overlay.style.display = "";
-    return;
-  }
-
-  const id = canonicalId(selectId || state.bpId || list[0].id);
-  sel.value = id;
-  await openById(gid, id);
+  // Do not auto-select or open. Respect explicit selectId if provided.
+  if (selectId !== null) sel.value = canonicalId(selectId);
 }
 
-let loadSeq = 0; // concurrency guard
+/* ----------------------------- open by id ------------------------------ */
+let loadSeq = 0;
 
 async function openById(gid, requestedId, seq = 0) {
-  // Step 3: Load blueprint
+  showBusy("Loading blueprint…");
+
   let bp = null;
   let graph = { nodes: [], edges: [] };
-  let req = canonicalId(requestedId);
+  const req = canonicalId(requestedId);
 
   try {
     await ensureNodesIndex();
@@ -101,26 +161,16 @@ async function openById(gid, requestedId, seq = 0) {
     bp = await openBlueprint(gid, req);
     if (!bp) {
       stepLog(3, "Load blueprint", "FAIL", "provider returned null");
-      stepLog(4, "Update runtime state", "FAIL", "blocked by step 3");
-      stepLog(5, "Render graph + VERIFY", "FAIL", "blocked by step 3");
+      hideBusy();
       return { ok: false, reason: "no-blueprint" };
     }
 
-    if (String(bp.id) !== String(req)) {
-      // Retry once with canonicalized ID from <select> text, if different
-      const retryId = canonicalId(bp.id);
-      if (retryId && retryId !== req) {
-        stepLog(3, "Load blueprint", "RETRY", `requested=${req} -> canonical=${retryId}`);
-        req = retryId;
-        bp = await openBlueprint(gid, req);
-        if (!bp || String(bp.id) !== String(req)) {
-          stepLog(3, "Load blueprint", "FAIL", `id-mismatch requested=${req} got=${bp?.id}`);
-          return { ok: false, reason: "id-mismatch" };
-        }
-      } else {
-        stepLog(3, "Load blueprint", "FAIL", `id-mismatch requested=${req} got=${bp.id}`);
-        return { ok: false, reason: "id-mismatch" };
-      }
+    const want = String(req).toLowerCase();
+    const got = String(bp.id).toLowerCase();
+    if (want !== got) {
+      stepLog(3, "Load blueprint", "FAIL", `provider mismatch want=${want} got=${got}`);
+      hideBusy();
+      return { ok: false, reason: "id-mismatch" };
     }
 
     const raw = bp.data?.graph ?? bp.data ?? {};
@@ -131,62 +181,126 @@ async function openById(gid, requestedId, seq = 0) {
     stepLog(3, "Load blueprint", "OK", `nodes=${graph.nodes.length}, edges=${graph.edges.length}`);
   } catch (e) {
     stepLog(3, "Load blueprint", "FAIL", e?.message || "exception");
-    stepLog(4, "Update runtime state", "FAIL", "blocked by step 3");
-    stepLog(5, "Render graph + VERIFY", "FAIL", "blocked by step 3");
+    hideBusy();
     return { ok: false, reason: "exception" };
   }
 
-  if (seq && seq !== loadSeq) return { ok: false, reason: "superseded" };
+  if (seq && seq !== loadSeq) {
+    hideBusy();
+    return { ok: false, reason: "superseded" };
+  }
 
-  // Step 4: Update runtime state
   try {
     state.bpId = bp.id;
     state.bpName = bp.name || bp.id;
     stepLog(4, "Update runtime state", "OK", `id=${state.bpId}`);
   } catch (e) {
     stepLog(4, "Update runtime state", "FAIL", e?.message || "exception");
-    stepLog(5, "Render graph + VERIFY", "FAIL", "blocked by step 4");
+    hideBusy();
     return { ok: false, reason: "state-failure" };
   }
 
-  if (seq && seq !== loadSeq) return { ok: false, reason: "superseded" };
+  if (seq && seq !== loadSeq) {
+    hideBusy();
+    return { ok: false, reason: "superseded" };
+  }
 
-  // Step 5: Render graph + VERIFY
   let verify = { ok: false, details: "" };
   try {
     state.nodes?.clear?.();
     state.edges?.clear?.();
-    renderAll(); // clear DOM first
+    renderAll();
     loadSnapshot(graph, () => renderAll());
     verify = verifyGraphRendered(graph);
     stepLog(5, "Render graph + VERIFY", verify.ok ? "OK" : "FAIL", verify.details);
   } catch (e) {
     stepLog(5, "Render graph + VERIFY", "FAIL", e?.message || "exception");
+    hideBusy();
     return { ok: false, reason: "render-failure" };
   }
 
+  hideBusy();
   return { ok: verify.ok, reason: verify.ok ? "ok" : "verify-failed" };
 }
 
-// ---------- init + events ----------
+/* --------------------------- init + events ----------------------------- */
 export async function initBlueprints(gid) {
+  ensureBusyUI();
+
   const sel = els.bpSelect;
   const btnCreate = els.bpCreate;
-  const btnRename = els.bpRename;
-  const btnDelete = els.bpDelete;
+  const btnRenameBtn = els.bpRename;
+  const btnDeleteBtn = els.bpDelete;
+
+  // Start on overlay. No auto-load.
+  els.overlay.style.display = "";
+  state.bpId = null; state.bpName = null;
+
+  // External delete (from dock red bar).
+  window.addEventListener("bp:delete-request", async (ev) => {
+    if (BUSY) return;
+    const targetId = String(ev?.detail?.id || "");
+    if (!targetId) return;
+    if (!confirm("Delete this blueprint?")) return;
+
+    showBusy("Deleting…");
+    try {
+      await deleteBlueprint(gid, { id: targetId });
+
+      if (state.bpId && String(state.bpId) === targetId) {
+        state.bpId = null;
+        state.bpName = null;
+        state.nodes.clear();
+        state.edges.clear();
+        renderAll();
+        els.overlay.style.display = "";
+      }
+
+      await refreshList(gid);
+      els.bpSelect.value = "";
+      window.dispatchEvent(new CustomEvent("bp:selected", { detail: { id: "" } }));
+      clearDirty(els.dirty);
+    } finally {
+      hideBusy();
+    }
+  });
+
+  // External rename (from dock right-click).
+  window.addEventListener("bp:rename-request", async (ev) => {
+    if (BUSY) return;
+    const targetId = String(ev?.detail?.id || "");
+    const newName = String(ev?.detail?.name || "").trim();
+    if (!targetId || !newName) return;
+
+    showBusy("Renaming…");
+    try {
+      await renameBlueprint(gid, { id: targetId, name: newName });
+      if (state.bpId && String(state.bpId) === targetId) state.bpName = newName;
+      await refreshList(gid, state.bpId || null);
+    } finally {
+      hideBusy();
+    }
+  });
 
   const btnSave =
     document.querySelector('[data-action="save"]') ||
     document.getElementById("bpSave") ||
     document.getElementById("saveBtn");
-  if (btnSave) btnSave.addEventListener("click", async () => { await saveCurrentBlueprint(gid); });
+  if (btnSave) {
+    btnSave.addEventListener("click", async () => {
+      if (BUSY || !state.bpId) return;
+      await saveCurrentBlueprint(gid);
+    });
+  }
 
-  // Handle only trusted user changes on the dropdown
   sel?.addEventListener("change", async (e) => {
-    if (!e.isTrusted) return;
+    if (!e.isTrusted || BUSY) return;
     const id = canonicalId(sel.value);
-    if (!id) { els.overlay.style.display = ""; return; }
-    if (String(id) === String(state.bpId)) { stepLog(1, "Bubble event received", "OK", `id=${id} (already active; ignored)`); return; }
+    if (!id) return;
+    if (String(id) === String(state.bpId)) {
+      stepLog(1, "Bubble event received", "OK", `id=${id} (already active; ignored)`);
+      return;
+    }
     const mySeq = ++loadSeq;
     const res = await openById(gid, id, mySeq);
     clearDirty(els.dirty);
@@ -194,15 +308,19 @@ export async function initBlueprints(gid) {
     stepLog(7, "Finalize UI", res.ok ? "OK" : "FAIL", res.ok ? "overlay hidden" : "overlay shown");
   });
 
-  // Dock bubble clicks
   window.addEventListener("bp:selected", async (ev) => {
+    if (BUSY) return;
     const pickedRaw = String(ev?.detail?.id || "");
     const picked = canonicalId(pickedRaw);
     const same = picked && String(picked) === String(state.bpId);
-    stepLog(1, "Bubble event received", picked ? "OK" : "FAIL", picked ? `id=${picked}${same ? " (already active; ignored)" : ""}` : "missing id");
+    stepLog(
+      1,
+      "Bubble event received",
+      picked ? "OK" : "FAIL",
+      picked ? `id=${picked}${same ? " (already active; ignored)" : ""}` : "missing id"
+    );
     if (!picked || same) return;
 
-    // keep <select> in sync without firing its handler
     if (els.bpSelect) els.bpSelect.value = picked;
 
     const mySeq = ++loadSeq;
@@ -214,48 +332,76 @@ export async function initBlueprints(gid) {
     stepLog(7, "Finalize UI", res.ok ? "OK" : "FAIL", res.ok ? "overlay hidden" : "overlay shown");
   });
 
-  // Create / Rename / Delete
   btnCreate?.addEventListener("click", async () => {
-    const name = prompt("New blueprint name?")?.trim();
+    if (BUSY) return;
+    const name = prompt("New blueprint name?")?.trim(); // spaces allowed
     if (!name) return;
-    const bp = await createBlueprint(gid, { name });
-    await refreshList(gid, bp.id);
+    showBusy("Creating…");
+    try {
+      await createBlueprint(gid, { name });
+      await refreshList(gid);              // no selectId -> no highlight
+      els.bpSelect.value = "";             // explicit none
+      window.dispatchEvent(new CustomEvent("bp:selected", { detail: { id: "" } }));
+      els.overlay.style.display = "";      // stay on overlay
+    } finally {
+      hideBusy();
+    }
   });
 
-  btnRename?.addEventListener("click", async () => {
-    if (!state.bpId) return;
-    const name = prompt("Rename blueprint to?", state.bpName)?.trim();
+  btnRenameBtn?.addEventListener("click", async () => {
+    if (BUSY || !state.bpId) return;
+    const name = prompt("Rename blueprint to?", state.bpName)?.trim(); // spaces allowed
     if (!name) return;
-    await renameBlueprint(gid, { id: state.bpId, name });
-    await refreshList(gid, state.bpId);
+    showBusy("Renaming…");
+    try {
+      await renameBlueprint(gid, { id: state.bpId, name });
+      state.bpName = name;
+      await refreshList(gid, state.bpId);
+    } finally {
+      hideBusy();
+    }
   });
 
-  btnDelete?.addEventListener("click", async () => {
-    if (!state.bpId) return;
+  btnDeleteBtn?.addEventListener("click", async () => {
+    if (BUSY || !state.bpId) return;
     if (!confirm("Delete this blueprint?")) return;
-    await deleteBlueprint(gid, { id: state.bpId });
-    state.bpId = null;
-    state.bpName = null;
-    state.nodes.clear();
-    state.edges.clear();
-    els.overlay.style.display = "";
-    await refreshList(gid, "");
-    renderAll();
-    clearDirty(els.dirty);
+    showBusy("Deleting…");
+    try {
+      await deleteBlueprint(gid, { id: state.bpId });
+      state.bpId = null;
+      state.bpName = null;
+      state.nodes.clear();
+      state.edges.clear();
+      renderAll();
+      els.overlay.style.display = "";
+      await refreshList(gid, "");
+      els.bpSelect.value = "";
+      window.dispatchEvent(new CustomEvent("bp:selected", { detail: { id: "" } }));
+      clearDirty(els.dirty);
+    } finally {
+      hideBusy();
+    }
   });
 
-  // initial load
+  // Build list once. Do not auto-load or highlight.
   await refreshList(gid);
+  els.bpSelect.value = "";
+  window.dispatchEvent(new CustomEvent("bp:selected", { detail: { id: "" } }));
 }
 
-// ---------- save ----------
+/* --------------------------------- save -------------------------------- */
 export async function saveCurrentBlueprint(gid) {
-  if (!state.bpId) return false;
+  if (BUSY || !state.bpId) return false;
   const graph = JSON.parse(snapshot());
   const bp = { id: state.bpId, name: state.bpName, data: { graph, script: null } };
+  showBusy("Saving…");
   try {
     const ok = await saveBlueprint(gid, bp);
     if (ok) clearDirty(els.dirty);
     return ok;
-  } catch { return false; }
+  } catch {
+    return false;
+  } finally {
+    hideBusy();
+  }
 }
