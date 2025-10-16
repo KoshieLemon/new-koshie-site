@@ -7,7 +7,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
   <link rel="stylesheet" href="/assets/main.css">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3366084057758708" crossorigin="anonymous"></script>
   <style>
     :root{ --page-w: min(960px, 96vw); }
     html,body{height:100%;margin:0}
@@ -23,7 +22,7 @@
     .card{
       position:relative;display:flex;align-items:center;gap:12px;
       border:1px solid #1f2432;background:#10131a;border-radius:12px;
-      padding:14px 12px;overflow:hidden;min-height:74px
+      padding:14px 12px;overflow:hidden;min-height:74px;contain:content
     }
     .card:hover{background:#121623}
     .card.owner{border-color:#14532d;background:linear-gradient(0deg,#0c1410,#10131a)}
@@ -34,10 +33,10 @@
     .meta{display:flex;flex-direction:column;gap:0;min-width:0}
     .name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .spacer{flex:1 1 auto}
-    .badges{display:flex;gap:8px;align-items:center}
+    .badges{display:flex;gap:8px;align-items:center;min-height:24px}
     .badge{font-size:12px;border:1px solid #2b2f3a;background:#0d1118;color:#cbd5e1;padding:4px 8px;border-radius:999px}
-    .btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:8px 10px;border-radius:10px;cursor:pointer;text-decoration:none}
-    /* Upright, right-aligned, smaller watermark that fits */
+    .skeleton{background:linear-gradient(90deg,#0e131c,#141a25,#0e131c);background-size:200% 100%;animation:s 1.2s infinite}
+    @keyframes s{0%{background-position:200% 0}100%{background-position:-200% 0}}
     .role-watermark{
       position:absolute;right:12px;top:50%;transform:translateY(-50%);
       font-weight:900;font-size:clamp(18px,4.5vw,48px);
@@ -65,6 +64,6 @@
     </section>
   </main>
 
-  <script type="module" src="/kadie-ai/server-listings.js?v=15"></script>
+  <script type="module" src="/kadie-ai/server-listings.js?v=16"></script>
 </body>
 </html>

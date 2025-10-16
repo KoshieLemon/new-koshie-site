@@ -1,4 +1,4 @@
-// /kadie-ai/server-listings.js v15
+// /kadie-ai/server-listings.js v16
 import {
   apiGet,
   apiGetFirst,
@@ -12,7 +12,7 @@ import {
   GUILDS_URLS_LABEL
 } from './api.js';
 
-printDiagnostics('server-listings v15');
+printDiagnostics('server-listings v16');
 
 /* ---------- DOM ---------- */
 const byId = (id)=>document.getElementById(id);
@@ -55,8 +55,7 @@ function countsAvailable(c){
   return n(c.total) || n(c.online);
 }
 
-/* Single endpoint only to avoid 404s.
-   Hides badges if not available. Never logs console errors. */
+/* Counts endpoint: single route. */
 async function getCounts(apiOrigin, gid){
   try{
     const r = await fetch(`${apiOrigin}/api/guilds/${gid}/counts`, { credentials:'include' });
@@ -79,13 +78,34 @@ function informMasterOpen(g){
   return false;
 }
 
-/* ---------- render ---------- */
+/* ---------- caching (session-wide) ---------- */
+const CACHE_KEY = 'kadie.guilds.cache.v1';
+function readCache(){
+  try{
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const j = JSON.parse(raw);
+    if (!Array.isArray(j.guilds)) return null;
+    return j;
+  }catch{return null;}
+}
+function writeCache(obj){
+  try{ sessionStorage.setItem(CACHE_KEY, JSON.stringify(obj)); }catch{}
+}
+
+/* ---------- state ---------- */
+let appId = null;
+let rows = [];
+let apiOrigin = location.origin;
+let badgeSlots = new Map();
+
+/* ---------- rendering ---------- */
 function makeRow(data, appId){
-  const { g, isBotIn, counts } = data;
+  const { g, isBotIn } = data;
   const role = roleOf(g);
   const manageable = role !== 'not permitted';
 
-  const card = document.createElement('div'); card.className=`card ${role.replace(' ','-')}`;
+  const card = document.createElement('div'); card.className=`card ${role.replace(' ','-')}`; card.dataset.gid = g.id;
   const url = iconUrl(g);
   if (url){ const i=new Image(); i.src=url; i.className='ico'; card.appendChild(i); }
   else { const d=document.createElement('div'); d.className='fallback'; d.textContent=(g.name||'?').slice(0,1).toUpperCase(); card.appendChild(d); }
@@ -97,18 +117,12 @@ function makeRow(data, appId){
 
   const spacer = document.createElement('div'); spacer.className='spacer'; card.appendChild(spacer);
 
-  if (countsAvailable(counts)){
-    const badges = document.createElement('div'); badges.className='badges';
-    if (typeof counts?.online === 'number' && counts.online > 0){
-      const onl = document.createElement('span'); onl.className='badge'; onl.textContent = `Online ${counts.online}`;
-      badges.appendChild(onl);
-    }
-    if (typeof counts?.total === 'number' && counts.total > 0){
-      const tot = document.createElement('span'); tot.className='badge'; tot.textContent = `Total ${counts.total}`;
-      badges.appendChild(tot);
-    }
-    if (badges.children.length) card.appendChild(badges);
-  }
+  // Badges slot (lazy counts)
+  const badges = document.createElement('div'); badges.className='badges';
+  const skel = document.createElement('span'); skel.className='badge skeleton'; skel.style.width='72px'; skel.textContent=' ';
+  badges.appendChild(skel);
+  card.appendChild(badges);
+  badgeSlots.set(String(g.id), { card, badges });
 
   if (manageable){
     if (isBotIn){
@@ -129,33 +143,124 @@ function makeRow(data, appId){
   card.appendChild(wm);
 
   if (!manageable) card.classList.add('not-permitted');
-
   return card;
 }
 
-function render(filtered, appId){
+function renderList(data){
   if (!list) return;
+  // stable sort
   const weight = r => r.g.owner ? 0 : hasManagePerms(r.g) ? 1 : 2;
-  filtered.sort((a,b)=> weight(a)-weight(b) || a.g.name.localeCompare(b.g.name));
-  list.innerHTML = filtered.length ? '' : '<div class="empty">No servers to show.</div>';
-  const frag = document.createDocumentFragment();
-  filtered.forEach(r => frag.appendChild(makeRow(r, appId)));
-  list.appendChild(frag);
+  const arr = [...data].sort((a,b)=> weight(a)-weight(b) || a.g.name.localeCompare(b.g.name));
+
+  list.innerHTML = data.length ? '' : '<div class="empty">No servers to show.</div>';
+  badgeSlots = new Map();
+
+  // Chunked append
+  const CHUNK = 24;
+  let i = 0;
+  function push(){
+    const frag = document.createDocumentFragment();
+    for (let k=0; k<CHUNK && i<arr.length; k++, i++){
+      const node = makeRow(arr[i], appId);
+      frag.appendChild(node);
+      observeForCounts(node, arr[i].g.id);
+    }
+    list.appendChild(frag);
+    if (i < arr.length) {
+      (window.requestIdleCallback || window.requestAnimationFrame)(push);
+    }
+  }
+  push();
 }
 
-/* ---------- search ---------- */
 function applySearch(){
   const q = qEl.value.trim().toLowerCase();
-  if (!q) { render(rows, appId); return; }
+  if (!q) { renderList(rows); return; }
   const f = rows.filter(r => (r.g.name||'').toLowerCase().includes(q) || String(r.g.id).includes(q));
-  render(f, appId);
+  renderList(f);
+}
+
+/* ---------- lazy counts with limited concurrency ---------- */
+const MAX_PARALLEL = 6;
+let inflight = 0;
+const queue = [];
+const seen = new Set();
+
+function observeForCounts(card, gid){
+  if (seen.has(gid)) return; // already scheduled once
+  const io = observeForCounts._io || (observeForCounts._io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if (!e.isIntersecting) return;
+      const id = e.target.dataset.gid;
+      if (!id || seen.has(id)) { observeForCounts._io.unobserve(e.target); return; }
+      seen.add(id);
+      observeForCounts._io.unobserve(e.target);
+      queue.push(id);
+      pumpCounts();
+    });
+  }, { root:null, rootMargin:'200px', threshold:0.01 }));
+  io.observe(card);
+}
+
+function pumpCounts(){
+  while (inflight < MAX_PARALLEL && queue.length){
+    const id = queue.shift();
+    inflight++;
+    getCounts(apiOrigin, id).then(c=>{
+      updateCountsDom(id, c);
+    }).finally(()=>{ inflight--; pumpCounts(); });
+  }
+}
+
+function updateCountsDom(gid, counts){
+  const slot = badgeSlots.get(String(gid));
+  if (!slot) return;
+  const { badges } = slot;
+  badges.innerHTML = '';
+  if (!countsAvailable(counts)) return;
+  if (typeof counts.online === 'number' && counts.online > 0){
+    const onl = document.createElement('span'); onl.className='badge'; onl.textContent=`Online ${counts.online}`;
+    badges.appendChild(onl);
+  }
+  if (typeof counts.total === 'number' && counts.total > 0){
+    const tot = document.createElement('span'); tot.className='badge'; tot.textContent=`Total ${counts.total}`;
+    badges.appendChild(tot);
+  }
 }
 
 /* ---------- data flow ---------- */
-let appId = null;
-let rows = [];
+let botSet = null;
 
-(async () => {
+function setSearchHandler(){
+  let t = 0;
+  qEl.removeEventListener('input', qEl._handler || (()=>{}));
+  qEl._handler = (e)=>{ clearTimeout(t); t = setTimeout(applySearch, 60); };
+  qEl.addEventListener('input', qEl._handler);
+}
+
+function toRows(guilds){
+  return guilds.map(g => ({
+    g,
+    isBotIn: botSet ? botSet.has(String(g.id)) : false
+  }));
+}
+
+async function bootstrapFromCache(){
+  const c = readCache();
+  if (!c) return false;
+  try{
+    appId = c.appId || null;
+    apiOrigin = c.apiOrigin || location.origin;
+    botSet = new Set((c.botGuildIds||[]).map(String));
+    rows = toRows(c.guilds || []);
+    clearError();
+    renderList(rows);
+    setSearchHandler();
+    return true;
+  }catch{ return false; }
+}
+
+async function fetchFreshAndRender(){
   try {
     const meRes = await apiGet(ME_URL, ME_URL_LABEL);
     if (meRes.status === 401) setError(`Not logged in. <a href="/kadie-ai/kadie-ai.html">Sign in with Discord</a>`);
@@ -165,28 +270,31 @@ let rows = [];
     const guilds = await gRes.json();
     if (!Array.isArray(guilds)) { setError('Guilds payload invalid.'); return; }
 
-    const apiOrigin = (()=>{ try { return new URL(gRes.url).origin; } catch { return location.origin; } })();
+    apiOrigin = (()=>{ try { return new URL(gRes.url).origin; } catch { return location.origin; } })();
 
-    const [appid, botSet] = await Promise.all([fetchAppId(), fetchBotGuildSet()]);
+    const [appid, botGuildSet] = await Promise.all([fetchAppId(), fetchBotGuildSet()]);
     appId = appid || null;
+    botSet = botGuildSet || null;
 
-    // Fetch counts only from stable API route; ignore failures silently.
-    const countEntries = await Promise.all(guilds.map(async g => {
-      const c = await getCounts(apiOrigin, g.id);
-      return [g.id, c];
-    }));
-    const countMap = new Map(countEntries);
-
-    rows = guilds.map(g => ({
-      g,
-      isBotIn: botSet ? botSet.has(String(g.id)) : false,
-      counts: countMap.get(g.id) || null
-    }));
-
+    rows = toRows(guilds);
     clearError();
-    render(rows, appId);
-    qEl.addEventListener('input', applySearch);
+    renderList(rows);
+    setSearchHandler();
+
+    // cache for this tab session
+    writeCache({
+      appId,
+      apiOrigin,
+      botGuildIds: botSet ? Array.from(botSet) : [],
+      guilds
+    });
   } catch {
     setError('Network or CORS error.');
   }
+}
+
+/* ---------- boot ---------- */
+(async () => {
+  const hadCache = await bootstrapFromCache(); // immediate paint if available
+  fetchFreshAndRender(); // refresh in background (reuses cache if user returns)
 })();

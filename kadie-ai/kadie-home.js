@@ -1,8 +1,8 @@
 // /kadie-ai/kadie-home.js
-// Adds user dropdown on avatar with Liked, Bookmarked, Notifications.
-// Orange dot shows when unread notifications exist.
+// User dropdown (Liked/Bookmarked/Notifications) now uses a body-level portal.
+// Tabs are wired and clickable. Menu sits above iframes and captures clicks.
 
-import { OAUTH_URL, ME_URL, apiGet, printDiagnostics } from './api.js';
+import { OAUTH_URL, ME_URL, LOGOUT_URL, apiGet, printDiagnostics } from './api.js';
 printDiagnostics('kadie-home');
 
 function byId(id){ return document.getElementById(id); }
@@ -27,23 +27,30 @@ const sbId        = byId('sbId');
 const leaveBtn    = byId('leaveServerBtn');
 const headerEl    = byId('siteHeader');
 
-/* header height -> viewport */
-const ro = new ResizeObserver(updateHeaderHeight);
-window.addEventListener('resize', updateHeaderHeight);
-ro.observe(headerEl);
-updateHeaderHeight();
+/* header + banner heights -> viewport */
+function setCSSVar(name, val){ document.documentElement.style.setProperty(name, val); }
 function updateHeaderHeight(){
   const h = Math.ceil(headerEl.getBoundingClientRect().height || 72);
-  document.documentElement.style.setProperty('--header-h', h + 'px');
+  setCSSVar('--header-h', h + 'px');
+  updateBannerHeight();
 }
+function updateBannerHeight(){
+  const shown = serverBadge.classList.contains('show');
+  const h = shown ? Math.ceil(serverBadge.getBoundingClientRect().height || 0) : 0;
+  setCSSVar('--banner-h', h + 'px');
+}
+new ResizeObserver(updateHeaderHeight).observe(headerEl);
+new ResizeObserver(updateBannerHeight).observe(serverBadge);
+window.addEventListener('resize', () => { updateHeaderHeight(); updateBannerHeight(); });
+updateHeaderHeight();
 
-/* user pill + dropdown */
+/* user pill + dropdown (portalized) */
 function ensureUserStyles(){
   if (byId('kadie-userpill-style')) return;
   const style = document.createElement('style');
   style.id = 'kadie-userpill-style';
   style.textContent = `
-    #kadieUser { margin-left:auto; display:flex; align-items:center; position:relative; }
+    #kadieUser { margin-left:auto; display:flex; align-items:center; gap:8px; position:relative; }
     .kadie-userwrap{ display:flex; align-items:center; gap:10px; cursor:pointer; position:relative; }
     .kadie-avatar{ width:28px; height:28px; border-radius:999px; object-fit:cover;
                    background:#0e1218; border:1px solid #1f2432; }
@@ -51,11 +58,17 @@ function ensureUserStyles(){
                 background:#ff8a00; border:2px solid #0b0b0c; display:none; }
     .kadie-dot.show{ display:block; }
     .btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:7px 10px;border-radius:10px;cursor:pointer;text-decoration:none;font-size:13px}
+    .btn.danger{border-color:#5f1a20;background:#2a0e12;color:#ffd7d7}
+    .btn.danger:hover{background:#47141b}
 
-    .kadie-menu{ position:absolute; right:0; top:40px; width:360px; max-height:70vh; overflow:auto;
-                 background:#0e1116; border:1px solid #2b2f3a; border-radius:12px; display:none; z-index:9999;
+    /* Portal overlay so menu is above iframes */
+    .k-portal{ position:fixed; inset:0; z-index:2147483647; display:none; }
+    .k-portal.show{ display:block; }
+    .k-backdrop{ position:absolute; inset:0; background:transparent; }
+
+    .kadie-menu{ position:absolute; width:360px; max-width:min(360px, 96vw); max-height:70vh; overflow:auto;
+                 background:#0e1116; border:1px solid #2b2f3a; border-radius:12px; display:block; z-index:1;
                  box-shadow:0 12px 24px #000a; }
-    .kadie-menu.show{ display:block; }
     .km-head{ display:flex; gap:6px; padding:8px; border-bottom:1px solid #1a1f2b; position:sticky; top:0; background:#0e1116; }
     .km-tab{ flex:1; padding:8px; border:1px solid #2b2f3a; background:#11131a; color:#eaeaea; border-radius:8px; cursor:pointer; text-align:center; }
     .km-tab.active{ outline:2px solid #5ac8fa; }
@@ -75,22 +88,29 @@ function ensureUserPill(){
 const avatarUrl = (u) => (u?.sub && u?.avatar) ? `https://cdn.discordapp.com/avatars/${u.sub}/${u.avatar}.png?size=64` : null;
 
 let userState = { user: null, profile: null, unread: 0 };
-let dropdown = null, dot = null;
+let dropdown = null, dot = null, portalRoot = null;
 
-function renderSignedOut(container){
-  container.innerHTML = '';
-  const a = document.createElement('a'); a.href = OAUTH_URL; a.className = 'btn'; a.textContent = 'Sign in';
-  container.appendChild(a);
+function getPortal(){
+  let p = document.getElementById('kadieUserMenuPortal');
+  if (!p) {
+    p = document.createElement('div');
+    p.id = 'kadieUserMenuPortal';
+    p.className = 'k-portal';
+    document.body.appendChild(p);
+  }
+  return p;
 }
-function renderSignedIn(container, user){
-  container.innerHTML = '';
-
-  const wrap = document.createElement('div'); wrap.className = 'kadie-userwrap'; wrap.setAttribute('role','button'); wrap.setAttribute('tabindex','0');
-  const img = document.createElement('img'); img.className = 'kadie-avatar'; img.alt = user?.username || 'profile';
-  const url = avatarUrl(user); if (url) img.src = url;
-  dot = document.createElement('span'); dot.className = 'kadie-dot'; dot.id = 'kadieNotifDot';
-  wrap.appendChild(img); wrap.appendChild(dot);
-  container.appendChild(wrap);
+function closeMenu(){
+  if (!portalRoot) return;
+  portalRoot.classList.remove('show');
+  portalRoot.innerHTML = '';
+}
+function openMenu(anchorEl){
+  portalRoot = getPortal();
+  portalRoot.innerHTML = '';
+  const backdrop = document.createElement('div'); backdrop.className = 'k-backdrop';
+  backdrop.addEventListener('click', closeMenu);
+  portalRoot.appendChild(backdrop);
 
   dropdown = document.createElement('div'); dropdown.className = 'kadie-menu'; dropdown.id = 'kadieUserMenu';
   dropdown.innerHTML = `
@@ -101,21 +121,66 @@ function renderSignedIn(container, user){
     </div>
     <div class="km-body" id="kmBody"><div class="km-empty">Select a tab.</div></div>
   `;
-  container.appendChild(dropdown);
+  dropdown.addEventListener('click', e => e.stopPropagation()); // keep clicks inside
+  portalRoot.appendChild(dropdown);
 
-  const toggle = () => { dropdown.classList.toggle('show'); if (dropdown.classList.contains('show')) selectTab('notifications'); };
-  wrap.onclick = toggle;
-  wrap.onkeydown = (e)=>{ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
+  // position near avatar
+  const r = anchorEl.getBoundingClientRect();
+  const gap = 8;
+  const top = Math.min(window.innerHeight - 24, r.bottom + gap);
+  const left = Math.min(Math.max(8, r.right - 360), window.innerWidth - 12 - 360);
+  dropdown.style.top = `${top}px`;
+  dropdown.style.left = `${left}px`;
 
-  document.addEventListener('click', (ev) => {
-    if (!dropdown) return;
-    const inside = container.contains(ev.target);
-    if (!inside) dropdown.classList.remove('show');
+  // wire tabs
+  dropdown.querySelectorAll('.km-tab').forEach(btn=>{
+    btn.addEventListener('click', ()=> selectTab(btn.dataset.tab));
   });
-  dropdown.querySelectorAll('.km-tab').forEach(btn => btn.addEventListener('click', () => selectTab(btn.dataset.tab)));
+
+  // esc to close
+  const onKey = (e)=>{ if (e.key === 'Escape') { closeMenu(); window.removeEventListener('keydown', onKey); } };
+  window.addEventListener('keydown', onKey);
+
+  portalRoot.classList.add('show');
+  selectTab('notifications');
 }
 
+function renderSignedOut(container){
+  container.innerHTML = '';
+  const a = document.createElement('a'); a.href = OAUTH_URL; a.className = 'btn'; a.textContent = 'Sign in';
+  container.appendChild(a);
+}
+function renderSignedIn(container, user){
+  container.innerHTML = '';
+
+  // avatar + unread dot
+  const wrap = document.createElement('div'); wrap.className = 'kadie-userwrap'; wrap.setAttribute('role','button'); wrap.setAttribute('tabindex','0');
+  const img = document.createElement('img'); img.className = 'kadie-avatar'; img.alt = user?.username || 'profile';
+  const url = avatarUrl(user); if (url) img.src = url;
+  dot = document.createElement('span'); dot.className = 'kadie-dot'; dot.id = 'kadieNotifDot';
+  wrap.appendChild(img); wrap.appendChild(dot);
+  container.appendChild(wrap);
+
+  // sign-out button
+  const signout = document.createElement('button');
+  signout.className = 'btn danger';
+  signout.id = 'signOutBtn';
+  signout.textContent = 'Sign out';
+  signout.addEventListener('click', signOut);
+  container.appendChild(signout);
+
+  wrap.onclick = () => openMenu(wrap);
+  wrap.onkeydown = (e)=>{ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openMenu(wrap); } };
+}
 function setDot(on){ if (!dot) return; dot.classList.toggle('show', !!on); }
+
+/* sign out */
+function signOut(){
+  try { sessionStorage.removeItem('kadie.return_to'); } catch {}
+  const u = new URL(LOGOUT_URL);
+  u.searchParams.set('return_to', location.href);
+  location.href = u.toString();
+}
 
 /* fetch helpers */
 async function getMemberSummary(){
@@ -140,7 +205,7 @@ async function markNotificationsRead(){
   await fetch(`${API_BASE}/forums/notifications/read`, { method:'POST', credentials:'include' });
 }
 
-/* tab renderer */
+/* dropdown tab renderer */
 async function selectTab(key){
   if (!dropdown) return;
   dropdown.querySelectorAll('.km-tab').forEach(b => b.classList.remove('active'));
@@ -163,7 +228,12 @@ async function selectTab(key){
         <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end">
           <button class="btn" data-thread="${p.threadId}">Open</button>
         </div>`;
-      d.querySelector('.btn').onclick = () => { if (tabs.community?.btn) tabs.community.btn.hidden = false; showTab('community'); };
+      d.querySelector('.btn').onclick = (e) => {
+        e.stopPropagation();
+        if (tabs.community?.btn) tabs.community.btn.hidden = false;
+        showTab('community');
+        closeMenu();
+      };
       body.appendChild(d);
     });
     return;
@@ -180,7 +250,6 @@ async function selectTab(key){
         <div class="km-meta">${new Date(n.createdAt||Date.now()).toLocaleString()}</div>`;
       body.appendChild(d);
     });
-    // mark as read, clear dot
     await markNotificationsRead().catch(()=>{});
     setDot(false);
   }
@@ -199,17 +268,23 @@ function showTab(key){
   if (target.frame) target.frame.classList.add('active');
 }
 
-/* server badge + routing */
+/* server banner + routing */
 let selectedGuild = null;
 function setServerBadge(guild){
   if (!guild) {
-    serverBadge.classList.remove('show'); sbIcon.removeAttribute('src'); sbName.textContent=''; sbId.textContent=''; return;
+    serverBadge.classList.remove('show');
+    sbIcon.removeAttribute('src');
+    sbName.textContent='';
+    sbId.textContent='';
+    updateBannerHeight();
+    return;
   }
   sbName.textContent = guild.name || 'Server';
   sbId.textContent   = guild.id ? `ID: ${guild.id}` : '';
   if (guild.icon && guild.id) sbIcon.src = `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=64`;
   else sbIcon.removeAttribute('src');
   serverBadge.classList.add('show');
+  updateBannerHeight();
 }
 function exitServer(){
   selectedGuild = null; setServerBadge(null);
@@ -235,7 +310,7 @@ async function tryAuthGate(){
       renderSignedIn(userSlot, user);
       userState.user = user;
 
-      const summary = await getMemberSummary().catch(()=>({profile:null, unreadCount:0}));
+      const summary = await fetch(`${API_BASE}/forums/me`, { credentials:'include' }).then(r=>r.json()).catch(()=>({profile:null, unreadCount:0}));
       userState.profile = summary.profile;
       userState.unread = Number(summary.unreadCount || 0);
       setDot(userState.unread > 0);
@@ -267,6 +342,7 @@ window.addEventListener('message', (ev) => {
     selectedGuild = { id, name: name || '', icon: icon || '' };
     setServerBadge(selectedGuild);
     const q = new URLSearchParams({ guild_id:id, guild_name:name||'', guild_icon:icon||'' }).toString();
+    // Go to Simple Server when actively in a server:
     tabs.simple.frame.src = `/kadie-ai/simple-server.html?${q}`;
     tabs.blueprints.frame.src = `/kadie-ai/blueprints-editor.html?${q}`;
     tabs.blueprints.btn.hidden = false;
