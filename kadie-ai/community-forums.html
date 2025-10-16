@@ -29,7 +29,6 @@
     .indent{margin-left:40px;border-left:2px solid var(--line);padding-left:10px}
     .center{display:flex;justify-content:center}
     .muted{color:var(--muted)}
-    /* modal */
     .modal{position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:1000}
     .modal.show{display:flex}
     .panel{width:min(820px, calc(100vw - 24px)); background:#0f1930; border:1px solid #1e2a4a; border-radius:16px; padding:14px}
@@ -39,7 +38,7 @@
     .row{display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; border-bottom:1px solid #122147}
     .row:hover{background:#122147}
     .search{display:flex; gap:8px; margin-bottom:8px}
-    .search input{flex:1; background:#0d1730; color:var(--fg); border:1px solid #1e2a4a; border-radius:10px; padding:8px}
+    .search input{flex:1; background:#0d1730; color:#eaeaea; border:1px solid #1e2a4a; border-radius:10px; padding:8px}
     .bp-card{margin-top:10px; border:1px solid #2a3b6e; background:#0f1b36; border-radius:10px; padding:10px; display:flex; align-items:center; gap:10px}
     .bp-card .ico{width:36px; height:36px; border-radius:8px; background:#15224a; display:flex; align-items:center; justify-content:center; color:#a9c1ff; font-weight:700}
     .bp-card .meta{flex:1}
@@ -116,8 +115,7 @@
       const sign = $("#signinLink");
       if (!session) {
         $("#postBtn").disabled = true;
-        sign.href = OAUTH_URL;
-        sign.hidden = false;
+        sign.href = OAUTH_URL; sign.hidden = false;
         $("#meAvatar").src = "https://cdn.discordapp.com/embed/avatars/1.png";
       } else {
         $("#postBtn").disabled = false;
@@ -127,13 +125,10 @@
     }
 
     // ---------- blueprint embed helpers ----------
-    // token format in content: [bp:guildId:bpId:encodedName:encodedServer]
     const bpToken = (g,bpId,name,server)=>`[bp:${g}:${bpId}:${encodeURIComponent(name)}:${encodeURIComponent(server)}]`;
     const bpRe = /\[bp:([^:\]]+):([^:\]]+):([^:\]]*):([^\]]*)\]/g;
-    function extractBpTokens(text){
-      const out = []; String(text||'').replace(bpRe,(_m,g,b,n,s)=>{out.push({guildId:g,blueprintId:b,name:decodeURIComponent(n||''),serverName:decodeURIComponent(s||'')});return'';}); return out;
-    }
-    function stripBpTokens(text){ return String(text||'').replace(bpRe,'').trim(); }
+    const extractBpTokens = (text)=>{ const out=[]; String(text||'').replace(bpRe,(_m,g,b,n,s)=>{ out.push({guildId:g,blueprintId:b,name:decodeURIComponent(n||''),serverName:decodeURIComponent(s||'')}); return '';}); return out; };
+    const stripBpTokens = (t)=>String(t||'').replace(bpRe,'').trim();
     function makeBpCard(b){
       const card = document.createElement('div'); card.className='bp-card';
       const letter = (b.serverName||b.guildId||'?').toString().slice(0,1).toUpperCase();
@@ -189,6 +184,13 @@
       $("#moreBtn").hidden = !cursor;
     }
 
+    function optimisticCount(btn, delta){
+      const m = btn.textContent.match(/\((\d+)\)$/);
+      const n = m ? parseInt(m[1],10) : 0;
+      const next = Math.max(0, n + delta);
+      btn.textContent = btn.textContent.replace(/\(\d+\)$/, `(${next})`);
+    }
+
     function renderPost(p){
       const li=document.createElement("li"); li.className="post";
       const hdr=document.createElement("div"); hdr.className="phead";
@@ -205,8 +207,8 @@
 
       const acts=document.createElement("div"); acts.className="pacts";
       acts.innerHTML = `
-        <button class="btn secondary act-like" data-id="${p.id}">♡ Like (${p.likesCount||0})</button>
-        <button class="btn secondary act-bookmark" data-id="${p.id}">☆ Bookmark (${p.bookmarksCount||0})</button>
+        <button class="btn secondary act-like" data-id="${p.id}" aria-pressed="false">♡ Like (${p.likesCount||0})</button>
+        <button class="btn secondary act-bookmark" data-id="${p.id}" aria-pressed="false">☆ Bookmark (${p.bookmarksCount||0})</button>
         <span class="chip">score ${p.popScore||0}</span>`;
       li.appendChild(acts);
 
@@ -221,23 +223,59 @@
         </div>`;
       li.appendChild(reps);
 
-      li.querySelector(".act-like").onclick=async()=>{
+      // Like: optimistic UI, no full reload
+      const likeBtn = li.querySelector(".act-like");
+      likeBtn.onclick = async () => {
         if(!session){ location.href=OAUTH_URL; return; }
-        const id = p.id;
-        await fetch(`${API}/forums/likes`,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({postId:id,on:true})});
-        cursor=null; $("#feed").innerHTML=""; await loadFeed(true);
+        const on = likeBtn.getAttribute("aria-pressed") !== "true";
+        likeBtn.disabled = true;
+        likeBtn.setAttribute("aria-pressed", on ? "true" : "false");
+        likeBtn.textContent = on ? `♥ Liked (${p.likesCount||0})` : `♡ Like (${p.likesCount||0})`;
+        optimisticCount(likeBtn, on ? +1 : -1);
+        try{
+          const ok = await fetch(`${API}/forums/likes`,{
+            method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({postId:p.id,on})
+          }).then(r=>r.ok);
+          if(!ok){ // revert on failure
+            likeBtn.setAttribute("aria-pressed", on ? "false" : "true");
+            optimisticCount(likeBtn, on ? -1 : +1);
+          }
+        } finally { likeBtn.disabled = false; }
       };
-      li.querySelector(".act-bookmark").onclick=async()=>{
+
+      // Bookmark: optimistic UI, no full reload
+      const bmBtn = li.querySelector(".act-bookmark");
+      bmBtn.onclick = async () => {
         if(!session){ location.href=OAUTH_URL; return; }
-        const id = p.id;
-        await fetch(`${API}/forums/bookmarks`,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({targetType:"post",targetId:id,on:true})});
-        cursor=null; $("#feed").innerHTML=""; await loadFeed(true);
+        const on = bmBtn.getAttribute("aria-pressed") !== "true";
+        bmBtn.disabled = true;
+        bmBtn.setAttribute("aria-pressed", on ? "true" : "false");
+        bmBtn.textContent = on ? `★ Bookmarked (${p.bookmarksCount||0})` : `☆ Bookmark (${p.bookmarksCount||0})`;
+        optimisticCount(bmBtn, on ? +1 : -1);
+        try{
+          const ok = await fetch(`${API}/forums/bookmarks`,{
+            method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({targetType:"post",targetId:p.id,on})
+          }).then(r=>r.ok);
+          if(!ok){
+            bmBtn.setAttribute("aria-pressed", on ? "false" : "true");
+            optimisticCount(bmBtn, on ? -1 : +1);
+          }
+        } finally { bmBtn.disabled = false; }
       };
+
+      // Reply
       li.querySelector(".act-reply-send").onclick=async()=>{
         if(!session){ location.href=OAUTH_URL; return; }
         const ta = li.querySelector(".rp-text"); const content = ta.value.trim(); if(!content) return;
-        await fetch(`${API}/forums/posts`,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({threadId:p.threadId,content,parentPostId:p.id})});
-        ta.value=""; await loadReplies(p.threadId);
+        ta.disabled = true;
+        const ok = await fetch(`${API}/forums/posts`,{
+          method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({threadId:p.threadId,content,parentPostId:p.id})
+        }).then(r=>r.ok).catch(()=>false);
+        ta.disabled = false;
+        if(ok){ ta.value=""; await loadReplies(p.threadId); }
       };
 
       return li;
@@ -312,7 +350,7 @@
       if(!list.length) bpsEl.innerHTML='<div class="row">No blueprints</div>';
     }
 
-    // ---------- import -> copy into currently open server (parent app) ----------
+    // ---------- import -> copy into currently open server ----------
     function getTopSelectedGuild(){
       try{
         const f = window.top?.document?.getElementById('frame-blueprints');
