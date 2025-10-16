@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Blueprint Tutorials</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3366084057758708" crossorigin="anonymous"></script>
+  <style>
+    :root{--bg:#0b0f14;--panel:#111720;--panel2:#0e141c;--muted:#7b8a9a;--text:#e6edf3;--accent:#6ea8fe;--accent2:#a07bff;--err:#ff5c5c;--border:#1d2633;--chip:#182233;--chip2:#1a1f2b}
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,var(--bg),#0a1018 35%,#080e16 100%);color:var(--text);font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,Arial}
+    .wrap{display:grid;grid-template-rows:auto 1fr;min-height:100%}
+    .top{display:flex;gap:12px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(15,20,28,.7);backdrop-filter:blur(8px);position:sticky;top:0;z-index:20}
+    .brand{font-weight:800;letter-spacing:.2px}.dot{color:var(--accent)} .stat{margin-left:auto;color:#9db4d1;font-size:12px}
+    .grid{display:grid;grid-template-columns:320px 1fr;gap:14px;padding:14px;max-width:1400px;width:100%;margin:0 auto}
+    @media(max-width:980px){.grid{grid-template-columns:1fr}}
+    .side{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;padding:10px;overflow:auto;max-height:calc(100dvh - 90px)}
+    .section-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;margin:8px 4px}
+    details.chapter,details.unit{border:1px solid var(--border);border-radius:12px;background:var(--chip);margin:8px 4px;overflow:hidden}
+    .unit{background:var(--chip2)}
+    summary{list-style:none;cursor:pointer;padding:10px 12px;display:flex;gap:8px;align-items:center;font-weight:700;user-select:none}
+    summary::-webkit-details-marker{display:none}
+    .chev{width:10px;height:10px;transform:rotate(-90deg);transition:.15s;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted)}
+    details[open]>summary .chev{transform:rotate(0)}
+    .summary-sub{color:var(--muted);font-weight:600}
+    .list{padding:8px 10px 12px 12px;display:flex;flex-direction:column;gap:6px}
+    .lesson{border:1px solid transparent;background:transparent;color:var(--text);padding:8px 10px;border-radius:10px;cursor:pointer;text-align:left;display:flex;gap:8px;align-items:center}
+    .lesson:hover{background:#101a27;border-color:#1f2a3a}
+    .lesson.active{background:#0f2137;border-color:#284166;outline:1px solid #2a4970}
+    .chip-s{font-size:11px;color:#9db4d1;background:#132035;border:1px solid #20324a;padding:2px 6px;border-radius:999px}
+    .main{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;padding:12px;min-height:420px}
+    .crumbs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:#9db4d1;margin:4px 2px 10px}
+    .slash{opacity:.5}
+    .video{aspect-ratio:16/9;width:100%;border-radius:12px;overflow:hidden;background:#05070a;border:1px solid var(--border)}
+    .video iframe{width:100%;height:100%;border:0;display:block}
+    .meta{margin-top:12px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start}
+    .title{font-size:20px;font-weight:900}
+    .desc{color:#b9c8d9}
+    .res{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+    .res a{color:#b9d6ff;text-decoration:none;border:1px solid #284166;background:#0f2137;padding:6px 10px;border-radius:999px}
+    .res a:hover{background:#123155}
+    .btn{height:32px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:0 10px;cursor:pointer}
+    .alert{display:none;margin:10px 0;border:1px solid var(--border);background:#261312;color:#ffdede;border-left:4px solid var(--err);padding:10px 12px;border-radius:10px}
+    .alert.show{display:block}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">Blueprint <span class="dot">●</span> Tutorials</div>
+    <div class="stat" id="stat">scanning…</div>
+  </div>
+
+  <div class="grid">
+    <aside class="side" id="sidebar">
+      <div class="section-title">Chapters & Units</div>
+      <div id="tree"></div>
+    </aside>
+
+    <main class="main">
+      <div id="alert" class="alert"></div>
+      <div class="crumbs" id="crumbs"></div>
+      <div class="video" id="videoWrap"></div>
+      <div class="meta">
+        <div>
+          <div class="title" id="lessonTitle">Loading…</div>
+          <div class="desc" id="lessonDesc">Place lesson JSON files under <code>./tutorials-json/</code>. The page auto-builds chapters and units.</div>
+          <div class="res" id="resources"></div>
+        </div>
+        <div>
+          <button id="btn-prev" class="btn">◀ Prev</button>
+          <button id="btn-next" class="btn">Next ▶</button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+/* ===== Utils ===== */
+const $=(s,e=document)=>e.querySelector(s); const $$=(s,e=document)=>Array.from(e.querySelectorAll(s));
+const b64u=s=>btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const unb64u=s=>decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/'))));
+function setAlert(msg=''){const a=$('#alert');if(!msg){a.classList.remove('show');a.textContent='';return}a.textContent=msg;a.classList.add('show')}
+function numberOr(v,f){const n=Number(v);return Number.isFinite(n)?n:f}
+function safeURL(u,base){try{return new URL(u,base).href}catch{return u}}
+const DIR = new URL('tutorials-json/', location.href).href; // always relative to this page
+
+/* ===== Per-file lesson schema =====
+{
+  "id":"unique","title":"Lesson","description":"...","videoId":"M7lc1UVf-VE" or "embedUrl":"https://www.youtube.com/embed/...",
+  "resources":[{"label":"Docs","url":"https://..."}],
+  "chapterId":"ch1","chapterTitle":"Chapter 1: ...",
+  "unitId":"u1","unitTitle":"Unit 1: ...","order":1
+}
+*/
+let LESSONS=[]; let GROUPS=[]; let CURRENT={file:null};
+
+function embedUrlFrom(o){return o.embedUrl?o.embedUrl:(o.videoId?`https://www.youtube.com/embed/${o.videoId}?rel=0`:'')}
+function normalizeLesson(obj,url){
+  const file=url, id=obj.id||file.split('/').pop().replace(/\.json$/,'');
+  return {
+    file, id,
+    title: obj.title||id,
+    description: obj.description||'',
+    embed: embedUrlFrom(obj),
+    resources: Array.isArray(obj.resources)?obj.resources:[],
+    chapterId: obj.chapterId||'uncategorized',
+    chapterTitle: obj.chapterTitle||(obj.chapterId?String(obj.chapterId):'Uncategorized'),
+    unitId: obj.unitId||'general',
+    unitTitle: obj.unitTitle||(obj.unitId?String(obj.unitId):'General'),
+    order: numberOr(obj.order, 1e9)
+  }
+}
+
+/* ===== Directory enumeration (no manual input) ===== */
+async function listJsonFiles(dirHref){
+  // Try to GET directory and parse anchors. Works on servers with index listing (e.g., python -m http.server).
+  const r = await fetch(dirHref,{cache:'no-store'});
+  if(!r.ok) throw new Error(`Failed to list ${new URL(dirHref).pathname}: HTTP ${r.status}`);
+  const html=await r.text();
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const hrefs=[...doc.querySelectorAll('a[href]')].map(a=>a.getAttribute('href')||'');
+  const files=hrefs
+    .filter(h=>/\.json(\?|#|$)/i.test(h))
+    .map(h=>safeURL(h,dirHref))
+    .filter(u=>{
+      const n=u.split('/').pop().toLowerCase();
+      return n && !n.startsWith('_') && !n.startsWith('template-');
+    });
+  return [...new Set(files)];
+}
+
+/* ===== Group build ===== */
+function buildGroupsFromLessons(){
+  const chMap=new Map();
+  for(const L of LESSONS){
+    if(!chMap.has(L.chapterId)) chMap.set(L.chapterId,{id:L.chapterId,title:L.chapterTitle,units:new Map()});
+    const CH=chMap.get(L.chapterId);
+    if(!CH.units.has(L.unitId)) CH.units.set(L.unitId,{id:L.unitId,title:L.unitTitle,lessons:[]});
+    CH.units.get(L.unitId).lessons.push(L);
+  }
+  const chapters=[...chMap.values()].sort((a,b)=>{
+    const an=parseInt(String(a.title).match(/\d+/)?.[0]||'',10);
+    const bn=parseInt(String(b.title).match(/\d+/)?.[0]||'',10);
+    if(Number.isFinite(an)&&Number.isFinite(bn)&&an!==bn) return an-bn;
+    return String(a.title).localeCompare(String(b.title));
+  });
+  chapters.forEach(CH=>{
+    CH.units=[...CH.units.values()].sort((a,b)=>{
+      const an=parseInt(String(a.title).match(/\d+/)?.[0]||'',10);
+      const bn=parseInt(String(b.title).match(/\d+/)?.[0]||'',10);
+      if(Number.isFinite(an)&&Number.isFinite(bn)&&an!==bn) return an-bn;
+      return String(a.title).localeCompare(String(b.title));
+    });
+    CH.units.forEach(U=>U.lessons.sort((a,b)=>(a.order-b.order)||a.title.localeCompare(b.title)));
+  });
+  GROUPS=chapters;
+}
+
+/* ===== UI ===== */
+function buildTree(){
+  const tree=$('#tree'); tree.innerHTML='';
+  GROUPS.forEach((CH,ci)=>{
+    const dCh=document.createElement('details'); dCh.className='chapter'; dCh.open=ci===0;
+    const total=CH.units.reduce((n,u)=>n+u.lessons.length,0);
+    dCh.innerHTML=`<summary><span class="chev"></span><span>${CH.title}</span><span class="summary-sub">(${total} lessons)</span></summary>`;
+    const listUnits=document.createElement('div'); listUnits.className='list';
+    CH.units.forEach((U,ui)=>{
+      const dUn=document.createElement('details'); dUn.className='unit'; dUn.open=(ci===0&&ui===0);
+      dUn.innerHTML=`<summary><span class="chev"></span><span>${U.title}</span><span class="summary-sub">(${U.lessons.length})</span></summary>`;
+      const listLessons=document.createElement('div'); listLessons.className='list';
+      U.lessons.forEach(le=>{
+        const b=document.createElement('button'); b.className='lesson'; b.dataset.file=le.file;
+        b.innerHTML=`<span class="chip-s">${le.id}</span><span>${le.title}</span>`;
+        b.addEventListener('click',()=>selectByFile(le.file,true));
+        listLessons.appendChild(b);
+      });
+      dUn.appendChild(listLessons); listUnits.appendChild(dUn);
+    });
+    dCh.appendChild(listUnits); tree.appendChild(dCh);
+  });
+  $('#stat').textContent=`${LESSONS.length} lessons`;
+}
+function updateActiveButton(){ $$('.lesson').forEach(b=>b.classList.toggle('active',b.dataset.file===CURRENT.file)); }
+function renderCrumbs(L){
+  if(!L){$('#crumbs').innerHTML='';return}
+  $('#crumbs').innerHTML=`<span>${L.chapterTitle}</span><span class="slash">/</span><span>${L.unitTitle}</span><span class="slash">/</span><span>${L.title}</span>`;
+  document.title=`${L.title} · Blueprint Tutorials`;
+}
+function renderLesson(L){
+  const wrap=$('#videoWrap'); wrap.innerHTML='';
+  if(L&&L.embed){
+    const ifr=document.createElement('iframe');
+    ifr.src=L.embed;
+    ifr.allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+    ifr.referrerPolicy="strict-origin-when-cross-origin"; ifr.allowFullscreen=true;
+    wrap.appendChild(ifr);
+  }else{
+    wrap.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#9db4d1">No video for this lesson.</div>`;
+  }
+  $('#lessonTitle').textContent=L?L.title:'Select a lesson';
+  $('#lessonDesc').textContent=L?(L.description||''):'Choose from the left.';
+  const res=$('#resources'); res.innerHTML='';
+  if(L&&Array.isArray(L.resources)){ L.resources.forEach(r=>{const a=document.createElement('a');a.href=r.url;a.target="_blank";a.rel="noopener";a.textContent=r.label||r.url;res.appendChild(a);}); }
+  renderCrumbs(L); updateActiveButton(); updatePrevNextButtons();
+}
+
+/* ===== Navigation ===== */
+function idxOfFile(f){return LESSONS.findIndex(x=>x.file===f)}
+function updatePrevNextButtons(){
+  const i=idxOfFile(CURRENT.file); $('#btn-prev').disabled=!(i>0); $('#btn-next').disabled=!(i>-1&&i<LESSONS.length-1);
+}
+function goDelta(d){const i=idxOfFile(CURRENT.file); if(i===-1) return; const j=i+d; if(j<0||j>=LESSONS.length) return; selectByFile(LESSONS[j].file,true)}
+function setHashForFile(f){history.replaceState(null,'',`${location.pathname}#f=${b64u(f)}`)}
+
+/* ===== Selection ===== */
+function selectByFile(file,pushHash){
+  const L=LESSONS.find(x=>x.file===file); if(!L) return;
+  CURRENT.file=file; if(pushHash) setHashForFile(file); renderLesson(L);
+}
+
+/* ===== Load pipeline ===== */
+async function loadAll(){
+  setAlert(''); LESSONS=[]; GROUPS=[]; CURRENT={file:null};
+  $('#tree').innerHTML=''; $('#videoWrap').innerHTML=''; $('#lessonTitle').textContent='Loading…'; $('#lessonDesc').textContent='';
+  let files=[];
+  try{ files=await listJsonFiles(DIR) }catch(err){
+    const p=new URL(DIR).pathname;
+    setAlert(`Cannot enumerate ${p}. Your host does not provide a directory index or the folder does not exist. (${err.message||err})`);
+    $('#stat').textContent='0 lessons';
+    return;
+  }
+  if(!files.length){ setAlert(`No JSON files found in ${new URL(DIR).pathname}`); $('#stat').textContent='0 lessons'; return; }
+
+  const results=await Promise.allSettled(files.map(async url=>{ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(`${r.status} ${r.statusText}`); return normalizeLesson(await r.json(),url); }));
+
+  const ok=[], errs=[];
+  results.forEach((res,i)=>{const url=files[i]; if(res.status==='fulfilled') ok.push(res.value); else errs.push(`${url}: ${res.reason?.message||String(res.reason)}`);});
+  LESSONS=ok;
+  if(!LESSONS.length){ setAlert('All lesson loads failed.'); $('#stat').textContent='0 lessons'; return; }
+
+  LESSONS.sort((a,b)=>{const c=a.chapterTitle.localeCompare(b.chapterTitle); if(c) return c; const u=a.unitTitle.localeCompare(b.unitTitle); if(u) return u; const o=a.order-b.order; if(o) return o; return a.title.localeCompare(b.title)});
+  buildGroupsFromLessons(); buildTree();
+  if(errs.length) setAlert(`Some files failed:\n${errs.slice(0,3).join('\n')}${errs.length>3?'\n…':''}`);
+
+  const m=location.hash.replace(/^#/,'').match(/^f=(.+)$/);
+  if(m){ try{ const f=unb64u(m[1]); if(LESSONS.some(l=>l.file===f)){ selectByFile(f,false); return; } }catch(_){} }
+  selectByFile(LESSONS[0].file,true);
+}
+
+/* ===== Events ===== */
+$('#btn-prev').addEventListener('click',()=>goDelta(-1));
+$('#btn-next').addEventListener('click',()=>goDelta(1));
+window.addEventListener('keydown',e=>{ if(e.target&&['INPUT','TEXTAREA'].includes(e.target.tagName)) return; if(e.key==='ArrowLeft'||e.key.toLowerCase()==='j') goDelta(-1); if(e.key==='ArrowRight'||e.key.toLowerCase()==='k') goDelta(1); });
+window.addEventListener('hashchange',()=>{ const m=location.hash.replace(/^#/,'').match(/^f=(.+)$/); if(!m) return; try{ const f=unb64u(m[1]); if(f!==CURRENT.file && LESSONS.some(l=>l.file===f)) selectByFile(f,false);}catch(_){} });
+
+/* ===== Boot ===== */
+loadAll();
+</script>
+</body>
+</html>

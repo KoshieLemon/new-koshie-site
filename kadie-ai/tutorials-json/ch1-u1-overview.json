@@ -1,0 +1,14 @@
+{
+  "id": "ch1-u1-overview",
+  "title": "Course Overview and Goals",
+  "description": "Scope, outcomes, and how the Blueprint tutorials are structured. Navigation, expected prerequisites, and how to use the lesson JSON system.",
+  "videoId": "M7lc1UVf-VE",
+  "resources": [
+    { "label": "Unreal Engine Docs", "url": "https://docs.unrealengine.com/" }
+  ],
+  "chapterId": "ch1",
+  "chapterTitle": "Chapter 1: Fundamentals",
+  "unitId": "u1",
+  "unitTitle": "Unit 1: Orientation",
+  "order": 1
+}

@@ -1,19 +1,17 @@
 // /kadie-ai/kadie-home.js
-import { OAUTH_URL, ME_URL, apiGet, printDiagnostics } from '/assets/api.js';
-
+import { OAUTH_URL, ME_URL, apiGet, printDiagnostics } from './api.js';
 printDiagnostics('kadie-home');
 
-/* helpers first */
 function byId(id){ return document.getElementById(id); }
 
 /* tabs + elements */
 const tabs = {
-  simple:      { btn: byId('tab-simple'),      frame: byId('frame-simple') },
-  community:   { btn: byId('tab-community'),   frame: byId('frame-community') },
-  blueprints:  { btn: byId('tab-blueprints'),  frame: byId('frame-blueprints') },
-  nodes:       { btn: byId('tab-nodes'),       frame: byId('frame-nodes') },
-  tutorial:        { btn: byId('tab-tutorial'),        frame: byId('frame-tutorial') },
-  status:      { btn: byId('tab-status'),      frame: byId('frame-status') },
+  simple:     { btn: byId('tab-simple'),     frame: byId('frame-simple') },
+  community:  { btn: byId('tab-community'),  frame: byId('frame-community') },
+  blueprints: { btn: byId('tab-blueprints'), frame: byId('frame-blueprints') },
+  nodes:      { btn: byId('tab-nodes'),      frame: byId('frame-nodes') },
+  tutorials:  { btn: byId('tab-tutorials'),  frame: byId('frame-tutorials') },
+  status:     { btn: byId('tab-status'),     frame: byId('frame-status') },
 };
 const authBlock   = byId('authBlock');
 const authStatus  = byId('authStatus');
@@ -35,7 +33,7 @@ function updateHeaderHeight(){
   document.documentElement.style.setProperty('--header-h', h + 'px');
 }
 
-/* top-right avatar in existing header */
+/* user pill */
 function ensureUserStyles(){
   if (byId('kadie-userpill-style')) return;
   const style = document.createElement('style');
@@ -70,12 +68,16 @@ function renderSignedIn(container, user){
 }
 
 /* tab controls */
-Object.entries(tabs).forEach(([key, { btn }]) => btn.addEventListener('click', () => showTab(key)));
+Object.entries(tabs).forEach(([key, { btn }]) => btn && btn.addEventListener('click', () => showTab(key)));
 function showTab(key){
-  for (const { btn } of Object.values(tabs)) btn.classList.remove('active');
-  for (const { frame } of Object.values(tabs)) frame.classList.remove('active');
-  tabs[key].btn.classList.add('active');
-  tabs[key].frame.classList.add('active');
+  const target = tabs[key];
+  if (!target) return;
+  for (const t of Object.values(tabs)) {
+    if (t.btn)   t.btn.classList.remove('active');
+    if (t.frame) t.frame.classList.remove('active');
+  }
+  if (target.btn)   target.btn.classList.add('active');
+  if (target.frame) target.frame.classList.add('active');
 }
 
 /* server badge + routing */
@@ -146,5 +148,5 @@ window.addEventListener('message', (ev) => {
 });
 
 /* boot */
-showTab('simple');     // default
+showTab('simple');
 tryAuthGate();

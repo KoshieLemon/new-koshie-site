@@ -1,4 +1,4 @@
-import { printDiagnostics } from '/assets/api.js';
+import { printDiagnostics } from '../api.js';
 import { gid, gname, gicon, total, online } from './config.js';
 import { els, setGuildHeader } from './dom.js';
 import { fitSvg, renderAll } from './render.js';

@@ -9,8 +9,8 @@
   <link rel="stylesheet" href="/assets/main.css" />
   <style>
     :root{ --pad:14px; }
-    html,body{height:100%;margin:0;background:#0b0b0c;}
-    .wrap{display:grid;grid-template-columns:280px 1fr;gap:16px;max-width:1200px;margin:0 auto;padding:var(--pad)}
+    html,body{height:100%;margin:0;background:#0b0b0c}
+    .wrap{display:grid;grid-template-columns:300px 1fr;gap:16px;max-width:1400px;margin:0 auto;padding:var(--pad)}
     /* left menu */
     .menu{background:#0c0f16;border:1px solid #1e2230;border-radius:12px;padding:10px;height:calc(100dvh - 2*var(--pad))}
     .menu h2{margin:6px 8px 10px 8px;font-size:14px}
@@ -25,28 +25,15 @@
     .item:hover,.item.active{background:#0f1422}
     .item small{display:block;color:#9aa4b2;font-size:11px}
     /* right pane */
-    .pane{min-height:60dvh}
     .desc{background:#0c0f16;border:1px solid #1e2230;border-radius:12px;padding:10px;margin-bottom:12px}
-    .view{position:relative;background:#0c0f16;border:1px solid #1e2230;border-radius:12px;padding:16px;min-height:420px;overflow:hidden}
-    /* node visuals: mirror editor style */
-    .node{position:absolute;min-width:220px;background:#17181b;color:#eaeaea;border:1px solid #3a3d47;border-radius:10px;box-shadow:0 6px 18px #0006}
-    .node .hd{display:flex;justify-content:space-between;align-items:center;background:#121318;border-bottom:1px solid #2a2d36;border-radius:10px 10px 0 0;padding:8px 10px}
-    .node .hd .nm{font-weight:700}
-    .pins{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px}
-    .pin{display:flex;align-items:center;gap:8px}
-    .pin.l{justify-self:start}
-    .pin.r{justify-self:end;flex-direction:row-reverse}
-    .dot{width:10px;height:10px;border-radius:50%;border:1px solid #0006}
-    .t-exec{background:#60a5fa}.t-data{background:#22c55e}
-    .ptype{color:#9aa4b2;font-size:11px}
-    /* graph arrows */
-    svg#previewWires{position:absolute;inset:0;pointer-events:none}
-    path.wire{fill:none;stroke:#7dd3fc;stroke-width:3px;filter:drop-shadow(0 0 4px #7dd3fcaa)}
-    path.wire.data{stroke:#a7f3d0;filter:drop-shadow(0 0 4px #a7f3d0aa)}
+    .view{position:relative;background:#0c0f16;border:1px solid #1e2230;border-radius:12px;min-height:520px;overflow:hidden}
+    /* canvas */
+    #stage{position:relative;min-height:520px}
+    #wires{position:absolute;inset:0;pointer-events:none}
     .legend{position:absolute;right:12px;bottom:12px;background:#0b0c10;border:1px solid #1e2230;border-radius:10px;padding:6px 8px;font-size:12px;color:#cbd5e1}
     .legend span{display:inline-flex;align-items:center;gap:6px;margin-left:10px}
-    .legend i{width:12px;height:4px;display:inline-block;background:#7dd3fc;border-radius:2px}
-    .legend i.data{background:#a7f3d0}
+    .legend i{width:12px;height:4px;display:inline-block;background:#ffffff;border-radius:2px}
+    .legend i.data{background:#94a3b8}
   </style>
 </head>
 <body>
@@ -57,15 +44,17 @@
       <div id="cats" class="cats" aria-live="polite"></div>
     </aside>
 
-    <main class="pane" aria-live="polite">
+    <main aria-live="polite">
       <section class="desc">
         <h3 id="d-name" style="margin:0 0 6px 0">Select a node</h3>
-        <p id="d-summary" style="margin:0;color:#9aa4b2">Browse the list to see a live preview and pin map.</p>
+        <p id="d-summary" style="margin:0;color:#9aa4b2">This preview uses the universal node element from the editor.</p>
       </section>
 
-      <section class="view" id="view">
-        <svg id="previewWires" viewBox="0 0 1000 600" preserveAspectRatio="none"></svg>
-        <div id="node" class="node" style="left:40px;top:90px"></div>
+      <section class="view">
+        <div id="stage">
+          <!-- exact editor node element goes here -->
+          <svg id="wires" viewBox="0 0 1000 600" preserveAspectRatio="none"></svg>
+        </div>
         <div class="legend">Legend
           <span><i></i> exec</span>
           <span><i class="data"></i> data</span>
@@ -75,36 +64,28 @@
   </div>
 
   <script type="module">
-    // Try to reuse the same index loader used by the editor’s menu.
-    async function getNodesIndex(){
-      try{
-        // Prefer the editor’s nodes-index if present.
-        const mod = await import('/kadie-ai/blueprints-editor-src/nodes-index.js').catch(()=>null);
-        if (mod?.fetchNodesIndex) {
-          const idx = await mod.fetchNodesIndex();
-          if (idx?.nodes?.length) return idx.nodes;
-        }
-      }catch{}
-      // Fallbacks: API then static index.json
-      try{
-        const r = await fetch('/api/nodes/index'); if (r.ok){ const j = await r.json(); if (j?.nodes) return j.nodes; }
-      }catch{}
-      try{
-        const r = await fetch('/kadie-ai/nodes/index.json'); if (r.ok){ const j = await r.json(); if (j?.nodes) return j.nodes; }
-      }catch{}
-      return [];
-    }
+    // Global builder and styles from editor
+    import { buildNodeDOM } from '/kadie-ai/blueprints-editor-src/render.node.js';
+    import '/kadie-ai/blueprints-editor-src/render.types.js';
+    import { fetchNodesIndex } from '/kadie-ai/blueprints-editor-src/nodes-index.js';
 
-    // Build left menu, tree by category.path (supports nested arrays like editor’s menu).  :contentReference[oaicite:3]{index=3}
-    function categoryPath(def){
+    // ------- helpers: categories and UI -------
+    const catsEl = document.getElementById('cats');
+    const qEl = document.getElementById('q');
+    const dName = document.getElementById('d-name');
+    const dSummary = document.getElementById('d-summary');
+    const stage = document.getElementById('stage');
+    const wires = document.getElementById('wires');
+
+    function catPath(def){
       if (Array.isArray(def.categoryPath) && def.categoryPath.length) return def.categoryPath;
       const raw = String(def.category||'').trim();
       return raw ? raw.replace(/[.\\]/g,'/').split('/').filter(Boolean) : ['uncategorized'];
     }
     function treeify(nodes){
-      const root={folders:new Map(), items:[]};
+      const root={folders:new Map(),items:[]};
       for(const d of nodes){
-        const parts=categoryPath(d);
+        const parts=catPath(d);
         let cur=root;
         for(const p of parts){
           if(!cur.folders.has(p)) cur.folders.set(p,{label:p,folders:new Map(),items:[]});
@@ -115,98 +96,9 @@
       return root;
     }
 
-    // UI refs
-    const catsEl = document.getElementById('cats');
-    const qEl = document.getElementById('q');
-    const nodeEl = document.getElementById('node');
-    const wiresEl = document.getElementById('previewWires');
-    const dName = document.getElementById('d-name');
-    const dSummary = document.getElementById('d-summary');
-
-    // Render node card matching editor style.  :contentReference[oaicite:4]{index=4}
-    function renderNode(def){
-      nodeEl.innerHTML='';
-      const hd=document.createElement('div'); hd.className='hd';
-      const nm=document.createElement('div'); nm.className='nm'; nm.textContent=def.name || def.id;
-      const kind=document.createElement('div'); kind.className='kind'; kind.textContent=(def.kind||'').toUpperCase();
-      hd.appendChild(nm); hd.appendChild(kind);
-      nodeEl.appendChild(hd);
-
-      const pins=document.createElement('div'); pins.className='pins';
-      const inputs = Array.isArray(def.inputs)?def.inputs:[];   // schema keeps these flat
-      const outputs= Array.isArray(def.outputs)?def.outputs:[];
-      for(const p of inputs){
-        const row=document.createElement('div'); row.className='pin l';
-        const dot=document.createElement('span'); dot.className='dot '+(p.type==='exec'?'t-exec':'t-data');
-        const name=document.createElement('span'); name.textContent=p.name;
-        const type=document.createElement('span'); type.className='ptype'; type.textContent=p.type;
-        row.appendChild(dot); row.appendChild(name); row.appendChild(type);
-        pins.appendChild(row);
-      }
-      for(const p of outputs){
-        const row=document.createElement('div'); row.className='pin r';
-        const dot=document.createElement('span'); dot.className='dot '+(p.type==='exec'?'t-exec':'t-data');
-        const name=document.createElement('span'); name.textContent=p.name;
-        const type=document.createElement('span'); type.className='ptype'; type.textContent=p.type;
-        row.appendChild(dot); row.appendChild(name); row.appendChild(type);
-        pins.appendChild(row);
-      }
-      nodeEl.appendChild(pins);
-
-      // Description
-      dName.textContent = def.name || def.id || 'Node';
-      dSummary.textContent = def.docs?.summary || def.discord?.docs || def.discord?.note || '';
-
-      // Draw “pin graph” arrows per docs.pins map
-      drawWires(def, pins);
-    }
-
-    function pinAnchors(){
-      // Collect approximate pin points for svg mapping.
-      const rect = nodeEl.getBoundingClientRect();
-      const pins = [...nodeEl.querySelectorAll('.pin')].map(el=>{
-        const r = el.getBoundingClientRect();
-        const side = el.classList.contains('l')?'l':'r';
-        const y = r.top - rect.top + r.height/2;
-        const x = side==='l' ? r.left - rect.left + 4 : r.right - rect.left - 4;
-        return {el, side, x, y};
-      });
-      return {pins, rect};
-    }
-    function bezier(x1,y1,x2,y2,dir=1){
-      const dx=Math.max(40,Math.abs(x2-x1)/2);
-      const c1x=x1+(dir>0?dx:-dx), c2x=x2+(dir>0?-dx:dx);
-      return `M ${x1},${y1} C ${c1x},${y1} ${c2x},${y2} ${x2},${y2}`;
-    }
-    function drawWires(def){
-      wiresEl.innerHTML='';
-      const map = def?.docs?.pins || {};
-      const {pins,rect} = pinAnchors();
-      const findPin=(name,side)=> pins.find(p=>p.side===side && p.el.textContent.trim().startsWith(name));
-      const svgRect = wiresEl.getBoundingClientRect();
-      const sx = svgRect.width / rect.width;
-      const sy = svgRect.height / rect.height;
-
-      const add = (x1,y1,x2,y2,isData)=>{
-        const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-        path.setAttribute('class','wire'+(isData?' data':''));
-        path.setAttribute('d', bezier(x1*sx, y1*sy, x2*sx, y2*sy, x2>x1?1:-1));
-        wiresEl.appendChild(path);
-      };
-
-      // inputs→outputs per docs.pins mapping
-      for(const [iname, outs] of Object.entries(map)){
-        const iA = findPin(iname,'l'); if(!iA) continue;
-        for(const oname of outs){
-          const oA = findPin(oname,'r'); if(!oA) continue;
-          add(iA.x, iA.y, oA.x, oA.y, true);
-        }
-      }
-    }
-
     function buildMenu(nodes){
-      const root = treeify(nodes);
       catsEl.innerHTML='';
+      const root = treeify(nodes);
       for (const [label, folder] of root.folders){
         const det=document.createElement('details');
         const sum=document.createElement('summary'); sum.textContent=label;
@@ -217,7 +109,7 @@
         for(const def of folder.items){
           const row=document.createElement('div'); row.className='item'; row.tabIndex=0;
           row.innerHTML = `<div>${def.name||def.id}</div><small>${def.id}</small>`;
-          row.addEventListener('click',()=>{ document.querySelectorAll('.item').forEach(x=>x.classList.remove('active')); row.classList.add('active'); renderNode(def); });
+          row.addEventListener('click',()=>{ document.querySelectorAll('.item').forEach(x=>x.classList.remove('active')); row.classList.add('active'); renderPreview(def); });
           body.appendChild(row);
         }
         catsEl.appendChild(det);
@@ -232,9 +124,98 @@
       });
     }
 
-    const NODES = await getNodesIndex();
-    buildMenu(NODES);
-    if (NODES[0]) renderNode(NODES[0]);
+    // ------- preview using the ACTUAL node element -------
+    let currentNodeEl = null;
+
+    function clearStage(){
+      if (currentNodeEl) { currentNodeEl.remove(); currentNodeEl=null; }
+      wires.innerHTML='';
+    }
+
+    function centerNode(el){
+      const sr = stage.getBoundingClientRect();
+      const nr = el.getBoundingClientRect();
+      const dx = Math.max(16, (sr.width - nr.width)/2);
+      const dy = Math.max(16, (sr.height - nr.height)/2);
+      el.style.position = 'absolute';
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+    }
+
+    function pinCenters(nodeEl){
+      const nr = nodeEl.getBoundingClientRect();
+      const get = (sel)=>[...nodeEl.querySelectorAll(sel)].map(j=>{
+        const r=j.getBoundingClientRect();
+        return { x: r.left - nr.left + r.width/2, y: r.top - nr.top + r.height/2, el: j };
+      });
+      return {
+        left:  get('.pin.left  .jack'),
+        right: get('.pin.right .jack'),
+        bbox:  nr
+      };
+    }
+
+    function bez(x1,y1,x2,y2){
+      const dx = Math.max(60, Math.abs(x2-x1)*0.5);
+      const c1x = x1 + dx, c1y = y1;
+      const c2x = x2 - dx, c2y = y2;
+      return `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
+    }
+
+    function drawWires(def, nodeEl){
+      wires.innerHTML='';
+      const { left, right } = pinCenters(nodeEl);
+
+      const byName = (arr, side)=> name => {
+        const i = (side==='l'? left : right).findIndex(p => p.el.closest('.pin').dataset.pin === name);
+        return i >= 0 ? (side==='l'? left[i] : right[i]) : null;
+      };
+      const L = byName(left,'l'), R = byName(right,'r');
+
+      const map = def?.docs?.pins || {};
+      const svgR = wires.getBoundingClientRect();
+      const nodeR = nodeEl.getBoundingClientRect();
+      const sx = svgR.width / nodeR.width;
+      const sy = svgR.height / nodeR.height;
+
+      const toSvg = (p)=>({ x:(p.x)*sx, y:(p.y)*sy });
+
+      for (const [inName, outs] of Object.entries(map)){
+        const a = L(inName); if (!a) continue;
+        const A = toSvg(a);
+        for (const outName of outs){
+          const b = R(outName); if (!b) continue;
+          const B = toSvg(b);
+          const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+          path.setAttribute('class','wire');
+          path.setAttribute('d', bez(A.x, A.y, B.x, B.y));
+          path.style.stroke = '#94a3b8';
+          path.style.strokeWidth = '2';
+          path.style.fill = 'none';
+          wires.appendChild(path);
+        }
+      }
+    }
+
+    function renderPreview(def){
+      clearStage();
+
+      // Build exact node element (GLOBAL)
+      currentNodeEl = buildNodeDOM(def, { preview: true, params: {} });
+      stage.appendChild(currentNodeEl);
+      centerNode(currentNodeEl);
+      // text
+      dName.textContent = def.name || def.id || 'Node';
+      dSummary.textContent = def.docs?.summary || def.discord?.docs || def.discord?.note || '';
+
+      // wires
+      drawWires(def, currentNodeEl);
+    }
+
+    // ------- load index and boot -------
+    const idx = await fetchNodesIndex();
+    const nodes = Array.isArray(idx?.nodes) ? idx.nodes : [];
+    buildMenu(nodes);
+    if (nodes[0]) renderPreview(nodes[0]);
   </script>
 </body>
 </html>

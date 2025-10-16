@@ -1,0 +1,14 @@
+{
+  "id": "ch1-u2-first-graph",
+  "title": "Build Your First Blueprint Graph",
+  "description": "Create a simple Blueprint, add nodes, connect execution pins, and run it in PIE.",
+  "videoId": "M7lc1UVf-VE",
+  "resources": [
+    { "label": "Blueprints Overview", "url": "https://docs.unrealengine.com/" }
+  ],
+  "chapterId": "ch1",
+  "chapterTitle": "Chapter 1: Fundamentals",
+  "unitId": "u2",
+  "unitTitle": "Unit 2: First Graph",
+  "order": 1
+}

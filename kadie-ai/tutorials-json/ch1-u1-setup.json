@@ -1,0 +1,14 @@
+{
+  "id": "ch1-u1-setup",
+  "title": "Project Setup and Editor Tour",
+  "description": "Create a new UE5 project, enable Blueprint tools, and learn the essential editor panels needed for this course.",
+  "videoId": "ysz5S6PUM-U",
+  "resources": [
+    { "label": "Getting Started", "url": "https://docs.unrealengine.com/" }
+  ],
+  "chapterId": "ch1",
+  "chapterTitle": "Chapter 1: Fundamentals",
+  "unitId": "u1",
+  "unitTitle": "Unit 1: Orientation",
+  "order": 2
+}

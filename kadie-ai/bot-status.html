@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Kadie AI • Bot Status</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  <link rel="stylesheet" href="/assets/main.css" />
+  <style>
+    :root { --ok:#10b981; --warn:#f59e0b; --down:#ef4444; --bg:#0b0b0c; --panel:#0c0f14; --muted:#9ca3af; --fg:#e5e7eb; --tile:#11131a; }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:500 14px/1.35 system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{max-width:1200px;margin:0 auto;padding:22px}
+    h1{font:700 28px/1.2 system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0 0 12px}
+    .legend{display:flex;align-items:center;gap:14px;color:var(--muted);margin:8px 0 18px}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.down{background:var(--down)}
+    .panel{background:var(--panel);border:1px solid #0b1320;border-radius:12px;padding:14px;margin:10px 0}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    input[type=search]{flex:1;min-width:260px;border:1px solid #1f2937;background:#0f1117;color:var(--fg);padding:8px 10px;border-radius:8px;outline:none}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:8px;margin-top:14px}
+    .tile{background:var(--tile);border:1px solid #1e2230;border-radius:10px;height:46px;display:flex;align-items:center;justify-content:center;color:#a7f3d0;position:relative;cursor:default;user-select:none;transition:transform .05s ease}
+    .tile:hover{transform:translateY(-1px)}
+    .tile.ok{outline:2px solid color-mix(in oklab, var(--ok) 60%, transparent)}
+    .tile.warn{outline:2px solid color-mix(in oklab, var(--warn) 60%, transparent)}
+    .tile.down{outline:2px solid color-mix(in oklab, var(--down) 60%, transparent); color:#fecaca}
+    .tile .n{font-weight:700;font-size:12px;opacity:.9}
+    .tile .badge{position:absolute;top:4px;right:6px;font:700 10px/1 system-ui,Segoe UI,Roboto,Arial,sans-serif;opacity:.65}
+    .tile.sel{box-shadow:0 0 0 2px #60a5fa;outline:0}
+    .sub{color:var(--muted);font-size:13px}
+    .head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .pill{border:1px solid #1e293b;background:#0c111b;border-radius:999px;padding:6px 10px;font:700 12px/1 system-ui,Segoe UI,Roboto,Arial,sans-serif;color:#93c5fd}
+    .meta{display:flex;gap:14px;flex-wrap:wrap;color:#93a3af;font-size:13px}
+    .ts{color:#9aa3af}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Status</h1>
+    <div class="sub">This page auto-updates every 15 seconds.</div>
+
+    <div class="panel">
+      <div class="head">
+        <div style="font:700 20px/1.2 system-ui,Segoe UI,Roboto,Arial,sans-serif">Availability per service</div>
+        <div id="countPill" class="pill">— / — shards</div>
+      </div>
+      <div class="legend">
+        <span class="dot ok"></span><span>Operational</span>
+        <span class="dot warn" style="margin-left:10px"></span><span>Partial outage</span>
+        <span class="dot down" style="margin-left:10px"></span><span>Major outage</span>
+      </div>
+      <div class="row">
+        <input id="search" type="search" placeholder="Look up your server (by ID)" autocomplete="off">
+        <div id="lookup" class="sub"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="font:700 16px/1.2 system-ui,Segoe UI,Roboto,Arial,sans-serif;margin-bottom:6px">Service: Kadie AI Bot</div>
+      <div class="meta" id="meta"></div>
+      <div class="grid" id="grid" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    const grid = document.getElementById('grid');
+    const pill = document.getElementById('countPill');
+    const meta = document.getElementById('meta');
+    const search = document.getElementById('search');
+    const lookup = document.getElementById('lookup');
+
+    const fmtTime = (ts)=> ts ? new Date(ts).toLocaleString() : '—';
+    const shardFor = (gid, count) => {
+      try { return Number((BigInt(gid) >> 22n) % BigInt(count)); } catch { return null; }
+    };
+
+    let COUNT = 1, CONC = 1, SEL = null, tiles = [];
+
+    async function fetchStatus(){
+      const [cfg, status] = await Promise.all([
+        fetch('/api/shards').then(r=>r.json()).catch(()=>({count:1,concurrency:1})),
+        fetch('/api/shards/status').then(r=>r.json()).catch(()=>null)
+      ]);
+      COUNT = Number(cfg?.count||1);
+      CONC  = Number(cfg?.concurrency||1);
+
+      let workers = [];
+      if (status && Array.isArray(status.workers)) workers = status.workers;
+      // if no workers reported, synthesize one for single-process fallback
+      if (!workers.length) workers = Array.from({length:COUNT}, (_,i)=>({id:i, ok:true, last_ok: Date.now(), guild_count: null}));
+
+      const probs = workers.filter(w => !w.ok).length;
+      pill.textContent = `${COUNT - probs} / ${COUNT} shards`;
+      meta.innerHTML = [
+        `<span>Shards: <b>${COUNT}</b></span>`,
+        `<span>Max concurrency: <b>${CONC}</b></span>`,
+        `<span>Problems: <b style="color:${probs? 'var(--down)':'var(--ok)'}">${probs}</b></span>`,
+        `<span class="ts">Updated: ${new Date().toLocaleTimeString()}</span>`
+      ].join(' • ');
+
+      renderGrid(workers);
+      highlightSelected();
+    }
+
+    function statusClass(w){
+      // ok = green if last_ok seen recently
+      const now = Date.now();
+      const fresh = typeof w.last_ok === 'number' && (now - w.last_ok) <= 45_000;
+      if (w.ok && fresh) return 'ok';
+      if (w.ok || (typeof w.last_ok === 'number' && (now - w.last_ok) <= 10*60_000)) return 'warn';
+      return 'down';
+    }
+
+    function renderGrid(workers){
+      grid.innerHTML = '';
+      tiles = [];
+      for (let i=0;i<COUNT;i++){
+        const w = workers.find(x=>Number(x.id)===i) || {id:i, ok:false, last_ok:null, error:'no data'};
+        const div = document.createElement('div');
+        div.className = `tile ${statusClass(w)}`;
+        div.title = [
+          `Shard ${i+1}/${COUNT}`,
+          `Status: ${w.ok ? 'OK' : 'Down'}`,
+          `Guilds: ${typeof w.guild_count==='number'? w.guild_count : '—'}`,
+          `PID: ${w.pid ?? '—'}`,
+          `Last OK: ${fmtTime(w.last_ok)}`,
+          `Last Check: ${fmtTime(w.last_check)}`,
+          w.error ? `Error: ${w.error}` : null
+        ].filter(Boolean).join('\n');
+        div.innerHTML = `<span class="badge">#${i}</span><span class="n">${i}</span>`;
+        grid.appendChild(div);
+        tiles.push(div);
+      }
+    }
+
+    function highlightSelected(){
+      tiles.forEach(t=>t.classList.remove('sel'));
+      if (SEL === null || SEL < 0 || SEL >= tiles.length) return;
+      tiles[SEL]?.classList.add('sel');
+      const el = tiles[SEL];
+      if (el) el.scrollIntoView({block:'center', inline:'center', behavior:'smooth'});
+    }
+
+    search.addEventListener('input', ()=>{
+      const raw = search.value.trim();
+      const idx = raw ? shardFor(raw, COUNT) : null;
+      SEL = idx;
+      if (raw && idx !== null){
+        lookup.textContent = `Server ${raw} → Shard ${idx+1}/${COUNT}`;
+      } else lookup.textContent = '';
+      highlightSelected();
+    });
+
+    await fetchStatus();
+    setInterval(fetchStatus, 15_000);
+  </script>
+</body>
+</html>

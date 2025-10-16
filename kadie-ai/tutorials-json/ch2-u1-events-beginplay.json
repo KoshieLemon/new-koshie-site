@@ -1,0 +1,14 @@
+{
+  "id": "ch2-u1-events-beginplay",
+  "title": "Events: BeginPlay, Input, and Custom Events",
+  "description": "Fire logic on BeginPlay, bind input actions, and create reusable custom events with parameters.",
+  "videoId": "M7lc1UVf-VE",
+  "resources": [
+    { "label": "Events in Blueprints", "url": "https://docs.unrealengine.com/" }
+  ],
+  "chapterId": "ch2",
+  "chapterTitle": "Chapter 2: Events and Flow",
+  "unitId": "u1",
+  "unitTitle": "Unit 1: Events",
+  "order": 1
+}

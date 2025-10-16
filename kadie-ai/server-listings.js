@@ -10,7 +10,7 @@ import {
   printDiagnostics,
   ME_URL_LABEL,
   GUILDS_URLS_LABEL
-} from '/assets/api.js';
+} from './api.js';
 
 printDiagnostics('server-listings v15');
 

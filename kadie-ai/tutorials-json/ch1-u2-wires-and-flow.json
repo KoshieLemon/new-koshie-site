@@ -1,0 +1,14 @@
+{
+  "id": "ch1-u2-wires-and-flow",
+  "title": "Wires, Execution Flow, and Reroute Nodes",
+  "description": "Understand execution vs. data wires, reroute nodes for readability, and common wiring mistakes.",
+  "videoId": "ysz5S6PUM-U",
+  "resources": [
+    { "label": "Execution Flow Basics", "url": "https://docs.unrealengine.com/" }
+  ],
+  "chapterId": "ch1",
+  "chapterTitle": "Chapter 1: Fundamentals",
+  "unitId": "u2",
+  "unitTitle": "Unit 2: First Graph",
+  "order": 2
+}
