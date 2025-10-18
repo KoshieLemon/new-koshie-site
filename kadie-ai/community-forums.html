@@ -5,389 +5,104 @@
   <title>Community</title>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  <link rel="modulepreload" href="./community-forums-src/main.js" />
   <style>
-    :root { color-scheme: dark; --bg:#0b0b0d; --fg:#e8e8ef; --muted:#9aa0a6; --pri:#6ea8fe; --card:#141419; --line:#22242b; }
+    :root { color-scheme: dark; --bg:#0b0b0d; --fg:#e8e8ef; --muted:#9aa0a6; --card:#141419; --line:#20232b; --accent:#5b87ff; }
     *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-    .container{max-width:820px;margin:24px auto;padding:0 16px}
-    .composer{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:12px;margin-bottom:16px}
-    .composer .row{display:flex;gap:10px;align-items:flex-start}
-    .avatar{width:32px;height:32px;border-radius:50%;border:1px solid #000}
-    .textarea{flex:1;min-height:90px;resize:vertical;background:#101118;color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px}
+    .container{max-width:820px;margin:18px auto;padding:0 14px}
+
+    /* composer */
+    .composer{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px;margin-bottom:12px}
+    .row{display:flex;gap:8px;align-items:flex-start}
+    .avatar{width:28px;height:28px;border-radius:50%;border:1px solid #000}
+    .textarea{flex:1;min-height:80px;resize:vertical;background:#101118;color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px}
     .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
-    .btn{background:var(--pri);color:#0b0b0d;border:0;padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:600}
-    .btn.secondary{background:transparent;color:var(--fg);border:1px solid var(--line)}
-    .link-btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:8px 12px;border-radius:10px;text-decoration:none}
-    .feed{display:flex;flex-direction:column;gap:12px}
-    .post{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px}
-    .phead{display:flex;align-items:center;gap:8px;color:var(--muted);margin-bottom:8px}
+    .btn{background:#26304b;color:#eaeaea;border:1px solid #2b3553;padding:7px 10px;border-radius:10px;cursor:pointer}
+    .btn.primary{background:#4969ff;border-color:#4969ff;color:#0b0b0d}
+    .link-btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:7px 10px;border-radius:10px;text-decoration:none}
+
+    /* filter bar */
+    .filterbar{display:flex;gap:10px;justify-content:center;margin:10px 0 14px}
+    .filter-btn{border:1px solid var(--line);background:#11131a;color:#eaeaea;padding:6px 12px;border-radius:999px;cursor:pointer}
+    .filter-btn.active{background:#1a223b;border-color:#2d3a6a}
+    .filter-btn:focus{outline:none}
+
+    /* feed */
+    .feed{display:flex;flex-direction:column;gap:10px}
+    .post{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px}
+    .phead{display:flex;align-items:center;gap:8px;color:var(--muted);margin-bottom:6px;flex-wrap:wrap}
+    .tag{font-size:11px;font-weight:700;color:#bcd0ff;background:#0f1c44;border:1px solid #2a3b6e;padding:2px 8px;border-radius:999px}
     .pcontent{white-space:pre-wrap;word-wrap:break-word}
-    .pacts{display:flex;gap:8px;align-items:center;margin-top:8px}
-    .chip{font-size:12px;color:#c9d1d9;background:#1b1d26;border:1px solid var(--line);padding:2px 8px;border-radius:999px}
-    .replies{margin-top:10px;border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px}
+    .pacts{display:flex;gap:8px;align-items:center;margin-top:6px}
+    .icon-btn{background:transparent;border:0;color:#cfd8ff;display:inline-flex;align-items:center;gap:6px;padding:4px 6px;border-radius:8px;cursor:pointer}
+    .icon-btn[aria-pressed="true"]{color:#89a2ff}
+    .icon-btn:focus{outline:none}
+    .count{color:#c9d1d9;font-weight:600}
+    .replies{margin-top:8px;border-top:1px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:8px}
     .reply{display:flex;gap:8px}
-    .reply .textarea{min-height:60px}
-    .indent{margin-left:40px;border-left:2px solid var(--line);padding-left:10px}
-    .center{display:flex;justify-content:center}
-    .muted{color:var(--muted)}
-    .modal{position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:1000}
-    .modal.show{display:flex}
-    .panel{width:min(820px, calc(100vw - 24px)); background:#0f1930; border:1px solid #1e2a4a; border-radius:16px; padding:14px}
-    .panel h3{margin:0 0 8px 0}
-    .picker{display:grid; grid-template-columns:280px 1fr; gap:12px}
-    .list{max-height:360px; overflow:auto; border:1px solid #1e2a4a; border-radius:10px}
-    .row{display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; border-bottom:1px solid #122147}
-    .row:hover{background:#122147}
-    .search{display:flex; gap:8px; margin-bottom:8px}
-    .search input{flex:1; background:#0d1730; color:#eaeaea; border:1px solid #1e2a4a; border-radius:10px; padding:8px}
-    .bp-card{margin-top:10px; border:1px solid #2a3b6e; background:#0f1b36; border-radius:10px; padding:10px; display:flex; align-items:center; gap:10px}
-    .bp-card .ico{width:36px; height:36px; border-radius:8px; background:#15224a; display:flex; align-items:center; justify-content:center; color:#a9c1ff; font-weight:700}
+    .reply .textarea{min-height:56px}
+
+    .chip{font-size:12px;color:#c9d1d9;background:#1b1d26;border:1px solid var(--line);padding:2px 8px;border-radius:999px}
+    .indent{margin-left:36px;border-left:2px solid var(--line);padding-left:8px}
+
+    /* bp card */
+    .bp-card{margin-top:8px;border:1px solid #2a3b6e;background:#0f1b36;border-radius:10px;padding:8px;display:flex;align-items:center;gap:8px}
+    .bp-card .ico{width:32px;height:32px;border-radius:8px;background:#15224a;display:flex;align-items:center;justify-content:center;color:#a9c1ff;font-weight:700}
     .bp-card .meta{flex:1}
     .bp-card .meta .name{font-weight:700}
-    .bp-card .meta .sub{color:#b9c6e3; font-size:12px}
+    .bp-card .meta .sub{color:#b9c6e3;font-size:12px}
   </style>
 </head>
 <body>
   <div class="container">
+    <!-- composer -->
     <section class="composer" id="composer">
       <div class="row">
         <img id="meAvatar" class="avatar" alt="">
         <textarea id="composeBody" class="textarea" placeholder="Share something…"></textarea>
       </div>
-      <div id="chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+      <div class="muted" style="margin:6px 0 4px">Choose a tag</div>
+      <div id="tagSelect" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <div id="chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
       <div class="actions">
         <a id="signinLink" class="link-btn" hidden>Sign in with Discord</a>
-        <button id="attachBp" class="btn secondary">Share a blueprint</button>
-        <button id="postBtn" class="btn">Post</button>
+        <button id="attachBp" class="btn">Share a blueprint</button>
+        <button id="postBtn" class="btn primary" disabled>Post</button>
       </div>
     </section>
 
-    <div class="center" style="margin-bottom:8px;">
-      <button id="sortRecent" class="btn secondary">Recent</button>
-      <button id="sortPopular" class="btn secondary" style="margin-left:8px;">Popular</button>
-    </div>
+    <!-- centered tag filters -->
+    <div id="filterBar" class="filterbar"></div>
 
-    <ol id="feed" class="feed"></ol>
-    <div class="center" style="margin:16px 0;">
-      <button id="moreBtn" class="btn secondary" hidden>Load more</button>
+    <!-- feed -->
+    <div id="feed" class="feed"></div>
+
+    <div style="display:flex;justify-content:center;margin:14px 0;">
+      <button id="moreBtn" class="btn" hidden>Load more</button>
     </div>
   </div>
 
-  <!-- Blueprint picker -->
-  <div class="modal" id="bpModal" aria-hidden="true">
-    <div class="panel">
-      <h3>Select a blueprint</h3>
-      <div class="search">
-        <input id="qServer" type="search" placeholder="Filter servers…"/>
-        <input id="qBp" type="search" placeholder="Search blueprints…"/>
+  <!-- blueprint modal -->
+  <div class="modal" id="bpModal" aria-hidden="true" style="position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:1000">
+    <div class="panel" style="width:min(820px, calc(100vw - 24px)); background:#0f1930; border:1px solid #1e2a4a; border-radius:16px; padding:14px">
+      <h3 style="margin:0 0 8px 0">Select a blueprint</h3>
+      <div class="search" style="display:flex;gap:8px;margin-bottom:8px">
+        <input id="qServer" type="search" placeholder="Filter servers…" style="flex:1;background:#0d1730;color:#eaeaea;border:1px solid #1e2a4a;border-radius:10px;padding:8px"/>
+        <input id="qBp" type="search" placeholder="Search blueprints…" style="flex:1;background:#0d1730;color:#eaeaea;border:1px solid #1e2a4a;border-radius:10px;padding:8px"/>
       </div>
-      <div class="picker">
-        <div class="list" id="servers"></div>
+      <div class="picker" style="display:grid;grid-template-columns:280px 1fr;gap:12px">
+        <div class="list" id="servers" style="max-height:360px;overflow:auto;border:1px solid #1e2a4a;border-radius:10px"></div>
         <div>
-          <div class="list" id="bps"></div>
+          <div class="list" id="bps" style="max-height:360px;overflow:auto;border:1px solid #1e2a4a;border-radius:10px"></div>
           <div class="row" style="justify-content:flex-end;margin-top:8px;border:0">
-            <button class="btn secondary" id="bpCancel">Cancel</button>
-            <button class="btn" id="bpUse" disabled>Attach</button>
+            <button class="btn" id="bpCancel">Cancel</button>
+            <button class="btn primary" id="bpUse" disabled>Attach</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script type="module">
-    import { OAUTH_URL, ME_URL, NODE_API_BASE, apiGet, apiGetFirst, GUILDS_URLS } from './api.js';
-
-    const API = NODE_API_BASE;
-    const $ = s => document.querySelector(s);
-    const cdnAvatar = (id, avatar) => avatar ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png?size=64` : `https://cdn.discordapp.com/embed/avatars/1.png`;
-
-    let session=null, sortMode='recent', cursor=null;
-
-    // ---------- auth ----------
-    async function getSession(){
-      try{
-        const r = await apiGet(ME_URL,'GET /me (feed)');
-        if (!r.ok) return null;
-        const j = await r.json().catch(()=>null);
-        return j?.user || null;
-      }catch{ return null; }
-    }
-    function setAuthUI(){
-      const sign = $("#signinLink");
-      if (!session) {
-        $("#postBtn").disabled = true;
-        sign.href = OAUTH_URL; sign.hidden = false;
-        $("#meAvatar").src = "https://cdn.discordapp.com/embed/avatars/1.png";
-      } else {
-        $("#postBtn").disabled = false;
-        sign.hidden = true;
-        $("#meAvatar").src = cdnAvatar(session.sub, session.avatar);
-      }
-    }
-
-    // ---------- blueprint embed helpers ----------
-    const bpToken = (g,bpId,name,server)=>`[bp:${g}:${bpId}:${encodeURIComponent(name)}:${encodeURIComponent(server)}]`;
-    const bpRe = /\[bp:([^:\]]+):([^:\]]+):([^:\]]*):([^\]]*)\]/g;
-    const extractBpTokens = (text)=>{ const out=[]; String(text||'').replace(bpRe,(_m,g,b,n,s)=>{ out.push({guildId:g,blueprintId:b,name:decodeURIComponent(n||''),serverName:decodeURIComponent(s||'')}); return '';}); return out; };
-    const stripBpTokens = (t)=>String(t||'').replace(bpRe,'').trim();
-    function makeBpCard(b){
-      const card = document.createElement('div'); card.className='bp-card';
-      const letter = (b.serverName||b.guildId||'?').toString().slice(0,1).toUpperCase();
-      card.innerHTML = `<div class="ico">${letter}</div>
-        <div class="meta"><div class="name">${b.name||'(unnamed blueprint)'}</div>
-        <div class="sub">from ${b.serverName||b.guildId}</div></div>
-        <button class="btn secondary" title="Copy into your open server">Import</button>`;
-      card.querySelector('button').onclick = ()=> importBlueprint(b);
-      return card;
-    }
-
-    // ---------- composer ----------
-    const pendingBps = [];
-    function renderChips(){
-      const el=$("#chips"); el.innerHTML='';
-      pendingBps.forEach((b,i)=>{
-        const c=document.createElement('div'); c.className='chip';
-        c.innerHTML=`📦 ${b.name} <span class="muted">(${b.serverName||b.guildId})</span> <button class="btn secondary" style="padding:2px 8px">Remove</button>`;
-        c.querySelector('button').onclick=()=>{ pendingBps.splice(i,1); renderChips(); };
-        el.appendChild(c);
-      });
-    }
-    async function postNew(){
-      if(!session){ location.href = OAUTH_URL; return; }
-      const contentBase = $("#composeBody").value.trim();
-      if(!contentBase && !pendingBps.length) return;
-      let content = contentBase;
-      pendingBps.forEach(b=> content += `\n${bpToken(b.guildId,b.blueprintId,b.name,b.serverName)}`);
-      const r = await fetch(`${API}/forums/feed/posts`, {
-        method:"POST", credentials:"include",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ content })
-      });
-      if(r.ok){
-        $("#composeBody").value = ""; pendingBps.length=0; renderChips();
-        cursor = null; $("#feed").innerHTML = ""; await loadFeed(true);
-      }
-    }
-
-    // ---------- feed ----------
-    async function loadFeed(reset=false){
-      if(reset) cursor=null;
-      const qs = new URLSearchParams(); qs.set("sort", sortMode); if(cursor) qs.set("cursor", cursor);
-      const r = await fetch(`${API}/forums/feed?${qs}`, { credentials:"include", cache:"no-store" });
-      const j = r.ok ? await r.json() : { items:[], nextCursor:null };
-      const feed = $("#feed");
-      (j.items||[]).forEach(p=>{
-        const li = renderPost(p);
-        feed.appendChild(li);
-        loadReplies(p.threadId);
-      });
-      cursor = j.nextCursor || null;
-      $("#moreBtn").hidden = !cursor;
-    }
-
-    function optimisticCount(btn, delta){
-      const m = btn.textContent.match(/\((\d+)\)$/);
-      const n = m ? parseInt(m[1],10) : 0;
-      const next = Math.max(0, n + delta);
-      btn.textContent = btn.textContent.replace(/\(\d+\)$/, `(${next})`);
-    }
-
-    function renderPost(p){
-      const li=document.createElement("li"); li.className="post";
-      const hdr=document.createElement("div"); hdr.className="phead";
-      hdr.innerHTML = `
-        <img class="avatar" src="${cdnAvatar(p.authorId,p.authorAvatar)}" alt="">
-        <span>${p.authorName||"unknown"}</span>
-        <span class="muted" style="margin-left:6px;">${new Date(p.createdAt).toLocaleString()}</span>`;
-      li.appendChild(hdr);
-
-      const tokens = extractBpTokens(p.content);
-      const content = stripBpTokens(p.content);
-      if(content){ const c=document.createElement("div"); c.className="pcontent"; c.textContent=content; li.appendChild(c); }
-      tokens.forEach(b=> li.appendChild(makeBpCard(b)));
-
-      const acts=document.createElement("div"); acts.className="pacts";
-      acts.innerHTML = `
-        <button class="btn secondary act-like" data-id="${p.id}" aria-pressed="false">♡ Like (${p.likesCount||0})</button>
-        <button class="btn secondary act-bookmark" data-id="${p.id}" aria-pressed="false">☆ Bookmark (${p.bookmarksCount||0})</button>
-        <span class="chip">score ${p.popScore||0}</span>`;
-      li.appendChild(acts);
-
-      const reps=document.createElement("div"); reps.className="replies";
-      reps.innerHTML = `
-        <div class="muted" style="margin-bottom:6px;">Replies</div>
-        <div class="reply-list" id="replylist_${p.threadId}"></div>
-        <div class="reply">
-          <img class="avatar" src="${session? cdnAvatar(session.sub, session.avatar) : 'https://cdn.discordapp.com/embed/avatars/1.png'}" alt="">
-          <textarea class="textarea rp-text" placeholder="Write a reply…"></textarea>
-          <button class="btn secondary act-reply-send" data-thread="${p.threadId}" data-parent="${p.id}">Reply</button>
-        </div>`;
-      li.appendChild(reps);
-
-      // Like: optimistic UI, no full reload
-      const likeBtn = li.querySelector(".act-like");
-      likeBtn.onclick = async () => {
-        if(!session){ location.href=OAUTH_URL; return; }
-        const on = likeBtn.getAttribute("aria-pressed") !== "true";
-        likeBtn.disabled = true;
-        likeBtn.setAttribute("aria-pressed", on ? "true" : "false");
-        likeBtn.textContent = on ? `♥ Liked (${p.likesCount||0})` : `♡ Like (${p.likesCount||0})`;
-        optimisticCount(likeBtn, on ? +1 : -1);
-        try{
-          const ok = await fetch(`${API}/forums/likes`,{
-            method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({postId:p.id,on})
-          }).then(r=>r.ok);
-          if(!ok){ // revert on failure
-            likeBtn.setAttribute("aria-pressed", on ? "false" : "true");
-            optimisticCount(likeBtn, on ? -1 : +1);
-          }
-        } finally { likeBtn.disabled = false; }
-      };
-
-      // Bookmark: optimistic UI, no full reload
-      const bmBtn = li.querySelector(".act-bookmark");
-      bmBtn.onclick = async () => {
-        if(!session){ location.href=OAUTH_URL; return; }
-        const on = bmBtn.getAttribute("aria-pressed") !== "true";
-        bmBtn.disabled = true;
-        bmBtn.setAttribute("aria-pressed", on ? "true" : "false");
-        bmBtn.textContent = on ? `★ Bookmarked (${p.bookmarksCount||0})` : `☆ Bookmark (${p.bookmarksCount||0})`;
-        optimisticCount(bmBtn, on ? +1 : -1);
-        try{
-          const ok = await fetch(`${API}/forums/bookmarks`,{
-            method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({targetType:"post",targetId:p.id,on})
-          }).then(r=>r.ok);
-          if(!ok){
-            bmBtn.setAttribute("aria-pressed", on ? "false" : "true");
-            optimisticCount(bmBtn, on ? -1 : +1);
-          }
-        } finally { bmBtn.disabled = false; }
-      };
-
-      // Reply
-      li.querySelector(".act-reply-send").onclick=async()=>{
-        if(!session){ location.href=OAUTH_URL; return; }
-        const ta = li.querySelector(".rp-text"); const content = ta.value.trim(); if(!content) return;
-        ta.disabled = true;
-        const ok = await fetch(`${API}/forums/posts`,{
-          method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({threadId:p.threadId,content,parentPostId:p.id})
-        }).then(r=>r.ok).catch(()=>false);
-        ta.disabled = false;
-        if(ok){ ta.value=""; await loadReplies(p.threadId); }
-      };
-
-      return li;
-    }
-
-    async function loadReplies(threadId){
-      const r=await fetch(`${API}/forums/posts?thread=${encodeURIComponent(threadId)}&limit=100`,{credentials:"include",cache:"no-store"});
-      const j=r.ok? await r.json():{items:[]};
-      const replies=(j.items||[]).filter(x=>x.parentPostId!==null);
-      const box = document.getElementById(`replylist_${threadId}`); if(!box) return;
-      box.innerHTML="";
-      replies.forEach(rep=>{
-        const d=document.createElement("div"); d.className="indent";
-        const tokens = extractBpTokens(rep.content);
-        const text = stripBpTokens(rep.content);
-        d.innerHTML = `
-          <div class="phead">
-            <img class="avatar" src="${cdnAvatar(rep.authorId,rep.authorAvatar)}" alt="">
-            <span>${rep.authorName||'unknown'}</span>
-            <span class="muted" style="margin-left:6px;">${new Date(rep.createdAt).toLocaleString()}</span>
-          </div>
-          ${text? `<div class="pcontent">${text.replace(/</g,'&lt;')}</div>`:''}`;
-        tokens.forEach(b=> d.appendChild(makeBpCard(b)));
-        box.appendChild(d);
-      });
-    }
-
-    // ---------- blueprint picker ----------
-    const modal = $("#bpModal"), qServer=$("#qServer"), qBp=$("#qBp"), serversEl=$("#servers"), bpsEl=$("#bps"), bpUse=$("#bpUse"), bpCancel=$("#bpCancel");
-    let guilds=[], selectedGuild=null, bpList=[], selectedBp=null;
-
-    $("#attachBp").onclick = openPicker;
-    bpCancel.onclick = ()=>modal.classList.remove('show');
-    bpUse.onclick = ()=>{
-      if(!selectedGuild || !selectedBp) return;
-      pendingBps.push({ guildId:selectedGuild.id, serverName:selectedGuild.name||'', blueprintId:selectedBp.id, name:selectedBp.name||'(unnamed)' });
-      renderChips();
-      modal.classList.remove('show');
-    };
-
-    async function openPicker(){
-      if(!session){ location.href=OAUTH_URL; return; }
-      modal.classList.add('show');
-      bpUse.disabled=true; selectedGuild=null; selectedBp=null;
-      serversEl.innerHTML='<div class="row" style="opacity:.7">Loading servers…</div>'; bpsEl.innerHTML='<div class="row" style="opacity:.7">Select a server</div>';
-      try{
-        const { res } = await apiGetFirst(GUILDS_URLS, 'guilds');
-        guilds = await res.json();
-        renderGuilds();
-      }catch{ serversEl.innerHTML = '<div class="row">Failed to load servers</div>'; }
-      qServer.oninput = renderGuilds;
-      qBp.oninput = renderBps;
-    }
-    function renderGuilds(){
-      const q=(qServer.value||'').toLowerCase().trim();
-      const list=guilds.filter(g => (g.name||'').toLowerCase().includes(q) || String(g.id).includes(q));
-      serversEl.innerHTML=''; list.forEach(g=>{ const row=document.createElement('div'); row.className='row'; row.textContent=`${g.name||'(unnamed)'} · ${g.id}`; row.onclick=()=>selectGuild(g); serversEl.appendChild(row); });
-      if(!list.length) serversEl.innerHTML='<div class="row">No servers</div>';
-    }
-    async function selectGuild(g){
-      selectedGuild=g; selectedBp=null; bpUse.disabled=true;
-      bpsEl.innerHTML='<div class="row" style="opacity:.7">Loading blueprints…</div>';
-      try{
-        bpList = await fetch(`${API}/blueprints?guild_id=${encodeURIComponent(g.id)}&guild_name=${encodeURIComponent(g.name||'')}`,{credentials:"include"}).then(r=>r.json());
-      }catch{ bpList=[]; }
-      renderBps();
-    }
-    function renderBps(){
-      const q=(qBp.value||'').toLowerCase().trim();
-      const list=bpList.filter(b => (b.name||'').toLowerCase().includes(q) || String(b.id).includes(q));
-      bpsEl.innerHTML=''; list.forEach(b=>{ const row=document.createElement('div'); row.className='row'; row.textContent=`${b.name||'(unnamed)'} · ${b.id}`; row.onclick=()=>{ selectedBp=b; bpUse.disabled=false; [...bpsEl.children].forEach(c=>c.style.background=''); row.style.background='#122147'; }; bpsEl.appendChild(row); });
-      if(!list.length) bpsEl.innerHTML='<div class="row">No blueprints</div>';
-    }
-
-    // ---------- import -> copy into currently open server ----------
-    function getTopSelectedGuild(){
-      try{
-        const f = window.top?.document?.getElementById('frame-blueprints');
-        if (!f || !f.src) return null;
-        const u = new URL(f.src, location.href);
-        const gid = u.searchParams.get('guild_id');
-        const gname = u.searchParams.get('guild_name');
-        return gid ? { id: gid, name: gname||'' } : null;
-      } catch { return null; }
-    }
-    async function importBlueprint(b){
-      const dest = getTopSelectedGuild();
-      if (!dest){ alert('Open a server first to import.'); return; }
-      const srcList = await fetch(`${API}/blueprints?guild_id=${encodeURIComponent(b.guildId)}`, { credentials:'include' }).then(r=>r.json()).catch(()=>[]);
-      const src = Array.isArray(srcList) ? srcList.find(x=>String(x.id)===String(b.blueprintId)) : null;
-      if (!src){ alert('Source blueprint not found.'); return; }
-      const destList = await fetch(`${API}/blueprints?guild_id=${encodeURIComponent(dest.id)}&guild_name=${encodeURIComponent(dest.name||'')}`, { credentials:'include' }).then(r=>r.json()).catch(()=>[]);
-      const existingNames = new Set((destList||[]).map(x=>String(x.name||'')));
-      let newName = src.name || 'Blueprint'; if (existingNames.has(newName)) newName = `${newName} (copy)`;
-      const newId = `bp_${Date.now()}`;
-      const ok = await fetch(`${API}/blueprints?guild_id=${encodeURIComponent(dest.id)}&guild_name=${encodeURIComponent(dest.name||'')}`, {
-        method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id:newId, name:newName, data: src.data || {} })
-      }).then(r=>r.ok).catch(()=>false);
-      if (!ok){ alert('Failed to import.'); return; }
-      try { window.top?.postMessage({ type:'openBlueprints' }, '*'); const f = window.top?.document?.getElementById('frame-blueprints'); if (f && f.contentWindow) f.contentWindow.location.reload(); } catch {}
-    }
-
-    // ---------- controls ----------
-    $("#postBtn").onclick = postNew;
-    $("#moreBtn").onclick = () => loadFeed(false);
-    $("#sortRecent").onclick = async () => { sortMode='recent'; cursor=null; $("#feed").innerHTML=""; await loadFeed(true); };
-    $("#sortPopular").onclick = async () => { sortMode='popular'; cursor=null; $("#feed").innerHTML=""; await loadFeed(true); };
-
-    // boot
-    session = await getSession().catch(()=>null);
-    setAuthUI();
-    await loadFeed(true);
-  </script>
+  <script type="module" src="./community-forums-src/main.js"></script>
 </body>
 </html>

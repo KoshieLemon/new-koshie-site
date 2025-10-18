@@ -1,9 +1,36 @@
-// /kadie-ai/blueprints-editor-src/menu.js
 // Node palette menu. Build once. Compact UE-style. One-at-a-time via menu-manager.
 
-import { els } from './dom.js';
-import { fetchNodesIndex } from './nodes-index.js';
+import { els } from '../core/dom.js';
 import { requestOpen, notifyClosed } from './menu-manager.js';
+
+/* ---------- dynamic provider loader ---------- */
+async function loadNodesIndexOnce() {
+  // Try common locations and tolerate different return shapes.
+  const tryPaths = [
+    '../providers/nodes-index.js',
+    '../nodes-index.js',
+    '/kadie-ai/blueprints-editor-src/providers/nodes-index.js',
+    '/kadie-ai/blueprints-editor-src/nodes-index.js',
+  ];
+  for (const p of tryPaths) {
+    try {
+      const m = await import(/* @vite-ignore */ p);
+      if (m && typeof m.fetchNodesIndex === 'function') {
+        const idx = await m.fetchNodesIndex();
+        const nodes =
+          Array.isArray(idx?.nodes) ? idx.nodes :
+          Array.isArray(idx)        ? idx :
+          Array.isArray(idx?.list)  ? idx.list : [];
+        console.debug('[node-menu] nodes loaded:', nodes.length, 'via', p);
+        return nodes;
+      }
+    } catch (e) {
+      console.warn('[node-menu] load attempt failed for', p, e?.message || e);
+    }
+  }
+  console.error('[node-menu] No nodes-index provider resolved.');
+  return [];
+}
 
 /* ---------- styles (once) ---------- */
 (function injectCtxMenuStyles(){
@@ -132,7 +159,7 @@ function pinWithinViewport(ctx, x, y){
   const vw = Math.max(document.documentElement.clientWidth,  window.innerWidth  || 0);
   const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
   const mw = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ctx-w')) || ctx.offsetWidth || 340;
-  const mh = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ctx-h')) || ctx.offsetHeight || 420;
+  const mh = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ctx-h')) || 420;
   const pad = 8;
   let left = x, top = y;
   if (x + mw > vw - pad) left = Math.max(pad, x - mw);
@@ -224,7 +251,7 @@ function buildLazyFolders(rootEl, node){
     details.addEventListener('toggle', ()=>{
       if(details.open && !loaded){
         buildLazyFolders(body, f);
-        const items = (f.__items||[]).slice().sort((a,b)=> a.name.localeCompare(b.name));
+        const items = (f.__items||[]).slice().sort((a,b)=> (a.name||a.id).localeCompare(b.name||b.id));
         if (items.length){
           cancel = appendInChunks(items, d => buildItemRow(d), body, 160);
         }
@@ -256,8 +283,10 @@ function buildSearchableUI(root){
 async function initOnce(){
   if (state.built) return;
 
-  const idx = await fetchNodesIndex();
-  state.all = Array.isArray(idx?.nodes) ? idx.nodes : [];
+  const allRaw = await loadNodesIndexOnce();
+  // NEW: hide nodes flagged as hidden
+  state.all = (allRaw || []).filter(d => !d?.hidden);
+
   state.tree = buildTreeFromNodes(state.all);
 
   state.ctx = els?.ctxMenu || document.getElementById('ctx') || (() => {
@@ -272,9 +301,15 @@ async function initOnce(){
   buildLazyFolders(state.treeWrap, state.tree);
 
   if (state.tree.__items?.length){
-    const items = state.tree.__items.slice().sort((a,b)=> a.name.localeCompare(b.name));
+    const items = state.tree.__items.slice().sort((a,b)=> (a.name||a.id).localeCompare(b.name||b.id));
     state.cancelTopItems = appendInChunks(items, d => buildItemRow(d), state.treeWrap, 160);
   }
+
+  // Auto-open first folder to reveal items immediately.
+  queueMicrotask(()=>{
+    const first = state.treeWrap.querySelector('details');
+    if (first && !first.open) first.open = true;
+  });
 
   clampMenuToViewport();
 
@@ -352,7 +387,7 @@ export function setContextMenuSize(widthPx=340, heightPx=420, fontPx=12.5){
 
 /* ---------- idle warm ---------- */
 (function prime(){
-  const cb = ()=>{ initOnce().catch(()=>{}); };
+  const cb = ()=>{ initOnce().catch((e)=>console.error('[node-menu] init error', e)); };
   if ('requestIdleCallback' in window) window.requestIdleCallback(cb, { timeout:1500 });
   else setTimeout(cb, 300);
 })();

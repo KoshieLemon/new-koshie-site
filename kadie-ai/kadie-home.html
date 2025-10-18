@@ -11,10 +11,16 @@
   <style>
     :root{ --header-h:72px; --banner-h:0px; --gap-y:0px; }
     html,body{height:100%; margin:0}
+
+    /* Full-bleed header bar */
     #siteHeader{position:sticky; top:0; z-index:100; background:#0b0b0c; border-bottom:1px solid #151923;}
     .header{display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:12px}
     .left{display:flex;align-items:center;gap:14px}
-    .brand{margin:0}
+
+    /* Make brand a button that routes to cover */
+    .brand-btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;
+               padding:8px 12px;border-radius:10px;cursor:pointer;text-decoration:none;
+               font-weight:800;font-size:20px;line-height:1}
 
     /* Compact server banner below header, same color as header to avoid banding */
     .server-badge{display:none;background:#0b0b0c;border-bottom:1px solid #151923;}
@@ -51,21 +57,24 @@
   </style>
 </head>
 <body>
-  <header class="container header" id="siteHeader">
-    <div class="left">
-      <h1 class="brand">Kadie AI</h1>
-    </div>
+  <!-- Full-bleed header with inner container -->
+  <header id="siteHeader">
+    <div class="container header">
+      <div class="left">
+        <a class="brand-btn" id="brandHome" href="/kadie-ai/kadie-cover.html" aria-label="Back to cover">Kadie AI</a>
+      </div>
 
-    <!-- Blueprints right after Simple -->
-    <nav class="tabs" id="tabs" aria-label="Workspace">
-      <button class="tab-btn active" data-tab="simple"     id="tab-simple">Simple Server</button>
-      <button class="tab-btn primary" data-tab="blueprints" id="tab-blueprints" hidden>Blueprints</button>
-      <button class="tab-btn"        data-tab="community"  id="tab-community" hidden>Community</button>
-      <button class="tab-btn"        data-tab="nodes"      id="tab-nodes">Nodes</button>
-      <button class="tab-btn"        data-tab="tutorials"  id="tab-tutorials">Tutorials</button>
-      <button class="tab-btn"        data-tab="status"     id="tab-status">Status</button>
-      <a class="tab-btn upgrade" href="/kadie-ai/donate.html" id="btn-donate" target="_blank" rel="noopener noreferrer">Donate</a>
-    </nav>
+      <!-- Blueprints right after Simple -->
+      <nav class="tabs" id="tabs" aria-label="Workspace">
+        <button class="tab-btn active" data-tab="simple"     id="tab-simple">Simple Server</button>
+        <button class="tab-btn primary" data-tab="blueprints" id="tab-blueprints" hidden>Blueprints</button>
+        <button class="tab-btn"        data-tab="community"  id="tab-community" hidden>Community</button>
+        <button class="tab-btn"        data-tab="nodes"      id="tab-nodes">Nodes</button>
+        <button class="tab-btn"        data-tab="tutorials"  id="tab-tutorials">Tutorials</button>
+        <button class="tab-btn"        data-tab="status"     id="tab-status">Status</button>
+        <a class="tab-btn upgrade" href="/kadie-ai/donate.html" id="btn-donate" target="_blank" rel="noopener noreferrer">Donate</a>
+      </nav>
+    </div>
   </header>
 
   <!-- Compact server banner directly below header -->

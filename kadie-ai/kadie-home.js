@@ -79,10 +79,11 @@ function ensureUserStyles(){
   `;
   document.head.appendChild(style);
 }
+function headerInner(){ return headerEl.querySelector('.header') || headerEl; }
 function ensureUserPill(){
   ensureUserStyles();
   let el = byId('kadieUser');
-  if (!el) { el = document.createElement('div'); el.id = 'kadieUser'; headerEl.appendChild(el); }
+  if (!el) { el = document.createElement('div'); el.id = 'kadieUser'; headerInner().appendChild(el); }
   return el;
 }
 const avatarUrl = (u) => (u?.sub && u?.avatar) ? `https://cdn.discordapp.com/avatars/${u.sub}/${u.avatar}.png?size=64` : null;

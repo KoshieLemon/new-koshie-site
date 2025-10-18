@@ -1,6 +1,6 @@
 // Wire utilities and geometry (screen-space rendering; no clipping)
-import { els } from './dom.js';
-import { state } from './state.js';
+import { els } from '../core/dom.js';
+import { state } from '../core/state.js';
 import { TYPE_COLORS, colorKeyFor } from './render.types.js';
 
 if (!state.view) state.view = { x: 0, y: 0, z: 1 };

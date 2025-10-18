@@ -1,10 +1,10 @@
 // Pin menu actions + capture-phase contextmenu handler
-import { els } from './dom.js';
-import { state, uid, pushHistory, markDirty } from './state.js';
-import { renderAll } from './render.editor.js';
-import { drawWires } from './render.wires.js';
-import { unprojectClient } from './interactions.view.js';
-import { colorKeyFor, toFinalPrimitive } from './render.types.js';
+import { els } from '../core/dom.js';
+import { state, uid, pushHistory, markDirty } from '../core/state.js';
+import { renderAll } from '../render/render.editor.js';
+import { drawWires } from '../render/render.wires.js';
+import { unprojectClient } from '../interactions/interactions.view.js';
+import { colorKeyFor, toFinalPrimitive } from '../render/render.types.js';
 import { hideAllMenus } from './menu-manager.js'; // exclusivity :contentReference[oaicite:1]{index=1}
 import { openPinMenu } from './pin-menu.js';
 

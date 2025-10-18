@@ -1,7 +1,7 @@
 // Viewport, background, and view helpers used by interactions.js
-import { els } from './dom.js';
-import { state } from './state.js';
-import { drawWires } from './render.js';
+import { els } from '../core/dom.js';
+import { state } from '../core/state.js';
+import { drawWires } from '../render/render.js';
 
 if (!state.view) state.view = { x: 0, y: 0, z: 1 };
 

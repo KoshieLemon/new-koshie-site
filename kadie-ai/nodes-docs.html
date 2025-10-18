@@ -1,39 +1,51 @@
-<!-- /kadie-ai/nodes-docs.html -->
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Kadie AI • Nodes</title>
+  <title>Kadie AI • Node Diagram</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
   <link rel="stylesheet" href="/assets/main.css" />
   <style>
-    :root{ --pad:14px; }
-    html,body{height:100%;margin:0;background:#0b0b0c}
-    .wrap{display:grid;grid-template-columns:300px 1fr;gap:16px;max-width:1400px;margin:0 auto;padding:var(--pad)}
+    :root{ --pad:14px; --bg:#0c0f16; --bd:#1e2230; --fg:#e5e7eb; --mut:#9aa4b2; }
+    html,body{height:100%;margin:0;background:#0b0b0c;color:var(--fg)}
+    .wrap{display:grid;grid-template-columns:300px 1fr;gap:16px;max-width:1600px;margin:0 auto;padding:var(--pad)}
     /* left menu */
-    .menu{background:#0c0f16;border:1px solid #1e2230;border-radius:12px;padding:10px;height:calc(100dvh - 2*var(--pad))}
+    .menu{background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:10px;height:calc(100dvh - 2*var(--pad))}
     .menu h2{margin:6px 8px 10px 8px;font-size:14px}
-    .search{display:flex;gap:8px;margin:0 8px 10px 8px;position:sticky;top:0;background:#0c0f16;padding-bottom:8px}
+    .search{display:flex;gap:8px;margin:0 8px 10px 8px;position:sticky;top:0;background:var(--bg);padding-bottom:8px;z-index:2}
     .search input{flex:1;border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;border-radius:8px;padding:6px 8px}
     .cats{overflow:auto;height:calc(100% - 72px);padding:0 4px}
     details{border-bottom:1px solid #141824}
     details:last-child{border-bottom:0}
-    summary{cursor:pointer;padding:8px 6px;color:#cbd5e1;font-weight:600}
+    summary{cursor:pointer;padding:8px 6px;color:#cbd5e1;font-weight:600;user-select:none;outline:none}
     .cat-body{padding:4px 6px 10px 10px}
+    .cat-body details{margin-left:8px;border:0}
     .item{padding:6px 8px;border-radius:8px;cursor:pointer}
     .item:hover,.item.active{background:#0f1422}
     .item small{display:block;color:#9aa4b2;font-size:11px}
-    /* right pane */
-    .desc{background:#0c0f16;border:1px solid #1e2230;border-radius:12px;padding:10px;margin-bottom:12px}
-    .view{position:relative;background:#0c0f16;border:1px solid #1e2230;border-radius:12px;min-height:520px;overflow:hidden}
-    /* canvas */
-    #stage{position:relative;min-height:520px}
-    #wires{position:absolute;inset:0;pointer-events:none}
-    .legend{position:absolute;right:12px;bottom:12px;background:#0b0c10;border:1px solid #1e2230;border-radius:10px;padding:6px 8px;font-size:12px;color:#cbd5e1}
-    .legend span{display:inline-flex;align-items:center;gap:6px;margin-left:10px}
-    .legend i{width:12px;height:4px;display:inline-block;background:#ffffff;border-radius:2px}
-    .legend i.data{background:#94a3b8}
+    /* top info */
+    .desc{background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:10px;margin-bottom:12px}
+    /* diagram */
+    .view{position:relative;background:var(--bg);border:1px solid var(--bd);border-radius:12px;min-height:640px;overflow:hidden}
+    #stage{position:relative;min-height:640px}
+    #wires{position:absolute;inset:0;pointer-events:none;z-index:1}
+    #labels{position:absolute;inset:0;pointer-events:none;z-index:2}
+    /* text-only pin descriptions */
+    .descLabel{
+      position:absolute;max-width:360px;color:#ffffff;font-size:12px;line-height:1.28;
+      letter-spacing:.1px;pointer-events:none;white-space:normal;text-shadow:0 1px 1px rgba(0,0,0,.45);
+    }
+    .descLabel.left{text-align:right}
+    /* node description textbox (below diagram) */
+    .docbox{margin-top:12px}
+    .docbox textarea{
+      width:100%; min-height:96px; resize:vertical;
+      background:#0b0c10; color:#e5e7eb; border:1px solid var(--bd); border-radius:10px;
+      padding:10px 12px; line-height:1.35; font-size:13px; caret-color:transparent;
+    }
+    .docbox textarea[readonly]{outline:none}
+    .hidden{display:none}
   </style>
 </head>
 <body>
@@ -47,175 +59,247 @@
     <main aria-live="polite">
       <section class="desc">
         <h3 id="d-name" style="margin:0 0 6px 0">Select a node</h3>
-        <p id="d-summary" style="margin:0;color:#9aa4b2">This preview uses the universal node element from the editor.</p>
+        <p id="d-summary" style="margin:0;color:var(--mut)"></p>
       </section>
 
       <section class="view">
         <div id="stage">
-          <!-- exact editor node element goes here -->
-          <svg id="wires" viewBox="0 0 1000 600" preserveAspectRatio="none"></svg>
+          <svg id="wires" preserveAspectRatio="none"><defs></defs></svg>
+          <div id="labels"></div>
         </div>
-        <div class="legend">Legend
-          <span><i></i> exec</span>
-          <span><i class="data"></i> data</span>
-        </div>
+      </section>
+
+      <section id="docbox" class="docbox hidden">
+        <textarea id="node-desc" readonly></textarea>
       </section>
     </main>
   </div>
 
   <script type="module">
-    // Global builder and styles from editor
     import { buildNodeDOM } from '/kadie-ai/blueprints-editor-src/render.node.js';
     import '/kadie-ai/blueprints-editor-src/render.types.js';
-    import { fetchNodesIndex } from '/kadie-ai/blueprints-editor-src/nodes-index.js';
 
-    // ------- helpers: categories and UI -------
-    const catsEl = document.getElementById('cats');
-    const qEl = document.getElementById('q');
-    const dName = document.getElementById('d-name');
-    const dSummary = document.getElementById('d-summary');
-    const stage = document.getElementById('stage');
-    const wires = document.getElementById('wires');
+    async function resolveFetchNodesIndex() {
+      const paths = [
+        '/kadie-ai/blueprints-editor-src/providers/nodes-index.js',
+        '/kadie-ai/blueprints-editor-src/nodes-index.js'
+      ];
+      for (const p of paths) {
+        try {
+          const m = await import(/* @vite-ignore */ p);
+          if (m && typeof m.fetchNodesIndex === 'function') {
+            console.debug('[nodes-docs] using', p);
+            return m.fetchNodesIndex;
+          }
+        } catch (e) {
+          console.warn('[nodes-docs] failed', p, e?.message || e);
+        }
+      }
+      console.error('[nodes-docs] No nodes-index provider found.');
+      return async () => ({ nodes: [] });
+    }
 
+    const catsEl=document.getElementById('cats');
+    const qEl=document.getElementById('q');
+    const dName=document.getElementById('d-name');
+    const dSummary=document.getElementById('d-summary');
+    const stage=document.getElementById('stage');
+    const wires=document.getElementById('wires');
+    const labels=document.getElementById('labels');
+    const docbox=document.getElementById('docbox');
+    const nodeDesc=document.getElementById('node-desc');
+
+    const sr=el=>el.getBoundingClientRect();
+    const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+    /* menu */
     function catPath(def){
-      if (Array.isArray(def.categoryPath) && def.categoryPath.length) return def.categoryPath;
-      const raw = String(def.category||'').trim();
-      return raw ? raw.replace(/[.\\]/g,'/').split('/').filter(Boolean) : ['uncategorized'];
+      if(Array.isArray(def.categoryPath)&&def.categoryPath.length) return def.categoryPath;
+      const raw=String(def.category||'').trim();
+      return raw?raw.replace(/[.\\]/g,'/').split('/').filter(Boolean):['uncategorized'];
     }
     function treeify(nodes){
-      const root={folders:new Map(),items:[]};
-      for(const d of nodes){
-        const parts=catPath(d);
-        let cur=root;
-        for(const p of parts){
-          if(!cur.folders.has(p)) cur.folders.set(p,{label:p,folders:new Map(),items:[]});
-          cur=cur.folders.get(p);
-        }
+      const root={label:'root',folders:new Map(),items:[]};
+      for(const d of nodes){ const parts=catPath(d); let cur=root;
+        for(const p of parts){ if(!cur.folders.has(p)) cur.folders.set(p,{label:p,folders:new Map(),items:[]}); cur=cur.folders.get(p); }
         cur.items.push(d);
-      }
-      return root;
+      } return root;
     }
-
+    function nodeRow(def){
+      const row=document.createElement('div');
+      row.className='item'; row.tabIndex=0;
+      row.dataset.search=((def.name||'')+' '+(def.id||'')+' '+(Array.isArray(def.tags)?def.tags.join(' '):'')).toLowerCase();
+      row.innerHTML=`<div>${def.name||def.id}</div><small>${def.id}</small>`;
+      row.addEventListener('click',()=>{ document.querySelectorAll('.item').forEach(x=>x.classList.remove('active')); row.classList.add('active'); renderPreview(def); });
+      return row;
+    }
+    function renderFolder(label,folder){
+      const det=document.createElement('details'); const sum=document.createElement('summary'); sum.textContent=label;
+      const body=document.createElement('div'); body.className='cat-body';
+      folder.items.sort((a,b)=>(a.name||a.id).localeCompare(b.name||b.id));
+      for(const def of folder.items) body.appendChild(nodeRow(def));
+      const subs=[...folder.folders.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+      for(const [lab,sub] of subs) body.appendChild(renderFolder(lab,sub));
+      det.appendChild(sum); det.appendChild(body);
+      return det;
+    }
     function buildMenu(nodes){
       catsEl.innerHTML='';
-      const root = treeify(nodes);
-      for (const [label, folder] of root.folders){
-        const det=document.createElement('details');
-        const sum=document.createElement('summary'); sum.textContent=label;
-        const body=document.createElement('div'); body.className='cat-body';
-        det.appendChild(sum); det.appendChild(body);
-
-        folder.items.sort((a,b)=> (a.name||a.id).localeCompare(b.name||b.id));
-        for(const def of folder.items){
-          const row=document.createElement('div'); row.className='item'; row.tabIndex=0;
-          row.innerHTML = `<div>${def.name||def.id}</div><small>${def.id}</small>`;
-          row.addEventListener('click',()=>{ document.querySelectorAll('.item').forEach(x=>x.classList.remove('active')); row.classList.add('active'); renderPreview(def); });
-          body.appendChild(row);
-        }
-        catsEl.appendChild(det);
-      }
-
-      qEl.addEventListener('input', ()=>{
-        const q = qEl.value.trim().toLowerCase();
-        catsEl.querySelectorAll('.item').forEach(el=>{
-          const txt = el.textContent.toLowerCase();
-          el.style.display = txt.includes(q) ? '' : 'none';
-        });
-      });
-    }
-
-    // ------- preview using the ACTUAL node element -------
-    let currentNodeEl = null;
-
-    function clearStage(){
-      if (currentNodeEl) { currentNodeEl.remove(); currentNodeEl=null; }
-      wires.innerHTML='';
-    }
-
-    function centerNode(el){
-      const sr = stage.getBoundingClientRect();
-      const nr = el.getBoundingClientRect();
-      const dx = Math.max(16, (sr.width - nr.width)/2);
-      const dy = Math.max(16, (sr.height - nr.height)/2);
-      el.style.position = 'absolute';
-      el.style.transform = `translate(${dx}px, ${dy}px)`;
-    }
-
-    function pinCenters(nodeEl){
-      const nr = nodeEl.getBoundingClientRect();
-      const get = (sel)=>[...nodeEl.querySelectorAll(sel)].map(j=>{
-        const r=j.getBoundingClientRect();
-        return { x: r.left - nr.left + r.width/2, y: r.top - nr.top + r.height/2, el: j };
-      });
-      return {
-        left:  get('.pin.left  .jack'),
-        right: get('.pin.right .jack'),
-        bbox:  nr
+      const root=treeify(nodes);
+      const folders=[...root.folders.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+      for(const [label,folder] of folders) catsEl.appendChild(renderFolder(label,folder));
+      const filter=q=>{
+        const s=q.trim().toLowerCase(); const items=[...catsEl.querySelectorAll('.item')];
+        for(const el of items) el.style.display=(!s||el.dataset.search.includes(s))?'':'none';
+        const ds=[...catsEl.querySelectorAll('details')].reverse();
+        for(const d of ds){ const show=d.querySelector('.item:not([style*="display: none"])'); d.style.display=show?'':'none'; d.open=s?!!show:d.open; }
       };
+      qEl.addEventListener('input',()=>filter(qEl.value)); filter('');
+
+      // Open first folder by default so users immediately see items.
+      const first = catsEl.querySelector('details');
+      if (first && !first.open) first.open = true;
     }
 
-    function bez(x1,y1,x2,y2){
-      const dx = Math.max(60, Math.abs(x2-x1)*0.5);
-      const c1x = x1 + dx, c1y = y1;
-      const c2x = x2 - dx, c2y = y2;
-      return `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
+    /* diagram */
+    let nodeEl=null, nodeDef=null;
+    function setViewBox(){ const w=stage.clientWidth||100, h=stage.clientHeight||100; wires.setAttribute('viewBox',`0 0 ${w} ${h}`); }
+    function centerNode(el){ const S=sr(stage), R=sr(el); const x=Math.max(16,(S.width-R.width)/2), y=Math.max(16,(S.height-R.height)/2); el.style.position='absolute'; el.style.transform=`translate(${x}px, ${y}px)`; }
+    function stagePoint(el){ const S=sr(stage), R=sr(el); return { x:R.left-S.left+R.width/2, y:R.top-S.top+R.height/2 }; }
+    function clearStage(){ if(nodeEl){ nodeEl.remove(); nodeEl=null; } wires.innerHTML=''; labels.innerHTML=''; }
+
+    function elbowToBaseline(px,py,bx,by,left=true){
+      const off=32;
+      const m1x = left ? px-off : px+off;
+      return `M ${px} ${py} L ${m1x} ${py} L ${m1x} ${by} L ${bx} ${by}`;
     }
+    function drawPath(d, w=1.75){ const p=document.createElementNS('http://www.w3.org/2000/svg','path'); p.setAttribute('d',d); p.style.stroke='#ffffff'; p.style.strokeWidth=String(w); p.style.fill='none'; wires.appendChild(p); }
 
-    function drawWires(def, nodeEl){
-      wires.innerHTML='';
-      const { left, right } = pinCenters(nodeEl);
-
-      const byName = (arr, side)=> name => {
-        const i = (side==='l'? left : right).findIndex(p => p.el.closest('.pin').dataset.pin === name);
-        return i >= 0 ? (side==='l'? left[i] : right[i]) : null;
-      };
-      const L = byName(left,'l'), R = byName(right,'r');
-
-      const map = def?.docs?.pins || {};
-      const svgR = wires.getBoundingClientRect();
-      const nodeR = nodeEl.getBoundingClientRect();
-      const sx = svgR.width / nodeR.width;
-      const sy = svgR.height / nodeR.height;
-
-      const toSvg = (p)=>({ x:(p.x)*sx, y:(p.y)*sy });
-
-      for (const [inName, outs] of Object.entries(map)){
-        const a = L(inName); if (!a) continue;
-        const A = toSvg(a);
-        for (const outName of outs){
-          const b = R(outName); if (!b) continue;
-          const B = toSvg(b);
-          const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-          path.setAttribute('class','wire');
-          path.setAttribute('d', bez(A.x, A.y, B.x, B.y));
-          path.style.stroke = '#94a3b8';
-          path.style.strokeWidth = '2';
-          path.style.fill = 'none';
-          wires.appendChild(path);
-        }
+    function packVert(items, minY, maxY, spacing){
+      items.sort((a,b)=>a.pinY-b.pinY);
+      let y=minY;
+      for(const it of items){
+        const h=it.h;
+        const tgt=Math.max(y, it.pinY - h/2);
+        it.top = clamp(tgt, minY, maxY - h);
+        y = it.top + h + spacing;
       }
+    }
+
+    function drawFromIndex(def){
+      const ins=(Array.isArray(def.inputs)?def.inputs:[]).filter(p=>typeof p.desc==='string'&&p.desc.trim());
+      const outs=(Array.isArray(def.outputs)?def.outputs:[]).filter(p=>typeof p.desc==='string'&&p.desc.trim());
+      if(!ins.length && !outs.length) return;
+
+      setViewBox();
+      const S=sr(stage);
+
+      const qPins=(side)=>[...nodeEl.querySelectorAll(`.pin.${side}`)].map((p)=>({
+        node:p, jack:p.querySelector('.jack')||p, key:(p.dataset?.pin||'').toLowerCase()
+      }));
+      const leftPins=qPins('left'), rightPins=qPins('right');
+      const by=(arr,name)=>arr.find(p=>p.key===String(name||'').toLowerCase());
+
+      const leftItems=[], rightItems=[];
+      const seenL=new Set(), seenR=new Set();
+
+      const mk=(pd, side)=>{
+        const dom=(side==='left'?by(leftPins,pd.name):by(rightPins,pd.name));
+        if(!dom) return;
+        const seen=(side==='left'?seenL:seenR);
+        if(seen.has(pd.name)) return;
+        seen.add(pd.name);
+
+        const pt=stagePoint(dom.jack);
+        const el=document.createElement('div');
+        el.className=`descLabel ${side}`;
+        el.textContent=pd.desc.trim();
+        labels.appendChild(el);
+
+        const r=sr(el);
+        const w=r.width, h=r.height;
+        const gutter=48;
+        let leftX;
+        if(side==='left'){ leftX = Math.max(8, pt.x - gutter - w); }
+        else{ leftX = Math.min(S.width - w - 8, pt.x + gutter); }
+
+        el.style.left = `${leftX}px`;
+        el.style.top  = `${pt.y - h/2}px`;
+
+        const item = { el, w, h, leftX, pinX:pt.x, pinY:pt.y, side };
+        (side==='left'?leftItems:rightItems).push(item);
+      };
+
+      ins.forEach(p=>mk(p,'left'));
+      outs.forEach(p=>mk(p,'right'));
+
+      if(leftItems.length===0 && rightItems.length===0) return;
+
+      packVert(leftItems, 12, S.height-12, 10);
+      packVert(rightItems,12, S.height-12, 10);
+
+      for(const it of leftItems){
+        const r=sr(it.el); const top=it.top; it.el.style.top=`${top}px`;
+        const baseY = top + r.height + 4;
+        const x1 = it.leftX; const x2 = it.leftX + r.width;
+        drawPath(`M ${x1} ${baseY} L ${x2} ${baseY}`, 2);
+        drawPath(elbowToBaseline(it.pinX, it.pinY, x2, baseY, true), 1.5);
+      }
+      for(const it of rightItems){
+        const r=sr(it.el); const top=it.top; it.el.style.top=`${top}px`;
+        const baseY = top + r.height + 4;
+        const x1 = it.leftX; const x2 = it.leftX + r.width;
+        drawPath(`M ${x1} ${baseY} L ${x2} ${baseY}`, 2);
+        drawPath(elbowToBaseline(it.pinX, it.pinY, x1, baseY, false), 1.5);
+      }
+    }
+
+    function setDocbox(text){
+      const val = typeof text === 'string' ? text.trim() : '';
+      if (!val) { nodeDesc.value = ''; docbox.classList.add('hidden'); return; }
+      nodeDesc.value = val;
+      docbox.classList.remove('hidden');
+      nodeDesc.style.height = 'auto';
+      nodeDesc.style.height = `${nodeDesc.scrollHeight}px`;
     }
 
     function renderPreview(def){
-      clearStage();
-
-      // Build exact node element (GLOBAL)
-      currentNodeEl = buildNodeDOM(def, { preview: true, params: {} });
-      stage.appendChild(currentNodeEl);
-      centerNode(currentNodeEl);
-      // text
-      dName.textContent = def.name || def.id || 'Node';
-      dSummary.textContent = def.docs?.summary || def.discord?.docs || def.discord?.note || '';
-
-      // wires
-      drawWires(def, currentNodeEl);
+      clearStage(); nodeDef=def;
+      nodeEl=buildNodeDOM(def,{ preview:true, params:{} }); stage.appendChild(nodeEl);
+      dName.textContent=def.name || def.id || 'Node';
+      dSummary.textContent='';
+      const ro = new ResizeObserver(()=>{ setTimeout(()=>{ centerNode(nodeEl); drawFromIndex(def); }, 0); });
+      ro.observe(stage);
+      centerNode(nodeEl);
+      drawFromIndex(def);
+      setDocbox(def.description || '');
     }
 
-    // ------- load index and boot -------
+    window.addEventListener('resize',()=>{ 
+      if(nodeEl&&nodeDef){ 
+        centerNode(nodeEl); 
+        drawFromIndex(nodeDef); 
+        if(!docbox.classList.contains('hidden')) {
+          nodeDesc.style.height='auto';
+          nodeDesc.style.height=`${nodeDesc.scrollHeight}px`;
+        }
+      } 
+    });
+
+    const fetchNodesIndex = await resolveFetchNodesIndex();
     const idx = await fetchNodesIndex();
-    const nodes = Array.isArray(idx?.nodes) ? idx.nodes : [];
-    buildMenu(nodes);
-    if (nodes[0]) renderPreview(nodes[0]);
+    const nodes =
+      Array.isArray(idx?.nodes) ? idx.nodes :
+      Array.isArray(idx)        ? idx :
+      Array.isArray(idx?.list)  ? idx.list : [];
+    console.debug('[nodes-docs] nodes:', nodes.length);
+
+    if (!nodes.length) {
+      catsEl.innerHTML = '<div style="padding:8px 10px;color:#9aa4b2">No nodes found. Provide a nodes index.</div>';
+    } else {
+      buildMenu(nodes);
+      renderPreview(nodes[0]);
+    }
   </script>
 </body>
 </html>

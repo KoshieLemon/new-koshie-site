@@ -1,6 +1,6 @@
 // Kadie AI editor <-> kadie-ai-node API adapter
 
-import { BOT_BASE as API, gname } from "./config.js";
+import { BOT_BASE as API, gname } from "../core/config.js";
 
 /* ---------------- helpers ---------------- */
 function qs(guildId) {
