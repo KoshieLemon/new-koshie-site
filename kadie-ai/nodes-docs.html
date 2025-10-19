@@ -34,7 +34,7 @@
       background:var(--bg);border:1px solid var(--bd);border-radius:12px;
       padding:10px;overflow:hidden;
     }
-    #stage{position:relative;min-height:320px} /* minimal headroom */
+    #stage{position:relative;min-height:320px}
     #wires{position:absolute;inset:0;pointer-events:none;z-index:1}
     #labels{position:absolute;inset:0;pointer-events:none;z-index:2}
 
@@ -50,8 +50,8 @@
       margin-top:6px;
       color:#cfd6de;font-size:12px;line-height:1.3;
       max-width:720px;
-      align-self:center;          /* center the block under the node */
-      text-align:center;          /* center the text */
+      align-self:center;
+      text-align:center;
       user-select:text;
     }
 
@@ -73,12 +73,10 @@
       </section>
 
       <section class="view">
-        <!-- element 1: diagram stage -->
         <div id="stage">
           <svg id="wires" preserveAspectRatio="none"><defs></defs></svg>
           <div id="labels"></div>
         </div>
-        <!-- element 2: centered description directly underneath -->
         <div id="inline-desc" class="hidden"></div>
       </section>
     </main>
@@ -101,15 +99,18 @@
     const sr=el=>el.getBoundingClientRect();
     const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
+    const rowById=new Map(); // id -> menu row element
+    let nodes=[];
+
     /* menu */
     function catPath(def){
       if(Array.isArray(def.categoryPath)&&def.categoryPath.length) return def.categoryPath;
       const raw=String(def.category||'').trim();
       return raw?raw.replace(/[.\\]/g,'/').split('/').filter(Boolean):['uncategorized'];
     }
-    function treeify(nodes){
+    function treeify(nodesArr){
       const root={label:'root',folders:new Map(),items:[]};
-      for(const d of nodes){ const parts=catPath(d); let cur=root;
+      for(const d of nodesArr){ const parts=catPath(d); let cur=root;
         for(const p of parts){ if(!cur.folders.has(p)) cur.folders.set(p,{label:p,folders:new Map(),items:[]}); cur=cur.folders.get(p); }
         cur.items.push(d);
       } return root;
@@ -117,9 +118,12 @@
     function nodeRow(def){
       const row=document.createElement('div');
       row.className='item'; row.tabIndex=0;
+      const idStr=String(def.id||def.name||'');
+      row.dataset.id=idStr;
       row.dataset.search=((def.name||'')+' '+(def.id||'')+' '+(def.tags||[]).join(' ')).toLowerCase();
       row.innerHTML=`<div>${def.name||def.id}</div><small>${def.id}</small>`;
       row.addEventListener('click',()=>{ document.querySelectorAll('.item').forEach(x=>x.classList.remove('active')); row.classList.add('active'); renderPreview(def); });
+      rowById.set(idStr,row);
       return row;
     }
     function renderFolder(label,folder){
@@ -131,9 +135,9 @@
       for(const [lab,sub] of subs) body.appendChild(renderFolder(lab,sub));
       det.appendChild(sum); det.appendChild(body); if(label.toLowerCase()==='actions') det.open=true; return det;
     }
-    function buildMenu(nodes){
+    function buildMenu(nodesArr){
       catsEl.innerHTML='';
-      const root=treeify(nodes);
+      const root=treeify(nodesArr);
       const folders=[...root.folders.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
       for(const [label,folder] of folders) catsEl.appendChild(renderFolder(label,folder));
       const filter=q=>{
@@ -152,8 +156,8 @@
 
     function positionNodeTop(el){
       const S=sr(stage), R=sr(el);
-      const x=Math.max(16,(S.width-R.width)/2); /* keep horizontally centered */
-      const y=4; /* very close to top */
+      const x=Math.max(16,(S.width-R.width)/2);
+      const y=4;
       el.style.position='absolute';
       el.style.transform=`translate(${x}px, ${y}px)`;
     }
@@ -268,6 +272,21 @@
       setViewBox();
     }
 
+    function selectById(id){
+      const target = nodes.find(n=>String(n.id||'').toLowerCase()===String(id||'').toLowerCase()
+                             || String(n.name||'').toLowerCase()===String(id||'').toLowerCase());
+      if(!target) return;
+      document.querySelectorAll('.item').forEach(x=>x.classList.remove('active'));
+      const row = rowById.get(String(target.id||target.name||'')); if (row){ row.classList.add('active'); row.scrollIntoView({block:'nearest'}); }
+      renderPreview(target);
+    }
+
+    function selectFromQuery(){
+      const sp = new URLSearchParams(location.search);
+      const id = sp.get('node');
+      if (id) selectById(id);
+    }
+
     window.addEventListener('resize',()=>{ 
       if(nodeEl&&nodeDef){ 
         positionNodeTop(nodeEl);
@@ -276,10 +295,20 @@
       } 
     });
 
+    window.addEventListener('message', (ev)=>{
+      const d = ev?.data || {};
+      if (d.type === 'kadie:select-node' && d.nodeId){
+        selectById(String(d.nodeId));
+      }
+    });
+
     const idx=await fetchNodesIndex();
-    const nodes=Array.isArray(idx?.nodes)?idx.nodes:[];
+    nodes=Array.isArray(idx?.nodes)?idx.nodes:[];
     buildMenu(nodes);
+    // default selection
     if(nodes[0]) renderPreview(nodes[0]);
+    // param-based selection
+    selectFromQuery();
   </script>
 </body>
 </html>

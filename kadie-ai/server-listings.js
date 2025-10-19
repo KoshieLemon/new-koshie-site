@@ -1,4 +1,4 @@
-// /kadie-ai/server-listings.js v16
+// /kadie-ai/server-listings.js v17
 import {
   apiGet,
   apiGetFirst,
@@ -12,7 +12,7 @@ import {
   GUILDS_URLS_LABEL
 } from './api.js';
 
-printDiagnostics('server-listings v16');
+printDiagnostics('server-listings v17');
 
 /* ---------- DOM ---------- */
 const byId = (id)=>document.getElementById(id);
@@ -78,11 +78,11 @@ function informMasterOpen(g){
   return false;
 }
 
-/* ---------- caching (session-wide) ---------- */
+/* ---------- caching (session + persistent) ---------- */
 const CACHE_KEY = 'kadie.guilds.cache.v1';
 function readCache(){
   try{
-    const raw = sessionStorage.getItem(CACHE_KEY);
+    const raw = sessionStorage.getItem(CACHE_KEY) || localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const j = JSON.parse(raw);
     if (!Array.isArray(j.guilds)) return null;
@@ -90,7 +90,9 @@ function readCache(){
   }catch{return null;}
 }
 function writeCache(obj){
-  try{ sessionStorage.setItem(CACHE_KEY, JSON.stringify(obj)); }catch{}
+  const s = JSON.stringify(obj);
+  try{ sessionStorage.setItem(CACHE_KEY, s); }catch{}
+  try{ localStorage.setItem(CACHE_KEY, s); }catch{}
 }
 
 /* ---------- state ---------- */
@@ -281,7 +283,7 @@ async function fetchFreshAndRender(){
     renderList(rows);
     setSearchHandler();
 
-    // cache for this tab session
+    // cache for both session and persistent storage
     writeCache({
       appId,
       apiOrigin,
@@ -296,5 +298,5 @@ async function fetchFreshAndRender(){
 /* ---------- boot ---------- */
 (async () => {
   const hadCache = await bootstrapFromCache(); // immediate paint if available
-  fetchFreshAndRender(); // refresh in background (reuses cache if user returns)
+  fetchFreshAndRender(); // refresh in background
 })();

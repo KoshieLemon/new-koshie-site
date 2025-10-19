@@ -1,6 +1,6 @@
-// /kadie-ai/kadie-home.js
-// Anonymous access is allowed for: nodes, tutorials, status.
-// Auth gate only blocks: simple, blueprints, community.
+// /kadie-ai/kadie-home.js  — optimistic auth + cached UI paint
+// Anonymous access allowed for: nodes, tutorials, status.
+// Auth gate blocks: simple, blueprints, community.
 
 import { OAUTH_URL, ME_URL, LOGOUT_URL, apiGet, printDiagnostics } from './api.js';
 printDiagnostics('kadie-home');
@@ -29,7 +29,8 @@ const headerEl    = byId('siteHeader');
 
 /* public vs protected tabs */
 const PUBLIC_TABS = new Set(['nodes','tutorials','status']);
-let isAuthed = false;
+let isAuthed = false;            // UI gate
+let authUnknown = true;          // hide "Sign in" until verified false
 let currentTab = 'simple';
 
 /* header + banner heights -> viewport */
@@ -174,9 +175,33 @@ function renderSignedIn(container, user){
 }
 function setDot(on){ if (!dot) return; dot.classList.toggle('show', !!on); }
 
-/* sign out */
+/* ---------- auth cache ---------- */
+const AUTH_CACHE_KEY = 'kadie.auth.cache.v1';
+function readAuthCache(){
+  try{
+    const raw = localStorage.getItem(AUTH_CACHE_KEY);
+    if (!raw) return null;
+    const j = JSON.parse(raw);
+    if (!j || !j.user) return null;
+    return j;
+  }catch{return null;}
+}
+function writeAuthCache(user, profile, unread){
+  try{
+    localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify({
+      user: user || null,
+      profile: profile || null,
+      unread: Number(unread || 0),
+      ts: Date.now()
+    }));
+  }catch{}
+}
+function clearAuthCache(){ try{ localStorage.removeItem(AUTH_CACHE_KEY); }catch{} }
+
+/* ---------- sign out ---------- */
 function signOut(){
   try { sessionStorage.removeItem('kadie.return_to'); } catch {}
+  clearAuthCache();
   const u = new URL(LOGOUT_URL);
   u.searchParams.set('return_to', location.href);
   location.href = u.toString();
@@ -192,18 +217,14 @@ async function getPostsByIds(ids){
   if (!ids.length) return [];
   const r = await fetch(`${API_BASE}/forums/posts/byIds?ids=${encodeURIComponent(ids.join(','))}`, { credentials:'include' });
   if (!r.ok) return [];
-  const j = await r.json().catch(()=>({items:[]}));
-  return Array.isArray(j.items) ? j.items : [];
+  const j = await r.json().catch(()=>({items:[]})); return Array.isArray(j.items) ? j.items : [];
 }
 async function getNotifications(limit=50){
   const r = await fetch(`${API_BASE}/forums/notifications?limit=${limit}`, { credentials:'include' });
   if (!r.ok) return [];
-  const j = await r.json().catch(()=>({items:[]}));
-  return Array.isArray(j.items) ? j.items : [];
+  const j = await r.json().catch(()=>({items:[]})); return Array.isArray(j.items) ? j.items : [];
 }
-async function markNotificationsRead(){
-  await fetch(`${API_BASE}/forums/notifications/read`, { method:'POST', credentials:'include' });
-}
+async function markNotificationsRead(){ await fetch(`${API_BASE}/forums/notifications/read`, { method:'POST', credentials:'include' }); }
 
 /* dropdown tab renderer */
 async function selectTab(key){
@@ -262,7 +283,9 @@ function applyGateForTab(key){
     authBlock.classList.remove('show');
     return;
   }
-  authStatus.textContent = 'Please sign in to access this section.';
+  // Hide the button until verification finishes
+  authStatus.textContent = authUnknown ? 'Checking session…' : 'Please sign in to access this section.';
+  signinBtn.style.display = authUnknown ? 'none' : 'inline-block';
   authBlock.classList.add('show');
 }
 
@@ -287,10 +310,8 @@ function setServerBadge(guild){
   if (!guild) {
     serverBadge.classList.remove('show');
     sbIcon.removeAttribute('src');
-    sbName.textContent='';
-    sbId.textContent='';
-    updateBannerHeight();
-    return;
+    sbName.textContent=''; sbId.textContent='';
+    updateBannerHeight(); return;
   }
   sbName.textContent = guild.name || 'Server';
   sbId.textContent   = guild.id ? `ID: ${guild.id}` : '';
@@ -310,10 +331,14 @@ leaveBtn.addEventListener('click', exitServer);
 
 /* auth + user pill */
 signinBtn.addEventListener('click', () => { location.href = OAUTH_URL; });
-async function tryAuthGate(){
+
+async function verifyAuthRefresh(){
+  // Verifies cookies server-side and refreshes cache/UI
   const userSlot = ensureUserPill();
   try{
     const res = await apiGet(ME_URL, 'GET /me (kadie-home)');
+    authUnknown = false;
+
     if (res.ok){
       const data = await res.json().catch(()=>null);
       const user = data?.user || null;
@@ -327,24 +352,47 @@ async function tryAuthGate(){
       userState.profile = summary.profile;
       userState.unread = Number(summary.unreadCount || 0);
       setDot(userState.unread > 0);
+
+      writeAuthCache(userState.user, userState.profile, userState.unread);
       applyGateForTab(currentTab);
     } else {
+      // Not authed -> clear cache and show sign-in
       isAuthed = false;
       tabs.community.btn.hidden = true;
-      renderSignedOut(userSlot);
       userState = { user:null, profile:null, unread:0 };
       setDot(false);
+      clearAuthCache();
+      renderSignedOut(userSlot);
       applyGateForTab(currentTab);
     }
   } catch {
-    isAuthed = false;
-    tabs.community.btn.hidden = true;
-    authStatus.textContent = 'Network error. Sign in if needed.';
-    renderSignedOut(userSlot);
-    userState = { user:null, profile:null, unread:0 };
-    setDot(false);
+    // Network error: keep whatever we had; just stop hiding the button if we were unauthenticated.
+    authUnknown = false;
+    if (!isAuthed) {
+      tabs.community.btn.hidden = true;
+      const slot = ensureUserPill();
+      renderSignedOut(slot);
+      setDot(false);
+    }
     applyGateForTab(currentTab);
   }
+}
+
+/* optimistic paint from cache */
+function preloadAuthFromCache(){
+  const c = readAuthCache();
+  if (!c) return false;
+  try{
+    const slot = ensureUserPill();
+    renderSignedIn(slot, c.user);
+    userState.user = c.user;
+    userState.profile = c.profile || null;
+    userState.unread = Number(c.unread || 0);
+    setDot(userState.unread > 0);
+    isAuthed = true;                // gate open immediately
+    tabs.community.btn.hidden = false;
+    return true;
+  }catch{ return false; }
 }
 
 /* iframe messages */
@@ -367,5 +415,7 @@ window.addEventListener('message', (ev) => {
 });
 
 /* boot */
-showTab('simple');
-tryAuthGate();
+const hadCache = preloadAuthFromCache();  // immediate signed-in UI if available
+authUnknown = true;                       // block sign-in button until verify finishes
+showTab('simple');                        // gating reflects cached auth state
+verifyAuthRefresh();                      // background verification + refresh

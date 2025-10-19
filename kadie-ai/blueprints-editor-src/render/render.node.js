@@ -1,5 +1,6 @@
 // Universal node DOM builder used by both editor and menus.
 // Adds a visible "+" button to Make Map nodes that appends key/value pins.
+// Adds an "i in a circle" info button that opens nodes-docs for this node.
 
 import { ensureTypeStylesInjected, colorKeyFor, cssToken } from './render.types.js';
 
@@ -184,6 +185,13 @@ function augmentedInputsForMakeMap(def, params){
   return eff;
 }
 
+function signalNodeDocs(nodeId){
+  try{
+    const payload = { type:'kadie:open-node-docs', nodeId: String(nodeId || '') };
+    window?.parent?.postMessage(payload, '*');
+  }catch{ /* no-op */ }
+}
+
 /**
  * Build a .node element from a definition.
  * @param {object} def {id,name,category,kind,inputs,outputs}
@@ -203,6 +211,25 @@ export function buildNodeDOM(def, options = {}){
   title.textContent = def?.name || def?.id || 'Node';
   header.appendChild(title);
 
+  // Info icon to open nodes-docs for this node (skip in preview to avoid recursion inside nodes-docs page)
+  if (!preview){
+    const infoBtn = document.createElement('button');
+    infoBtn.type = 'button';
+    infoBtn.className = 'icon-btn';
+    infoBtn.title = 'Open node docs';
+    infoBtn.textContent = 'i';
+    // round and align
+    infoBtn.style.borderRadius = '50%';
+    infoBtn.style.marginLeft = 'auto';
+    infoBtn.addEventListener('mousedown', e => e.stopPropagation());
+    infoBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const id = String(def?.id || def?.name || '');
+      if (id) signalNodeDocs(id);
+    });
+    header.appendChild(infoBtn);
+  }
+
   // Always show "+" on Make Map nodes. nid is resolved at click.
   if (isMakeMapDef(def) && !preview){
     const addBtn = document.createElement('button');
@@ -210,6 +237,8 @@ export function buildNodeDOM(def, options = {}){
     addBtn.className = 'icon-btn add-pair';
     addBtn.title = 'Add key/value pair';
     addBtn.textContent = '+';
+    // keep next to info button without huge gap
+    addBtn.style.marginLeft = '6px';
     addBtn.addEventListener('mousedown', e => e.stopPropagation());
     addBtn.addEventListener('click', (e)=>{
       e.stopPropagation();

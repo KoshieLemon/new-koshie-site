@@ -109,5 +109,42 @@
   </main>
 
   <script type="module" src="/kadie-ai/kadie-home.js"></script>
+
+  <!-- Lightweight listener to support node-docs navigation from child frames -->
+  <script type="module">
+    function activateTab(tabId){
+      document.querySelectorAll('.tab-btn').forEach(btn=>{
+        const on = btn.dataset.tab === tabId;
+        btn.classList.toggle('active', on);
+      });
+      document.querySelectorAll('.frame').forEach(fr=>{
+        const on = fr.id === `frame-${tabId}`;
+        fr.classList.toggle('active', on);
+      });
+    }
+
+    window.addEventListener('message', (ev)=>{
+      const d = ev?.data || {};
+      if (d.type === 'kadie:open-node-docs'){
+        activateTab('nodes');
+        const frame = document.getElementById('frame-nodes');
+
+        // Try live selection without reload
+        try{
+          frame?.contentWindow?.postMessage({ type:'kadie:select-node', nodeId:String(d.nodeId||'') }, '*');
+        }catch{}
+
+        // Sync URL for persistence on reload
+        try{
+          const src = frame.getAttribute('src') || '/kadie-ai/nodes-docs.html';
+          const u = new URL(src, location.origin);
+          u.pathname = '/kadie-ai/nodes-docs.html';
+          u.searchParams.set('node', String(d.nodeId||''));
+          const next = `${u.pathname}?${u.searchParams.toString()}`;
+          if (frame.src !== next) frame.src = next;
+        }catch{}
+      }
+    });
+  </script>
 </body>
 </html>
