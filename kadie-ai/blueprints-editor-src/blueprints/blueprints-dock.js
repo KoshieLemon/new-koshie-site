@@ -119,6 +119,10 @@
     setActiveChip(resolved);
     const changed = sel.value !== resolved;
     sel.value = resolved;
+
+    // DEBUG: emit a single, obvious trace at the exact selection handoff
+    console.info('[BP DEBUG] dock->select', { resolved, source, changed });
+
     if (changed){
       window.dispatchEvent(new CustomEvent("bp:selected", { detail:{ id: resolved, source } }));
     }
@@ -128,7 +132,7 @@
     const orig = window.prompt; window.prompt = () => String(answer ?? "");
     try { fn(); } finally { window.prompt = orig; }
   }
-  const sanitizeOneLine = (s)=> String(s||"").replace(/\s{2,}/g," ").trim(); // keep single spaces
+  const sanitizeOneLine = (s)=> String(s||"").replace(/\s{2,}/g," ").trim();
 
   function toast(msg){
     const t = document.createElement("div");
@@ -153,7 +157,7 @@
   function buildInlineEditorChip(initial, onCommit, onCancel){
     const el = document.createElement("div");
     el.className = "chip editing";
-    dock.classList.add("lock");                // lock all other chips
+    dock.classList.add("lock");
 
     const name = document.createElement("span");
     name.className = "name";
@@ -166,11 +170,11 @@
       else if (ev.key === "Escape"){ ev.preventDefault(); finish(false); }
     });
     name.addEventListener("input", ()=>{
-      const text = (name.textContent || "");   // allow spaces
+      const text = (name.textContent || "");
       if (text.length > NAME_MAX) name.textContent = text.slice(0, NAME_MAX);
     });
 
-    const bar = document.createElement("div"); bar.className = "bar"; // visually there but inert while editing
+    const bar = document.createElement("div"); bar.className = "bar";
     el.append(name, bar);
 
     function finish(commit){
@@ -198,7 +202,7 @@
     const barBtn = document.createElement("button"); barBtn.className = "bar-btn"; barBtn.setAttribute("aria-label","Delete");
 
     const performDelete = (e)=>{
-      if (dock.classList.contains("lock")) return;        // blocked during edit
+      if (dock.classList.contains("lock")) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       window.dispatchEvent(new CustomEvent("bp:delete-request", { detail:{ id: opt.id } }));
     };
@@ -210,15 +214,16 @@
     bar.appendChild(barBtn);
     el.append(name, bar);
 
-    // Left click selects (unless editing anywhere).
+    // Left click selects (unless editing). Add explicit debug.
     el.addEventListener("click", (e)=>{
       if (dock.classList.contains("lock")) return;
       const path = e.composedPath ? e.composedPath() : [];
       if (path.includes(bar) || path.includes(barBtn)) return;
+      console.info('[BP DEBUG] dock-chip:click', { id: String(opt.id) });
       selectByValue(opt.id, "dock-click");
     });
 
-    // Right click -> inline rename (no selection). Block others while active.
+    // Right click -> inline rename
     el.addEventListener("contextmenu", (e)=>{
       if (dock.classList.contains("lock")) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
@@ -229,10 +234,11 @@
       el.replaceWith(editorChip);
     });
 
-    // Double click selects (unless editing).
+    // Double click selects
     el.addEventListener("dblclick", (e)=>{
       if (dock.classList.contains("lock")) return;
       e.preventDefault();
+      console.info('[BP DEBUG] dock-chip:dblclick', { id: String(opt.id) });
       selectByValue(opt.id, "dock-dblclick");
     });
 
@@ -251,7 +257,7 @@
     setDisabledState();
 
     add.addEventListener("click", ()=>{
-      if (dock.classList.contains("lock")) return;        // blocked during edit
+      if (dock.classList.contains("lock")) return;
       if (bpCount() >= MAX_BLUEPRINTS){
         toast(`Limit reached: ${MAX_BLUEPRINTS} blueprints. Delete one to add more.`);
         return;
@@ -262,7 +268,7 @@
           rebuild();
           return;
         }
-        overridePromptOnce(newName, ()=> btnCreate.click()); // creation uses spaces
+        overridePromptOnce(newName, ()=> btnCreate.click());
       }, (chipEl)=>{ chipEl.replaceWith(mkAddChip()); });
       add.replaceWith(editorChip);
     });
@@ -283,14 +289,7 @@
     setActiveChip(sel.value);
   }
 
-  window.addEventListener("bp:selected", (ev)=>{
-    const id = String(ev?.detail?.id || "");
-    setActiveChip(id);
-  });
-
-  const mo = new MutationObserver(()=> rebuild());
-  mo.observe(sel, { childList:true, subtree:false });
-  sel.addEventListener("change", ()=> setActiveChip(sel.value));
-
   rebuild();
+  // Rebuild when <select> changes externally (list refresh)
+  sel.addEventListener('change', rebuild);
 })();
