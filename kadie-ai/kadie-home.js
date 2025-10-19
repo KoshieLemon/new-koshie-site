@@ -1,6 +1,6 @@
 // /kadie-ai/kadie-home.js
-// User dropdown (Liked/Bookmarked/Notifications) now uses a body-level portal.
-// Tabs are wired and clickable. Menu sits above iframes and captures clicks.
+// Anonymous access is allowed for: nodes, tutorials, status.
+// Auth gate only blocks: simple, blueprints, community.
 
 import { OAUTH_URL, ME_URL, LOGOUT_URL, apiGet, printDiagnostics } from './api.js';
 printDiagnostics('kadie-home');
@@ -26,6 +26,11 @@ const sbName      = byId('sbName');
 const sbId        = byId('sbId');
 const leaveBtn    = byId('leaveServerBtn');
 const headerEl    = byId('siteHeader');
+
+/* public vs protected tabs */
+const PUBLIC_TABS = new Set(['nodes','tutorials','status']);
+let isAuthed = false;
+let currentTab = 'simple';
 
 /* header + banner heights -> viewport */
 function setCSSVar(name, val){ document.documentElement.style.setProperty(name, val); }
@@ -61,7 +66,6 @@ function ensureUserStyles(){
     .btn.danger{border-color:#5f1a20;background:#2a0e12;color:#ffd7d7}
     .btn.danger:hover{background:#47141b}
 
-    /* Portal overlay so menu is above iframes */
     .k-portal{ position:fixed; inset:0; z-index:2147483647; display:none; }
     .k-portal.show{ display:block; }
     .k-backdrop{ position:absolute; inset:0; background:transparent; }
@@ -122,10 +126,9 @@ function openMenu(anchorEl){
     </div>
     <div class="km-body" id="kmBody"><div class="km-empty">Select a tab.</div></div>
   `;
-  dropdown.addEventListener('click', e => e.stopPropagation()); // keep clicks inside
+  dropdown.addEventListener('click', e => e.stopPropagation());
   portalRoot.appendChild(dropdown);
 
-  // position near avatar
   const r = anchorEl.getBoundingClientRect();
   const gap = 8;
   const top = Math.min(window.innerHeight - 24, r.bottom + gap);
@@ -133,12 +136,10 @@ function openMenu(anchorEl){
   dropdown.style.top = `${top}px`;
   dropdown.style.left = `${left}px`;
 
-  // wire tabs
   dropdown.querySelectorAll('.km-tab').forEach(btn=>{
     btn.addEventListener('click', ()=> selectTab(btn.dataset.tab));
   });
 
-  // esc to close
   const onKey = (e)=>{ if (e.key === 'Escape') { closeMenu(); window.removeEventListener('keydown', onKey); } };
   window.addEventListener('keydown', onKey);
 
@@ -154,7 +155,6 @@ function renderSignedOut(container){
 function renderSignedIn(container, user){
   container.innerHTML = '';
 
-  // avatar + unread dot
   const wrap = document.createElement('div'); wrap.className = 'kadie-userwrap'; wrap.setAttribute('role','button'); wrap.setAttribute('tabindex','0');
   const img = document.createElement('img'); img.className = 'kadie-avatar'; img.alt = user?.username || 'profile';
   const url = avatarUrl(user); if (url) img.src = url;
@@ -162,7 +162,6 @@ function renderSignedIn(container, user){
   wrap.appendChild(img); wrap.appendChild(dot);
   container.appendChild(wrap);
 
-  // sign-out button
   const signout = document.createElement('button');
   signout.className = 'btn danger';
   signout.id = 'signOutBtn';
@@ -256,17 +255,30 @@ async function selectTab(key){
   }
 }
 
+/* gating */
+function isPublicTab(key){ return PUBLIC_TABS.has(key); }
+function applyGateForTab(key){
+  if (isAuthed || isPublicTab(key)) {
+    authBlock.classList.remove('show');
+    return;
+  }
+  authStatus.textContent = 'Please sign in to access this section.';
+  authBlock.classList.add('show');
+}
+
 /* tab controls */
 Object.entries(tabs).forEach(([key, { btn }]) => btn && btn.addEventListener('click', () => showTab(key)));
 function showTab(key){
-  const target = tabs[key];
-  if (!target) return;
+  if (!tabs[key]) return;
+  currentTab = key;
   for (const t of Object.values(tabs)) {
     if (t.btn)   t.btn.classList.remove('active');
     if (t.frame) t.frame.classList.remove('active');
   }
+  const target = tabs[key];
   if (target.btn)   target.btn.classList.add('active');
   if (target.frame) target.frame.classList.add('active');
+  applyGateForTab(key);
 }
 
 /* server banner + routing */
@@ -305,7 +317,7 @@ async function tryAuthGate(){
     if (res.ok){
       const data = await res.json().catch(()=>null);
       const user = data?.user || null;
-      authBlock.classList.remove('show');
+      isAuthed = true;
       tabs.community.btn.hidden = false;
       authStatus.textContent = 'Signed in.';
       renderSignedIn(userSlot, user);
@@ -315,21 +327,23 @@ async function tryAuthGate(){
       userState.profile = summary.profile;
       userState.unread = Number(summary.unreadCount || 0);
       setDot(userState.unread > 0);
+      applyGateForTab(currentTab);
     } else {
-      authBlock.classList.add('show');
+      isAuthed = false;
       tabs.community.btn.hidden = true;
-      authStatus.textContent = 'Not signed in.';
       renderSignedOut(userSlot);
       userState = { user:null, profile:null, unread:0 };
       setDot(false);
+      applyGateForTab(currentTab);
     }
   } catch {
-    authStatus.textContent = 'Network error. Try again.';
-    authBlock.classList.add('show');
+    isAuthed = false;
     tabs.community.btn.hidden = true;
+    authStatus.textContent = 'Network error. Sign in if needed.';
     renderSignedOut(userSlot);
     userState = { user:null, profile:null, unread:0 };
     setDot(false);
+    applyGateForTab(currentTab);
   }
 }
 
@@ -343,7 +357,6 @@ window.addEventListener('message', (ev) => {
     selectedGuild = { id, name: name || '', icon: icon || '' };
     setServerBadge(selectedGuild);
     const q = new URLSearchParams({ guild_id:id, guild_name:name||'', guild_icon:icon||'' }).toString();
-    // Go to Simple Server when actively in a server:
     tabs.simple.frame.src = `/kadie-ai/simple-server.html?${q}`;
     tabs.blueprints.frame.src = `/kadie-ai/blueprints-editor.html?${q}`;
     tabs.blueprints.btn.hidden = false;

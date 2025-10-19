@@ -48,11 +48,11 @@ function normalize(def) {
 
 // Add virtual nodes that are editor-defined (not served by /nodes-index)
 function injectVirtualNodes(nodes, byId){
-  if (!byId.has('utils.breakObject')) {
+  if (!byId.has('flow.breakObject')) {
     const v = normalize({
-      id: 'utils.breakObject',
+      id: 'flow.breakObject',
       name: 'Break Object',
-      category: 'Utilities',
+      category: 'flow',
       kind: 'exec',
       version: '1.0.0',
       // single data input; dynamic outputs created client-side on connect
@@ -63,7 +63,7 @@ function injectVirtualNodes(nodes, byId){
       outputs: [
         { name: 'out', type: 'exec' }
       ],
-      tags: ['utilities','introspection']
+      tags: ['flow','introspection']
     });
     nodes.push(v);
     byId.set(v.id, v);

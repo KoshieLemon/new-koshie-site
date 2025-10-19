@@ -14,6 +14,7 @@ const meAvatar = $('#meAvatar');
 const tagSelect = $('#tagSelect');
 const filterBar = $('#filterBar');
 const moreBtn = $('#moreBtn');
+const sidebarList = $('#popularBpList');
 
 export const state = {
   session: null,
@@ -144,7 +145,7 @@ export function renderBpChips(){
 
 /* post + replies */
 function renderPost(p){
-  const li=document.createElement("div"); li.className="post";
+  const li=document.createElement("div"); li.className="post"; li.id = `post_${p.id}`;
 
   const tagBar=document.createElement('div');
   tagBar.style.display='flex'; tagBar.style.justifyContent='space-between'; tagBar.style.alignItems='center'; tagBar.style.marginBottom='4px';
@@ -312,4 +313,61 @@ async function importBlueprint(b){
   const ok = await createBlueprint({ guildId: dest.id, guildName: dest.name||'', id: `bp_${Date.now()}`, name: newName, data: src.data || {} });
   if (!ok){ alert('Failed to import.'); return; }
   try { window.top?.postMessage({ type:'openBlueprints' }, '*'); const f = window.top?.document?.getElementById('frame-blueprints'); if (f && f.contentWindow) f.contentWindow.location.reload(); } catch {}
+}
+
+/* ===== Right panel: Top blueprint posts ===== */
+export async function loadTopBlueprintSidebar(){
+  if (!sidebarList) return;
+  // skeleton
+  sidebarList.innerHTML = `
+    <div class="side-item"><div class="muted">Loading…</div></div>
+    <div class="side-item"><div class="muted">Loading…</div></div>
+    <div class="side-item"><div class="muted">Loading…</div></div>
+    <div class="side-item"><div class="muted">Loading…</div></div>`;
+
+  const collected = [];
+  let cursor = null;
+  let safety = 0;
+
+  while (collected.length < 4 && safety < 10) {
+    const j = await fetchFeed({ sort: 'popular', cursor, tag: null });
+    const items = Array.isArray(j.items) ? j.items : [];
+    for (const p of items) {
+      const tokens = extractBpTokens(p.content);
+      if (tokens.length) {
+        collected.push({ p, token: tokens[0] });
+        if (collected.length >= 4) break;
+      }
+    }
+    cursor = j.nextCursor || null;
+    if (!cursor) break;
+    safety++;
+  }
+
+  collected.sort((a,b)=>((b.p.likesCount||0)+(b.p.bookmarksCount||0)) - ((a.p.likesCount||0)+(a.p.bookmarksCount||0)));
+
+  sidebarList.innerHTML = '';
+  if (!collected.length) {
+    sidebarList.innerHTML = `<div class="side-empty">No blueprint posts yet.</div>`;
+    return;
+  }
+
+  collected.slice(0,4).forEach(({p,token})=>{
+    sidebarList.appendChild(renderPopularBpItem(p, token));
+  });
+}
+
+function renderPopularBpItem(p, b){
+  const el = document.createElement('div'); el.className = 'side-item';
+  el.innerHTML = `
+    <div class="small-hd">
+      <img class="avatar" src="${cdnAvatar(p.authorId,p.authorAvatar)}" alt="">
+      <div class="meta">
+        <div class="title">${b.name || '(unnamed blueprint)'}</div>
+        <div class="muted">by ${p.authorName || 'unknown'} · ${b.serverName || b.guildId}</div>
+      </div>
+    </div>
+    <div class="small-stats"><span>♥ ${p.likesCount || 0}</span><span>★ ${p.bookmarksCount || 0}</span></div>
+  `;
+  return el;
 }

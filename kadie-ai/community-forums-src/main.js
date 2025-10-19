@@ -1,4 +1,4 @@
-import { bootAuth, renderFilterBar, renderTagPicker, bindComposer, renderBpChips, loadFeed } from './ui.js';
+import { bootAuth, renderFilterBar, renderTagPicker, bindComposer, renderBpChips, loadFeed, loadTopBlueprintSidebar } from './ui.js';
 
 async function init(){
   await bootAuth();
@@ -7,5 +7,6 @@ async function init(){
   bindComposer();
   renderBpChips();
   await loadFeed(true);
+  await loadTopBlueprintSidebar();
 }
 init().catch(console.error);
