@@ -1,4 +1,4 @@
-// Editor renderer
+// Editor renderer that uses the universal node builder.
 import { state } from '../core/state.js';
 import { els } from '../core/dom.js';
 import { buildNodeDOM } from './render.node.js';
@@ -7,7 +7,6 @@ import { fitSvg, drawWires } from './render.wires.js';
 let nodeInteractionHook = null;
 export function registerNodeInteractions(fn){ nodeInteractionHook = fn; }
 
-// Lookup a node definition by id from the preloaded index or globals
 function defFor(defId){
   const list = (state.nodesIndex?.nodes || window.NODE_INDEX || []);
   const found = list.find(d => d.id === defId);
@@ -22,7 +21,14 @@ function defFor(defId){
   return alt;
 }
 
-// Hide pins per def.runtime.shape.hideWhen rules, drop wires to hidden pins, scrub params
+function hasIncomingEdge(nid, pin){
+  for (const e of state.edges.values()){
+    if (e.to?.nid === nid && e.to?.pin === pin) return true;
+  }
+  return false;
+}
+
+// ---- visibility engine: hide pins based on def.runtime.shape.hideWhen rules
 function applyParamVisibility(def, params, nid){
   const shape = def?.runtime?.shape;
   const rules = Array.isArray(shape?.hideWhen) ? shape.hideWhen : null;
@@ -31,6 +37,7 @@ function applyParamVisibility(def, params, nid){
   const hiddenIn  = new Set();
   const hiddenOut = new Set();
 
+  // evaluate rules
   for (const r of rules){
     const whenPin = r?.when?.pin;
     const equals  = r?.when?.equals;
@@ -50,11 +57,11 @@ function applyParamVisibility(def, params, nid){
   const newIns  = (def.inputs  || []).filter(p => !hiddenIn.has(p.name));
   const newOuts = (def.outputs || []).filter(p => !hiddenOut.has(p.name));
 
-  // Drop wires to hidden INPUT pins
-  for (const [eid, e] of state.edges){
+  // drop wires to hidden INPUT pins
+  for (const [eid,e] of [...state.edges]){
     if (e.to?.nid === nid && hiddenIn.has(e.to.pin)) state.edges.delete(eid);
   }
-  // Scrub saved params for hidden inputs
+  // scrub saved params for hidden inputs
   const n = state.nodes.get(nid);
   if (n && n.params){
     for (const k of hiddenIn) delete n.params[k];
@@ -74,41 +81,34 @@ function applyParamVisibility(def, params, nid){
 
 export function renderNode(n){
   const base = defFor(n.defId);
-  const source = n._defOverride ? n._defOverride(base, n) : base;
-  const def = applyParamVisibility(source, n.params, n.id);
+  // allow any prior dynamic overrides (e.g., Break Object) then apply visibility
+  const source = n._defOverride ? n._defOverride : base;
+  const def  = applyParamVisibility(source, (n.params||{}), n.id);
 
-  const el = buildNodeDOM(def, n);
-  el.dataset.nid = String(n.id);
-  el.style.left = `${Math.round(n.x||0)}px`;
-  el.style.top  = `${Math.round(n.y||0)}px`;
+  const el = buildNodeDOM(def, { preview:false, params: (n.params||{}), nid: n.id });
+
+  el.style.transform = `translate(${n.x}px, ${n.y}px)`;
+  els.nodesLayer.appendChild(el);
 
   if (nodeInteractionHook) nodeInteractionHook(el, n);
 
-  return el;
+  // show literals for unwired left data pins
+  for (const pin of el.querySelectorAll('.pin.left.data')){
+    const name = pin.dataset.pin;
+    const wired = hasIncomingEdge(n.id, name);
+    const lit = pin.querySelector('.literal-wrap');
+    if (lit) lit.style.display = wired ? 'none' : '';
+  }
+
+  el.classList.toggle('selected', state.sel.has(n.id));
 }
 
 export function renderAll(){
-  const countN = state.nodes instanceof Map ? state.nodes.size : 0;
-  const countE = state.edges instanceof Map ? state.edges.size : 0;
-  console.info('[BP DEBUG] renderAll:start', `nodes=${countN}`, `edges=${countE}`);
-
-  els.nodesLayer.replaceChildren();  // clear
-  const frag = document.createDocumentFragment();
+  els.nodesLayer.innerHTML = '';
   for (const n of state.nodes.values()){
-    try{
-      const el = renderNode(n);
-      frag.appendChild(el);
-    }catch(err){
-      console.error('[render] node failed:', n?.id, err);
-    }
+    if (!n.params) n.params = {};
+    renderNode(n);
   }
-  els.nodesLayer.appendChild(frag);
-
-  // Wires and SVG fit need up-to-date layout boxes
   fitSvg();
   drawWires();
-
-  console.info('[BP DEBUG] renderAll:done',
-    `inDOM=${els.nodesLayer.querySelectorAll('.node').length}`
-  );
 }

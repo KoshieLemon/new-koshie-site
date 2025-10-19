@@ -1,22 +1,20 @@
-// core/state.js — shared editor state + history + uid
+// bot-options-src/state.js — shared editor state + history + uid
+
+// canonical in-memory graph state
 export const state = {
   gid: null,
   bpId: null,
   bpName: null,
 
-  // Graph
-  nodes: new Map(),            // Map<id, { id, defId, x, y, params? }>
-  edges: new Map(),            // Map<id, { id, kind:'exec'|'data', from:{nid,pin}, to:{nid,pin} }>
+  // Maps for fast lookup
+  nodes: new Map(), // { id, defId, x, y, params? }
+  edges: new Map(), // { id, kind:'exec'|'data', from:{nid,pin}, to:{nid,pin} }
 
-  // Selection and view
-  sel: new Set(),              // Set<nodeId>
-  view: { x: 0, y: 0, z: 1 },  // pan/zoom
-
-  // Dirty flag + callback hook
+  // change tracking
   _dirtyEl: null,
-  onDirty: null,
+  onDirty: null, // optional callback
 
-  // History
+  // history
   _history: [],
   _future: [],
 };
@@ -31,15 +29,13 @@ export function uid(prefix = 'id') {
 // ---- dirty flag helpers ----
 export function markDirty(el) {
   if (el) state._dirtyEl = el;
-  const t = state._dirtyEl || document.getElementById('dirty');
-  if (t) t.classList.add('show');
+  if (state._dirtyEl) state._dirtyEl.classList.add('show');
   if (typeof state.onDirty === 'function') state.onDirty();
 }
 
 export function clearDirty(el) {
   if (el) state._dirtyEl = el;
-  const t = state._dirtyEl || document.getElementById('dirty');
-  if (t) t.classList.remove('show');
+  if (state._dirtyEl) state._dirtyEl.classList.remove('show');
 }
 
 // ---- snapshot helpers ----
@@ -50,6 +46,7 @@ function cloneNodesMap(m) {
   }
   return out;
 }
+
 function cloneEdgesMap(m) {
   const out = new Map();
   for (const [k, v] of m.entries()) out.set(k, JSON.parse(JSON.stringify(v)));
@@ -58,32 +55,24 @@ function cloneEdgesMap(m) {
 
 // returns a JSON string (site code expects JSON.parse(snapshot()))
 export function snapshot() {
-  return JSON.stringify({
+  const obj = {
     nodes: [...state.nodes.values()],
     edges: [...state.edges.values()],
-  });
+  };
+  return JSON.stringify(obj);
 }
 
 export function loadSnapshot(data, afterRender) {
-  const obj = typeof data === 'string' ? JSON.parse(data) : (data || {});
+  const obj = typeof data === 'string' ? JSON.parse(data) : data || {};
   const nodesArr = Array.isArray(obj.nodes) ? obj.nodes : [];
   const edgesArr = Array.isArray(obj.edges) ? obj.edges : [];
 
-  // Replace maps atomically so consumers see a consistent graph
-  state.nodes = new Map(nodesArr.map(n => [String(n.id), { ...n }]));
-  state.edges = new Map(edgesArr.map(e => [String(e.id), { ...e }]));
-  state.sel.clear();
-
-  // Debug: counts and a sample
-  console.info('[BP DEBUG] loadSnapshot:',
-    `nodes=${state.nodes.size}`,
-    `edges=${state.edges.size}`,
-    state.nodes.size ? `firstNode=${[...state.nodes.keys()][0]}` : 'firstNode=none'
-  );
+  state.nodes = new Map(nodesArr.map(n => [n.id, { ...n }]));
+  state.edges = new Map(edgesArr.map(e => [e.id, { ...e }]));
 
   clearHistory();
   pushHistory();
-  if (typeof afterRender === 'function') afterRender();
+  if (afterRender) afterRender();
   clearDirty();
 }
 
