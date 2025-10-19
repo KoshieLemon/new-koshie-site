@@ -18,9 +18,9 @@ const sidebarList = $('#popularBpList');
 
 export const state = {
   session: null,
-  sort: 'popular',    // For You = popular, tag = recent
+  sort: 'popular',
   cursor: null,
-  activeTag: null,    // null => For You
+  activeTag: null,
   selectedTag: null,
   pendingBps: []
 };
@@ -137,7 +137,7 @@ export function renderBpChips(){
   const chips = $('#chips'); chips.innerHTML = '';
   state.pendingBps.forEach((b,i)=>{
     const c=document.createElement('div'); c.className='chip';
-    c.innerHTML=`📦 ${b.name} <span class="muted">(${b.serverName||b.guildId})</span> <button class="btn" style="padding:2px 8px">Remove</button>`;
+    c.innerHTML=`📦 ${b.name} <button class="btn" style="padding:2px 8px">Remove</button>`;
     c.querySelector('button').onclick=()=>{ state.pendingBps.splice(i,1); renderBpChips(); validateReady(); };
     chips.appendChild(c);
   });
@@ -243,7 +243,7 @@ export async function loadReplies(threadId){
   });
 }
 
-/* blueprint picker + import (same as before) */
+/* blueprint picker + import */
 const modal = $('#bpModal'), qServer=$("#qServer"), qBp=$("#qBp"), serversEl=$("#servers"), bpsEl=$("#bps"), bpUse=$("#bpUse"), bpCancel=$("#bpCancel");
 let guilds=[], selectedGuild=null, bpList=[], selectedBp=null;
 
@@ -295,8 +295,7 @@ function makeBpCard(b){
   const card = document.createElement('div'); card.className='bp-card';
   const letter = (b.serverName||b.guildId||'?').toString().slice(0,1).toUpperCase();
   card.innerHTML = `<div class="ico">${letter}</div>
-    <div class="meta"><div class="name">${b.name||'(unnamed blueprint)'}</div>
-    <div class="sub">from ${b.serverName||b.guildId}</div></div>
+    <div class="meta"><div class="name">${b.name||'(unnamed blueprint)'}</div></div>
     <button class="btn" title="Copy into your open server">Import</button>`;
   card.querySelector('button').onclick = ()=> importBlueprint(b);
   return card;
@@ -318,7 +317,6 @@ async function importBlueprint(b){
 /* ===== Right panel: Top blueprint posts ===== */
 export async function loadTopBlueprintSidebar(){
   if (!sidebarList) return;
-  // skeleton
   sidebarList.innerHTML = `
     <div class="side-item"><div class="muted">Loading…</div></div>
     <div class="side-item"><div class="muted">Loading…</div></div>
@@ -358,16 +356,54 @@ export async function loadTopBlueprintSidebar(){
 }
 
 function renderPopularBpItem(p, b){
-  const el = document.createElement('div'); el.className = 'side-item';
+  const el = document.createElement('div'); el.className = 'side-item'; el.style.cursor='pointer';
+  el.tabIndex = 0; el.setAttribute('role','button');
+  el.onclick = ()=>focusPostById(p.id);
+  el.onkeydown = (e)=>{ if (e.key==='Enter' || e.key===' ') { e.preventDefault(); focusPostById(p.id); } };
   el.innerHTML = `
     <div class="small-hd">
       <img class="avatar" src="${cdnAvatar(p.authorId,p.authorAvatar)}" alt="">
       <div class="meta">
         <div class="title">${b.name || '(unnamed blueprint)'}</div>
-        <div class="muted">by ${p.authorName || 'unknown'} · ${b.serverName || b.guildId}</div>
+        <div class="muted">by ${p.authorName || 'unknown'}</div>
       </div>
     </div>
     <div class="small-stats"><span>♥ ${p.likesCount || 0}</span><span>★ ${p.bookmarksCount || 0}</span></div>
   `;
   return el;
+}
+
+/* focus a specific post by id, loading feed if needed */
+async function focusPostById(id){
+  const tryFocus = ()=>{
+    const el = document.getElementById(`post_${id}`);
+    if (!el) return false;
+    el.scrollIntoView({behavior:'smooth', block:'start'});
+    const old = el.style.boxShadow;
+    el.style.boxShadow='0 0 0 2px #5b87ff';
+    setTimeout(()=>{ el.style.boxShadow = old; }, 1600);
+    return true;
+  };
+  if (tryFocus()) return;
+
+  // Ensure we're on popular feed, then page until found.
+  state.activeTag = null;
+  state.sort = 'popular';
+  state.cursor = null;
+  feedEl.innerHTML = '';
+  let found = false;
+  let safety = 0;
+  while (!found && safety < 12) {
+    const j = await fetchFeed({ sort: state.sort, cursor: state.cursor, tag: state.activeTag });
+    const items = Array.isArray(j.items) ? j.items : [];
+    for (const p of items) {
+      feedEl.appendChild(renderPost(p));
+      loadReplies(p.threadId);
+      if (String(p.id) === String(id)) found = true;
+    }
+    state.cursor = j.nextCursor || null;
+    if (!state.cursor) break;
+    safety++;
+  }
+  tryFocus();
 }
