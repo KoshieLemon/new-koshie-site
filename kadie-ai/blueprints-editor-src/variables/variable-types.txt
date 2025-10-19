@@ -49,11 +49,14 @@ PermissionName =
 
 Composite
 PermissionsEntry = { name: PermissionName, state: PermissionState }
+Permissions = array<PermissionsEntry>
+UserPermissions = map<Role|User, Permissions>
 
 Structural types
 array<T>
+map<K,V>
 
 Rules
 - array<T> carries real JS arrays. No JSON strings.
+- map<K,V> accepts JS Map, Array<[K,V]>, or plain object. Keys for Role|User may be the object or its id string.
 - Any *Id pins are plain string.
-- Remove all map types and usages.

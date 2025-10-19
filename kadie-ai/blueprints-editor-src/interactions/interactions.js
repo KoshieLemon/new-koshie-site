@@ -316,6 +316,24 @@ export function initInteractions(){
     if (ix.marquee?.active) finishMarquee(ev);
   });
 
+  // Handle "+" for makeMap: add next key/value pair as params, then re-render
+  window.addEventListener('makeMap:addPair', (ev)=>{
+    const nid = String(ev?.detail?.nid || '');
+    if (!nid) return;
+    const n = state.nodes.get(nid);
+    if (!n) return;
+    if (!n.params) n.params = {};
+    let maxIdx = 1;
+    for (const k of Object.keys(n.params)){
+      let m = /^key(\d+)$/.exec(k); if (m) maxIdx = Math.max(maxIdx, Number(m[1]));
+      m = /^value(\d+)$/.exec(k);   if (m) maxIdx = Math.max(maxIdx, Number(m[1]));
+    }
+    const next = maxIdx + 1;
+    if (!(('key'+next) in n.params))   n.params['key'+next]   = '';
+    if (!(('value'+next) in n.params)) n.params['value'+next] = '';
+    renderAll(); pushHistory(); markDirty(els.dirty);
+  });
+
   // DnD
   els.editor.addEventListener('dragover', (e)=>{ e.preventDefault(); });
   els.editor.addEventListener('drop', (e)=>{

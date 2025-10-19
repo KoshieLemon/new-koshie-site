@@ -1,4 +1,6 @@
 // Universal node DOM builder used by both editor and menus.
+// Adds a visible "+" button to Make Map nodes that appends key/value pins.
+
 import { ensureTypeStylesInjected, colorKeyFor, cssToken } from './render.types.js';
 
 ensureTypeStylesInjected();
@@ -38,20 +40,24 @@ function autosize(el){
   }
 }
 
-function isIdLike(t){ return /Id$/.test(String(t||'')) || colorKeyFor(t) === 'snowflake'; }
+function isIdLike(t){ return /Id$/.test(String(t||'')); }
+function isEnumType(t){
+  const ENUMS = (window && window.ENUMS) || {};
+  return Array.isArray(ENUMS?.[t]);
+}
 function shouldRenderControl(t){
   const k = colorKeyFor(t || 'string');
+  if (isEnumType(t)) return true;
   if (k === 'boolean') return true;
   return k === 'number' || k === 'string' || isIdLike(t);
 }
 
-// sanitize numeric text: keep digits; allow one dot if float; strip commas/spaces/extra dots
 function cleanNumeric(v, allowDot){
   if (v == null) return '';
   let s = String(v);
-  s = s.replace(/[, _]/g, '');          // remove separators
-  s = s.replace(/[^\d.]/g, '');         // keep digits and dots
-  if (!allowDot) s = s.replace(/\./g, ''); // ints: no dots
+  s = s.replace(/[, _]/g, '');
+  s = s.replace(/[^\d.]/g, '');
+  if (!allowDot) s = s.replace(/\./g, '');
   if (allowDot){
     const first = s.indexOf('.');
     if (first !== -1){
@@ -70,33 +76,54 @@ function mkLiteral(preview, paramsRef, pinDef){
 
   const rawType = pinDef.type || 'string';
   const key = colorKeyFor(rawType);
+  const ENUMS = (window && window.ENUMS) || {};
+  const enumValues = Array.isArray(pinDef.enum) ? pinDef.enum : (Array.isArray(ENUMS?.[rawType]) ? ENUMS[rawType] : null);
+
   let input;
 
-  if (key === 'boolean'){
-    input = document.createElement('input');
-    input.type = 'checkbox';
-    input.className = 'pin-input';
-    input.checked = !!(paramsRef?.[pinDef.name]);
+  if (enumValues){
+    const sel = document.createElement('select');
+    sel.className = 'literal pin-input';
+    const makeOpt = (v)=> {
+      const o = document.createElement('option');
+      o.value = String(v);
+      o.textContent = String(v);
+      return o;
+    };
+    sel.appendChild(makeOpt(''));
+    for (const v of enumValues) sel.appendChild(makeOpt(v));
+    const cur = paramsRef?.[pinDef.name];
+    sel.value = (cur == null ? '' : String(cur));
+    if (preview) sel.disabled = true;
+    input = sel;
+  } else if (key === 'boolean'){
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.className = 'pin-input';
+    chk.checked = !!(paramsRef?.[pinDef.name]);
+    if (preview) chk.disabled = true;
+    input = chk;
   } else if (key === 'number'){
-    // Allow free typing while focused; normalize on blur only.
     const allowDot = String(rawType).toLowerCase() !== 'int';
-    input = document.createElement('input');
-    input.type = 'text';
-    input.inputMode = 'decimal';
-    input.pattern = '[0-9.]*';
-    input.className = 'literal pin-input';
-    input.value = paramsRef?.[pinDef.name] ?? '';
-    autosize(input);
+    const txt = document.createElement('input');
+    txt.type = 'text';
+    txt.inputMode = 'decimal';
+    txt.pattern = '[0-9.]*';
+    txt.className = 'literal pin-input';
+    txt.value = paramsRef?.[pinDef.name] ?? '';
+    autosize(txt);
     if (!preview){
-      input.addEventListener('input', ()=> autosize(input)); // no sanitizing while typing
-      input.addEventListener('blur', ()=>{
-        input.value = cleanNumeric(input.value, allowDot);
-        autosize(input);
+      txt.addEventListener('input', ()=> autosize(txt));
+      txt.addEventListener('blur', ()=>{
+        txt.value = cleanNumeric(txt.value, allowDot);
+        autosize(txt);
       });
-      input.addEventListener('paste', ()=> { requestAnimationFrame(()=> autosize(input)); });
+      txt.addEventListener('paste', ()=> { requestAnimationFrame(()=> autosize(txt)); });
+    } else {
+      txt.disabled = true;
     }
+    input = txt;
   } else {
-    // strings and IDs use textarea that grows
     const ta = document.createElement('textarea');
     ta.rows = 1;
     ta.maxLength = 100;
@@ -105,13 +132,13 @@ function mkLiteral(preview, paramsRef, pinDef){
     autosize(ta);
     if (!preview){
       ta.addEventListener('input', ()=> autosize(ta));
+    } else {
+      ta.disabled = true;
     }
     input = ta;
   }
 
-  if (preview){
-    input.disabled = true;
-  } else {
+  if (!preview){
     input.addEventListener('mousedown', e => e.stopPropagation());
     input.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.stopPropagation(); } });
     input.addEventListener('contextmenu', e => e.stopPropagation());
@@ -119,6 +146,42 @@ function mkLiteral(preview, paramsRef, pinDef){
 
   wrap.appendChild(input);
   return wrap;
+}
+
+// ---- makeMap helpers ----
+function isMakeMapDef(def){
+  const id = String(def?.id || '');
+  const nm = String(def?.name || '');
+  return id === 'makeMap' || id === 'utils.makeMap' || /(^|\s)make\s*map/i.test(nm);
+}
+
+// Build effective inputs: base inputs + any dynamic keyN/valueN derived from params
+function augmentedInputsForMakeMap(def, params){
+  const base = Array.isArray(def?.inputs) ? def.inputs : [];
+  if (!isMakeMapDef(def)) return base;
+
+  const eff = base.slice();
+
+  // detect base pair in def: either key/value OR key1/value1
+  const hasKey1 = base.some(p => p?.name === 'key1');
+  const hasVal1 = base.some(p => p?.name === 'value1');
+  const baseKey = hasKey1 ? 'key1' : (base.some(p=>p?.name==='key') ? 'key' : null);
+  const baseVal = hasVal1 ? 'value1' : (base.some(p=>p?.name==='value') ? 'value' : null);
+  if (!baseKey || !baseVal) return eff; // leave untouched if definition is unusual
+
+  // determine highest index present in params
+  let maxIdx = 1;
+  for (const k of Object.keys(params||{})){
+    let m = /^key(\d+)$/.exec(k); if (m) maxIdx = Math.max(maxIdx, Number(m[1]));
+    m = /^value(\d+)$/.exec(k);   if (m) maxIdx = Math.max(maxIdx, Number(m[1]));
+  }
+
+  // if base uses unnumbered 'key'/'value', next pair starts at 2
+  for (let i = 2; i <= maxIdx; i++){
+    eff.push({ name:`key${i}`, type:'any', optional:true });
+    eff.push({ name:`value${i}`, type:'any', optional:true });
+  }
+  return eff;
 }
 
 /**
@@ -139,13 +202,36 @@ export function buildNodeDOM(def, options = {}){
   title.className = 'title';
   title.textContent = def?.name || def?.id || 'Node';
   header.appendChild(title);
+
+  // Always show "+" on Make Map nodes. nid is resolved at click.
+  if (isMakeMapDef(def) && !preview){
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'icon-btn add-pair';
+    addBtn.title = 'Add key/value pair';
+    addBtn.textContent = '+';
+    addBtn.addEventListener('mousedown', e => e.stopPropagation());
+    addBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const nodeEl = addBtn.closest('.node');
+      const nodeId = nodeEl?.dataset?.nid || null;
+      if (!nodeId) return;
+      // Emit global event; interactions.js will mutate params and re-render.
+      window.dispatchEvent(new CustomEvent('makeMap:addPair', { detail:{ nid: nodeId } }));
+    });
+    header.appendChild(addBtn);
+  }
+
   node.appendChild(header);
 
   const pins = document.createElement('div');
   pins.className = 'pins';
 
-  const inExec = execPins(def?.inputs || []);
-  const inData = dataPins(def?.inputs || []);
+  // Use augmented inputs for makeMap so extra pairs from params render as pins
+  const effInputs = augmentedInputsForMakeMap(def, params);
+
+  const inExec  = execPins(effInputs || []);
+  const inData  = dataPins(effInputs || []);
   const outExec = execPins(def?.outputs || []);
   const outData = dataPins(def?.outputs || []);
 

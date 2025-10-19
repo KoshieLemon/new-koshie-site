@@ -1,41 +1,44 @@
 // Shared types, colors, shapes, and CSS for node UI.
 
 function isArrayType(t){ return /^array<.+>$/.test(String(t||'')); }
-function baseOf(t){ return isArrayType(t) ? 'array' : null; }
+function isMapType(t){ return /^map<\s*[^,>]+\s*,\s*[^>]+>$/.test(String(t||'')); }
+function baseOf(t){
+  const s = String(t||'');
+  if (isArrayType(s)) return 'array';
+  if (isMapType(s))   return 'map';
+  return null;
+}
 
 export const TYPE_EQUIV = {
-  // primitives and aliases
-  any:'json', // default "any object"
+  any:'json',
   boolean:'boolean', string:'string',
   int:'number', float:'number', number:'number', bigint:'bigint',
   json:'json', buffer:'buffer', stream:'stream', date:'date',
   timestamp_ms:'timestamp_ms', duration_ms:'duration_ms',
   url:'url', color:'color', char:'string',
 
-  // Discord objects
   Client:'Client', Guild:'Guild', User:'User', GuildMember:'GuildMember', Role:'Role',
   Message:'Message', Attachment:'Attachment', Webhook:'Webhook', Invite:'Invite',
 
-  // Channels
   Channel:'Channel',
   TextBasedChannel:'TextBasedChannel', VoiceBasedChannel:'VoiceBasedChannel', CategoryChannel:'CategoryChannel',
   TextChannel:'TextBasedChannel', ThreadChannel:'TextBasedChannel', DMChannel:'TextBasedChannel',
   NewsChannel:'TextBasedChannel', ForumChannel:'TextBasedChannel',
   VoiceChannel:'VoiceBasedChannel', StageChannel:'VoiceBasedChannel',
 
-  // Interactions
   Interaction:'Interaction',
   ChatInputCommandInteraction:'Interaction',
   MessageComponentInteraction:'Interaction',
   ModalSubmitInteraction:'Interaction',
   AutocompleteInteraction:'Interaction',
 
-  // Enums
   PermissionName:'PermissionName',
   PermissionState:'PermissionState',
-
-  // Composite entry
   PermissionsEntry:'PermissionsEntry',
+
+  Permissions:'Permissions',
+  UserPermissions:'UserPermissions',
+  PermissionClient:'PermissionClient',
 
   Slowmode:'Slowmode',
   HideAfterInactivity:'HideAfterInactivity'
@@ -57,11 +60,12 @@ export const TYPE_COLORS = {
   PermissionState:'#f59e0b',
   PermissionsEntry:'#8b5cf6',
 
-  Slowmode:'#f59e0b',
-  HideAfterInactivity:'#8b5cf6',
+  Permissions:'#8b5cf6',
+  UserPermissions:'#0ea5e9',
+  PermissionClient:'#22d3ee',
 
-  // Structural kind
-  array:'#94a3b8'
+  array:'#94a3b8',
+  map:'#06b6d4'
 };
 
 export function colorKeyFor(type){
@@ -81,6 +85,9 @@ export function ensureTypeStylesInjected(){
   let css = `
   .node{position:absolute;background:#0b1020;border:1px solid #1f2937;border-radius:12px;box-shadow:0 4px 16px #0008}
   .node .header{display:flex;align-items:center;justify-content:flex-start;padding:8px 10px;color:#e5e7eb;background:#0a0f1a;border-bottom:1px solid #1f2937;border-top-left-radius:12px;border-top-right-radius:12px}
+  .node .header .title{flex:1}
+  .node .header .icon-btn{margin-left:auto;background:#111827;border:1px solid #374151;color:#e5e7eb;border-radius:6px;width:22px;height:22px;line-height:20px;text-align:center;padding:0;cursor:pointer}
+  .node .header .icon-btn:hover{background:#1f2937}
   .node .pins{display:grid;grid-template-columns:auto auto;gap:8px 18px;padding:8px 10px}
   .node.outputs-only .pins{grid-template-columns:1fr;padding:8px 10px}
   .node.outputs-only .pins .side.outputs{justify-self:end;width:max-content}
@@ -108,6 +115,10 @@ export function ensureTypeStylesInjected(){
     content:'[]';position:absolute;left:50%;top:50%;transform:translate(-50%,-55%);
     font:600 8px/1 system-ui;color:currentColor
   }
+  .pin.data.t-map .jack::after{
+    content:'{}';position:absolute;left:50%;top:50%;transform:translate(-50%,-55%);
+    font:700 8px/1 system-ui;color:currentColor
+  }
   `;
   for (const [key, hex] of Object.entries(TYPE_COLORS)){
     const cls = cssToken(key);
@@ -119,7 +130,6 @@ export function ensureTypeStylesInjected(){
   style.textContent = css; document.head.appendChild(style);
 }
 
-// Shapes for Break Object (unchanged)
 export const DISCORD_SHAPES = {
   Client:'hex', Guild:'hex', User:'circle', GuildMember:'circle', Role:'diamond',
   Message:'rect', Attachment:'rect', Webhook:'diamond', Invite:'diamond',
@@ -130,11 +140,25 @@ export const DISCORD_SHAPES = {
   HideAfterInactivity:'badge'
 };
 
+// keep generics so ForEach(Map) can infer K,V
 export function toFinalPrimitive(t){
   const base = baseOf(t);
-  if (base) return base;
-  const k = TYPE_EQUIV[t] || t || 'string';
-  return (k === 'int' || k === 'float') ? 'number' : k;
+  if (!base){
+    const k = TYPE_EQUIV[t] || t || 'string';
+    return (k === 'int' || k === 'float') ? 'number' : k;
+  }
+  return String(t);
 }
 
 if (typeof window !== 'undefined') window.DISCORD_SHAPES = DISCORD_SHAPES;
+
+// Enum values for UI dropdowns
+if (typeof window !== 'undefined'){
+  window.ENUMS = window.ENUMS || {};
+  if (!Array.isArray(window.ENUMS.Slowmode)){
+    window.ENUMS.Slowmode = ['Off','5s','10s','15s','30s','1m','2m','5m','10m'];
+  }
+  if (!Array.isArray(window.ENUMS.HideAfterInactivity)){
+    window.ENUMS.HideAfterInactivity = ['1h','24h','3d','7d'];
+  }
+}

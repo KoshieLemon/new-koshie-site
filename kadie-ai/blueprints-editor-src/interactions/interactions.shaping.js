@@ -1,4 +1,4 @@
-// Dynamic node shaping: Break Object, mirror typing, visibility rules, and ForEach element typing.
+// Dynamic node shaping: Break Object, mirror typing, visibility rules, ForEach specialization, and Enum literal shaping.
 
 import { state } from '../core/state.js';
 import { renderAll } from '../render/render.editor.js';
@@ -19,6 +19,25 @@ export function getOutputType(defId,pinName){
 function arrayInnerType(t){
   const m = /^array<\s*([^>]+)\s*>$/i.exec(String(t||''));
   return m ? m[1] : null;
+}
+
+// parse map<K,V> and aliases
+function mapKeyValueTypes(t){
+  const s = String(t || '').trim();
+  const m = /^map<\s*([^,>]+)\s*,\s*([^>]+)\s*>$/i.exec(s);
+  if (m) return { key:m[1].trim(), value:m[2].trim() };
+  // alias: UserPermissions behaves like map<PermissionClient, Permissions>
+  if (s === 'UserPermissions') return { key:'PermissionClient', value:'Permissions' };
+  return { key:'any', value:'any' };
+}
+
+function enumTypeNames(){
+  const E = (typeof window !== 'undefined' && window.ENUMS) || {};
+  return Object.keys(E);
+}
+function isKnownEnumType(t){
+  const E = (typeof window !== 'undefined' && window.ENUMS) || {};
+  return !!(t && Array.isArray(E[t]));
 }
 
 // ---------- Break Object shaping ----------
@@ -68,7 +87,26 @@ const FALLBACK_SHAPE = {
     { name:'guildId', type:'string' }, { name:'commandName', type:'string' }, { name:'customId', type:'string' },
     { name:'createdTimestamp', type:'number' }, { name:'type', type:'string' }
   ],
-  // NEW: PermissionsEntry shape → precise enum pins
+
+  // Permissions container → expose the internal array
+  Permissions: [
+    { name:'entries', type:'array<PermissionsEntry>' }
+  ],
+
+  // UserPermissions wrapper → expose inner map<PermissionClient, Permissions>
+  UserPermissions: [
+    { name:'map', type:'map<PermissionClient, Permissions>' }
+  ],
+
+  // New: key type for role-or-user
+  PermissionClient: [
+    { name:'id',   type:'string' },
+    { name:'name', type:'string' },
+    { name:'role', type:'Role'   },
+    { name:'user', type:'User'   }
+  ],
+
+  // Entries themselves use precise enums
   PermissionsEntry: [
     { name:'name',  type:'PermissionName'  },
     { name:'state', type:'PermissionState' }
@@ -130,7 +168,7 @@ export function applyBreakObjectShape(nid, sourceType, whichPin='object'){
     name: 'Break Object',
     category: 'Utilities',
     kind: 'exec',
-    version: '1.1.2',
+    version: '1.1.5',
     inputs: inPins,
     outputs: outPins,
     hasExecIn: true, hasExecOut: true,
@@ -142,30 +180,35 @@ export function applyBreakObjectShape(nid, sourceType, whichPin='object'){
   renderAll();
 }
 
-// ---------- Mirror shape with special handling for ForEach ----------
+// ---------- Mirror shape with special handling for ForEach and ForEachMap ----------
 export function applyMirrorShape(nid, def, sourceType){
   const n = state.nodes.get(nid); if (!n || !def?.runtime?.shape) return;
   const { mirrorFrom, targets } = def.runtime.shape || {};
-  if (!mirrorFrom || !targets || !Array.isArray(targets)) return;
+  if (!mirrorFrom) return;
 
   const base = n._defOverride || def;
   const inPins  = (base.inputs  || []).map(p => ({...p}));
   const outPins = (base.outputs || []).map(p => ({...p}));
 
-  // ForEach: value type follows array element; index is int
   if (def.id === 'flow.forEach'){
     const elem = arrayInnerType(sourceType) || 'any';
     for (const p of outPins){
       if (p.name === 'value') p.type = elem;
       if (p.name === 'index') p.type = 'int';
     }
-  }
-
-  for (const t of targets){
-    const [side,name] = String(t).split('.');
-    const arr = side === 'outputs' ? outPins : inPins;
-    const pin = arr.find(p => p.name === name);
-    if (pin) pin.type = sourceType || pin.type;
+  } else if (def.id === 'flow.forEachMap'){
+    const kv = mapKeyValueTypes(sourceType || 'map<any,any>');
+    for (const p of outPins){
+      if (p.name === 'key')   p.type = kv.key;
+      if (p.name === 'value') p.type = kv.value;
+    }
+  } else if (targets && Array.isArray(targets)){
+    for (const t of targets){
+      const [side,name] = String(t).split('.');
+      const arr = side === 'outputs' ? outPins : inPins;
+      const pin = arr.find(p => p.name === name);
+      if (pin) pin.type = sourceType || pin.type;
+    }
   }
 
   n._defOverride = {
@@ -219,4 +262,42 @@ export function applyVisibilityRules(nid){
     inputs: inPins, outputs: outPins, hasExecIn: true, hasExecOut: true,
     pins: { in: inPins, out: outPins }, params: inPins, returns: outPins
   };
+}
+
+/* ---------- Enum Literal shaping ---------- */
+export function applyEnumLiteralShape(nid){
+  const n = state.nodes.get(nid); if (!n) return;
+  const def = getDef(n.defId);
+  if (!def) return;
+
+  const isEnumLiteral =
+    def.id === 'literals.getLiteralEnum' ||
+    (def.runtime && def.runtime.shape && def.runtime.shape.kind === 'enum-literal');
+  if (!isEnumLiteral) return;
+
+  const params = n.params || {};
+  const sel = String(params.enumType || '').trim();
+  const valid = isKnownEnumType(sel);
+  const literalType = valid ? sel : 'string';
+
+  const enumTypes = enumTypeNames();
+
+  const inPins = [
+    { name: 'enumType', type: 'string', enum: enumTypes, desc: 'Enum type' },
+    { name: 'literal',  type: literalType, desc: 'Enum literal' }
+  ];
+  const outPins = [
+    { name: 'value', type: literalType, desc: 'Selected enum literal' }
+  ];
+
+  n._defOverride = {
+    id: def.id, name: def.name, category: def.category, kind: def.kind, version: def.version,
+    inputs: inPins, outputs: outPins, hasExecIn: false, hasExecOut: false,
+    pins: { in: inPins, out: outPins },
+    params: n.params || {},
+    returns: outPins,
+    runtime: def.runtime
+  };
+
+  renderAll();
 }

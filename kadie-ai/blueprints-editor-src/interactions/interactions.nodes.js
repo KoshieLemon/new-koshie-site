@@ -5,7 +5,7 @@ import { els } from '../core/dom.js';
 import { state, uid, pushHistory, markDirty } from '../core/state.js';
 import { renderAll } from '../render/render.editor.js';
 import { openActionsMenu } from '../menus/actions-menu.js';
-import { applyVisibilityRules } from './interactions.shaping.js';
+import { applyVisibilityRules, applyEnumLiteralShape } from './interactions.shaping.js';
 
 function isInteractiveTarget(t){
   return !!t.closest?.('input, textarea, select, button, [contenteditable], .pin-input, .literal-wrap');
@@ -67,7 +67,7 @@ export function enableNodeInteractions(el, model, onStartDrag){
     });
   });
 
-  // Persist literal edits and re-evaluate visibility
+  // Persist literal edits and re-evaluate visibility + enum shape
   el.addEventListener('input', (ev)=>{
     const t = ev.target;
     if (!t.classList || !t.classList.contains('pin-input')) return;
@@ -77,13 +77,21 @@ export function enableNodeInteractions(el, model, onStartDrag){
     const n = state.nodes.get(model.id);
     if (!n.params) n.params = {};
     n.params[pinName] = t.type === 'checkbox' ? !!t.checked : t.value;
+
+    // Apply visibility rules first, then re-shape enum literal if relevant.
     applyVisibilityRules(model.id);
+    applyEnumLiteralShape(model.id);
+
     markDirty(els.dirty);
     renderAll();
   });
   el.addEventListener('change', (ev)=>{
     const t = ev.target;
     if (!t.classList || !t.classList.contains('pin-input')) return;
+
+    // Ensure enum literal shape is applied on selects as well.
+    applyEnumLiteralShape(model.id);
+
     pushHistory();
   });
 }
@@ -92,7 +100,11 @@ export function addNodeAt(defId, x, y, params = {}){
   const n = { id: uid('N'), defId, x: Math.round(x), y: Math.round(y), params: { ...(params||{}) } };
   state.nodes.set(n.id, n);
   state.sel.clear(); state.sel.add(n.id);
+
+  // Initialize shape for enum literal nodes immediately.
+  applyEnumLiteralShape(n.id);
   applyVisibilityRules(n.id);
+
   renderAll(); pushHistory(); markDirty(els.dirty);
   return n;
 }
