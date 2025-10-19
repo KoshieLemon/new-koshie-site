@@ -10,6 +10,9 @@ export const state = {
   nodes: new Map(), // { id, defId, x, y, params? }
   edges: new Map(), // { id, kind:'exec'|'data', from:{nid,pin}, to:{nid,pin} }
 
+  // current selection
+  sel: new Set(),   // set of node ids
+
   // change tracking
   _dirtyEl: null,
   onDirty: null, // optional callback
@@ -38,7 +41,7 @@ export function clearDirty(el) {
   if (state._dirtyEl) state._dirtyEl.classList.remove('show');
 }
 
-// ---- snapshot helpers ----
+// ---- internal helpers ----
 function cloneNodesMap(m) {
   const out = new Map();
   for (const [k, v] of m.entries()) {
@@ -51,6 +54,10 @@ function cloneEdgesMap(m) {
   const out = new Map();
   for (const [k, v] of m.entries()) out.set(k, JSON.parse(JSON.stringify(v)));
   return out;
+}
+
+function cloneSelSet(s) {
+  return s instanceof Set ? new Set([...s]) : new Set();
 }
 
 // returns a JSON string (site code expects JSON.parse(snapshot()))
@@ -69,6 +76,7 @@ export function loadSnapshot(data, afterRender) {
 
   state.nodes = new Map(nodesArr.map(n => [n.id, { ...n }]));
   state.edges = new Map(edgesArr.map(e => [e.id, { ...e }]));
+  state.sel   = new Set(); // clear selection on load
 
   clearHistory();
   pushHistory();
@@ -84,6 +92,7 @@ export function pushHistory() {
     bpName: state.bpName,
     nodes: cloneNodesMap(state.nodes),
     edges: cloneEdgesMap(state.edges),
+    sel:   cloneSelSet(state.sel),
   });
   state._future.length = 0;
   markDirty();
@@ -98,6 +107,7 @@ export function clearHistory() {
     bpName: state.bpName,
     nodes: cloneNodesMap(state.nodes),
     edges: cloneEdgesMap(state.edges),
+    sel:   cloneSelSet(state.sel),
   });
   clearDirty();
 }
@@ -113,6 +123,7 @@ export function undo(afterRender) {
   state.bpName = prev.bpName;
   state.nodes = cloneNodesMap(prev.nodes);
   state.edges = cloneEdgesMap(prev.edges);
+  state.sel   = cloneSelSet(prev.sel);
 
   if (afterRender) afterRender();
   markDirty();
@@ -128,6 +139,7 @@ export function redo(afterRender) {
   state.bpName = next.bpName;
   state.nodes = cloneNodesMap(next.nodes);
   state.edges = cloneEdgesMap(next.edges);
+  state.sel   = cloneSelSet(next.sel);
 
   if (afterRender) afterRender();
   markDirty();

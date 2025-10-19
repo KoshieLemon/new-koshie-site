@@ -4,6 +4,9 @@ import { els } from '../core/dom.js';
 import { buildNodeDOM } from './render.node.js';
 import { fitSvg, drawWires } from './render.wires.js';
 
+// ensure selection set exists
+if (!(state.sel instanceof Set)) state.sel = new Set();
+
 let nodeInteractionHook = null;
 export function registerNodeInteractions(fn){ nodeInteractionHook = fn; }
 
@@ -100,7 +103,8 @@ export function renderNode(n){
     if (lit) lit.style.display = wired ? 'none' : '';
   }
 
-  el.classList.toggle('selected', state.sel.has(n.id));
+  const isSelected = state.sel instanceof Set && state.sel.has(n.id);
+  el.classList.toggle('selected', isSelected);
 }
 
 export function renderAll(){
