@@ -8,7 +8,7 @@ import { createTypePicker } from './variables-typepicker.js';
 import { renderDock } from './variables-render.js';
 import { loadVariables, saveVariables, loadGuildData } from './variables-api.js';
 
-// All supported base types
+// All supported base types (kept identical to original list)
 const ALL_TYPES = [
   'boolean','string','int','float','number','bigint','json','buffer','stream','date',
   'timestamp_ms','duration_ms','url','color',
@@ -43,10 +43,13 @@ const ALL_TYPES = [
   VDock.gid = gid || null;
   VDock.BOT_BASE = BOT_BASE || '';
 
-  // Minor dock aesthetics
-  Object.assign(els.dock.style, { background:'#0a0f19', borderLeft:'1px solid #132133' });
+  // Minor dock aesthetics for a cleaner panel
+  Object.assign(els.dock.style, {
+    background:'#0a0f19',
+    borderLeft:'1px solid #132133'
+  });
 
-  // Width resizer
+  // Width resizer (right-anchored)
   const clamp = (n,min,max)=> Math.max(min, Math.min(max, n));
   const savedW = Number(localStorage.getItem(KEYS.WIDTH) || 0);
   if (savedW) els.dock.style.width = `${clamp(savedW, LAYOUT.MIN_W, LAYOUT.MAX_W)}px`;
@@ -81,7 +84,7 @@ const ALL_TYPES = [
     els.resizer.addEventListener('touchstart', onDown, { passive:false });
   }
 
-  // Height sync
+  // Height sync with editor
   function ensureHeight(){
     const h = els.editor?.getBoundingClientRect().height || Math.round(window.innerHeight * 0.68);
     els.dock.style.maxHeight = `${h}px`;
@@ -91,25 +94,16 @@ const ALL_TYPES = [
   ensureHeight();
   window.addEventListener('resize', ensureHeight);
 
-  // Dirty state
+  // Dirty state helpers
   function setVarsDirty(d){
     VDock.varsDirty = !!d;
     if (VDock.varsDirty) markDirty(els.dirty);
   }
 
-  // Expose hooks for renderer
+  // Expose minimal orchestrator hooks for renderer
   window.__VDock_setVarsDirty = setVarsDirty;
   window.__VDock_addVar = (v)=>{ VDock.VARS.push(v); setVarsDirty(true); renderDock(); };
-  window.__VDock_removeVar = (idx)=>{
-    const victim = VDock.VARS[idx];
-    if (victim?.name) {
-      if (!Array.isArray(VDock.DELETED)) VDock.DELETED = [];
-      VDock.DELETED.push(String(victim.name));
-    }
-    VDock.VARS = VDock.VARS.filter((_,i)=> i !== idx);
-    setVarsDirty(true);
-    renderDock();
-  };
+  window.__VDock_removeVar = (idx)=>{ VDock.VARS = VDock.VARS.filter((_,i)=> i !== idx); setVarsDirty(true); renderDock(); };
 
   // Type picker
   const typePicker = createTypePicker(ALL_TYPES);
@@ -134,13 +128,12 @@ const ALL_TYPES = [
   els.revertBtn?.addEventListener('click', ()=>{
     if (!VDock.varsDirty) return;
     VDock.VARS = JSON.parse(JSON.stringify(VDock.SNAP));
-    VDock.DELETED = []; // drop tombstones on revert
     setVarsDirty(false);
     clearDirty(els.dirty);
     renderDock();
   });
 
-  // External add
+  // External hook to add variables
   window.addEventListener('variables:add', (e)=>{
     const { name, type } = e.detail || {};
     if (!name || !type) return;
@@ -154,7 +147,7 @@ const ALL_TYPES = [
     let i = 2; while (taken.has(`${n}_${i}`)) i++; return `${n}_${i}`;
   }
 
-  // Boot
+  // Load guild and variables then render
   (async function bootstrap(){
     try{
       if (VDock.gid){

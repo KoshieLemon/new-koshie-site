@@ -6,23 +6,11 @@ import { TYPE_COLORS, colorKeyFor } from '../render/render.types.js';
 export const VDock = {
   gid: null,
   BOT_BASE: null,
-
   VARS: [],          // editable variables [{name,type}]
   SNAP: [],          // last-saved snapshot
-
-  // Track names removed since last save; used to force server-side deletion.
-  DELETED: [],
-
-  // inherited guild data
-  FULL: { channels: [], roles: [], messages: [] },
-
-  // Feature flags (runtime endpoints may not exist in some envs)
-  FEATURES: {
-    messages: false, // disable message fetch to avoid 404s by default
-  },
-
+  FULL: { channels: [], roles: [], messages: [] }, // inherited guild data
   varsDirty: false,
-  els: null
+  els: null          // resolved DOM refs
 };
 
 // Persistent keys and layout constraints

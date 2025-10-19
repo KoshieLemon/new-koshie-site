@@ -34,7 +34,7 @@ function urlsFor(path){
   ];
 }
 
-// ---------- Local snapshot ----------
+// Local snapshot
 export function readLocalSnap(){
   try{ const s = localStorage.getItem(KEYS.LOCAL_SNAP); const a = s?JSON.parse(s):[]; return Array.isArray(a)?a:[]; }catch{ return []; }
 }
@@ -42,36 +42,24 @@ export function writeLocalSnap(arr){
   try{ localStorage.setItem(KEYS.LOCAL_SNAP, JSON.stringify(arr||[])); }catch{}
 }
 
-// ---------- Variables CRUD ----------
+// Variables CRUD
 export async function loadVariables(){
-  if (!VDock.gid){ VDock.VARS = []; VDock.SNAP = []; VDock.DELETED = []; return; }
+  if (!VDock.gid){ VDock.VARS = []; VDock.SNAP = []; return; }
   const server = await fetchFirstOkJson(urlsFor('variables'));
   const base = Array.isArray(server) && server.length ? server : readLocalSnap();
   VDock.SNAP = JSON.parse(JSON.stringify(base));
   VDock.VARS = JSON.parse(JSON.stringify(base));
-  VDock.DELETED = []; // reset tombstones on fresh load
 }
-
 export async function saveVariables(){
-  // New format: include explicit deletions and a replace flag.
-  const full = JSON.parse(JSON.stringify(VDock.VARS));
-  const deleted = Array.isArray(VDock.DELETED) ? [...VDock.DELETED] : [];
-
-  let ok = await postFirstOk(urlsFor('variables'), { vars: full, deleted, replace: true });
-  if (!ok){
-    // Legacy fallback: some servers expect a bare array
-    ok = await postFirstOk(urlsFor('variables'), full);
-  }
-
+  const ok = await postFirstOk(urlsFor('variables'), VDock.VARS);
   if (ok){
     VDock.SNAP = JSON.parse(JSON.stringify(VDock.VARS));
-    VDock.DELETED = [];
     writeLocalSnap(VDock.SNAP);
   }
   return ok;
 }
 
-// ---------- Guild data ----------
+// Guild data
 async function fetchFirstOk(path){ return await fetchFirstOkJson(urlsFor(path)); }
 
 function normalizeChannels(arr){
@@ -90,11 +78,7 @@ export async function loadGuildData(){
   if (!VDock.gid){ VDock.FULL = { channels:[], roles:[], messages:[] }; return; }
   const ch = await fetchFirstOk('channels');
   const rl = await fetchFirstOk('roles');
-
-  // Avoid 404 noise in dev or when endpoint is absent.
-  const useMessages = !!VDock.FEATURES?.messages;
-  const ms = useMessages ? await fetchFirstOk('messages') : [];
-
+  const ms = await fetchFirstOk('messages');
   VDock.FULL.channels = normalizeChannels(ch);
   VDock.FULL.roles    = normalizeRoles(rl);
   VDock.FULL.messages = Array.isArray(ms) ? ms : [];
