@@ -4,6 +4,17 @@
 
 import { requestOpen, notifyClosed } from './menu-manager.js';
 
+function canonType(t){
+  const s = String(t||'').trim();
+  if (!s) return 'string';
+  // T[] -> array<T>
+  if (s.endsWith('[]')) return `array<${s.slice(0, -2)}>`;
+  // map<T> -> map<string,T>
+  const m1 = /^map<\s*([^,>]+)\s*>$/i.exec(s);
+  if (m1) return `map<string, ${m1[1].trim()}>`;
+  return s;
+}
+
 // Public API
 export function openVariableActionMenu(x, y, payload){
   const id = 'var-action-menu';
@@ -19,7 +30,7 @@ export function openVariableActionMenu(x, y, payload){
     position:'fixed', left:`${x}px`, top:`${y}px`, zIndex: 2147483647,
     background:'#0a0f19', color:'#e5e7eb',
     border:'1px solid #1f2937', borderRadius:'10px',
-    boxShadow:'0 14px 36px rgba(0,0,0,.6)', padding:'6px', minWidth:'170px',
+    boxShadow:'0 14px 36px rgba(0,0,0,6)', padding:'6px', minWidth:'170px',
     fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'
   });
 
@@ -71,11 +82,13 @@ export function openVariableActionMenu(x, y, payload){
   };
 
   btnGet.onclick = ()=>{
-    spawn('get.variable', {
+    const normalizedType = canonType(payload?.type || 'string');
+    spawn('flow.variable', {
       name: payload?.name || '',
-      type: payload?.type || 'string',
+      type: normalizedType,
       readonly: !!payload?.readonly,
       id: payload?.id ?? null,
+      // keep original 'kind' for imported refs; fall back to base type
       kind: payload?.kind || payload?.type || null,
       source: payload?.readonly ? 'server' : 'user'
     });

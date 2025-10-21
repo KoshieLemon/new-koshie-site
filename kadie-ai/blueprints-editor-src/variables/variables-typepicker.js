@@ -1,5 +1,6 @@
 // variables-typepicker.js
 // Searchable type picker with Single/Array/Map modes.
+// Canonicalizes structures to array<T> and map<string,T>.
 
 import { typeColor } from './variables-ctx.js';
 
@@ -13,7 +14,7 @@ export function createTypePicker(allTypes){
       position:'fixed', zIndex: 2147483647, display:'none',
       minWidth:'280px', maxWidth:'420px', maxHeight:'60vh', overflow:'auto',
       background:'#0a0f19', color:'#e5e7eb', border:'1px solid #1f2937',
-      borderRadius:'10px', boxShadow:'0 14px 36px rgba(0,0,0,.6)', padding:'8px'
+      borderRadius:'10px', boxShadow:'0 14px 36px rgba(0,0,0,6)', padding:'8px'
     });
 
     const search = document.createElement('input');
@@ -46,6 +47,11 @@ export function createTypePicker(allTypes){
     let onCommit = null;
     let currentMode = 'single';
 
+    // Helpers to detect legacy encodings and canonicalize
+    const isArrayLegacy = (s)=> String(s||'').endsWith('[]');
+    const isArrayCanon  = (s)=> /^array<.+>$/.test(String(s||''));
+    const isMapAny      = (s)=> /^map<.+>$/.test(String(s||''));
+
     function paintList(){
       const q = search.value.trim().toLowerCase();
       list.replaceChildren();
@@ -62,8 +68,8 @@ export function createTypePicker(allTypes){
         btn.onclick = ()=> {
           if (!onCommit) return;
           let final = t;
-          if (currentMode==='array') final = `${t}[]`;
-          else if (currentMode==='map') final = `map<${t}>`;
+          if (currentMode==='array') final = `array<${t}>`;
+          else if (currentMode==='map') final = `map<string, ${t}>`;
           onCommit(final);
           close();
         };
@@ -73,10 +79,11 @@ export function createTypePicker(allTypes){
 
     function openAt(clientX, clientY, currentType, commit){
       onCommit = commit;
-      // infer mode from currentType
-      currentMode = currentType?.endsWith('[]') ? 'array'
-                  : /^map<.+>$/.test(currentType||'') ? 'map'
-                  : 'single';
+      const cur = String(currentType||'');
+      // infer mode from currentType; support legacy T[], map<T>, canonical array<T>, map<K,V>
+      if (isArrayLegacy(cur) || isArrayCanon(cur)) currentMode = 'array';
+      else if (isMapAny(cur)) currentMode = 'map';
+      else currentMode = 'single';
       setSeg(currentMode==='single'?segSingle:currentMode==='array'?segArray:segMap);
 
       search.value=''; paintList();
