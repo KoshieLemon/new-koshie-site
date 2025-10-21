@@ -41,7 +41,17 @@ export const TYPE_EQUIV = {
   PermissionClient:'PermissionClient',
 
   Slowmode:'Slowmode',
-  HideAfterInactivity:'HideAfterInactivity'
+  HideAfterInactivity:'HideAfterInactivity',
+
+  MessageHas:'string',
+  AuthorType:'string',
+
+  VariableType:'string',
+  ChannelType:'string',
+
+  // NEW
+  Emoji:'Emoji',
+  Reaction:'Reaction'
 };
 
 export const TYPE_COLORS = {
@@ -49,12 +59,14 @@ export const TYPE_COLORS = {
   buffer:'#6b7280', stream:'#6366f1', date:'#ec4899', timestamp_ms:'#ef4444', duration_ms:'#f97316',
   url:'#0ea5e9', color:'#84cc16',
 
-  Client:'#0ea5e9', Guild:'#22c55e', User:'#f472b6', GuildMember:'#2dd4bf', Role:'#f43f5e',
+  Client:'#0ea5e9', Guild:'#22c55e', User:'#f472b6', GuildMember:'#2dd4bf', Role:'-#f43f5e'.slice(1),
   Message:'#60a5fa', Attachment:'#94a3b8', Webhook:'#8b5cf6', Invite:'#fde047',
 
   Channel:'#16a34a',
   TextBasedChannel:'#38bdf8', VoiceBasedChannel:'#06b6d4', CategoryChannel:'#a3e635',
   Interaction:'#fb7185',
+  Slowmode:'#a3a3a3',
+  HideAfterInactivity:'#a3a3a3',
 
   PermissionName:'#a855f7',
   PermissionState:'#f59e0b',
@@ -65,7 +77,11 @@ export const TYPE_COLORS = {
   PermissionClient:'#22d3ee',
 
   array:'#94a3b8',
-  map:'#06b6d4'
+  map:'#06b6d4',
+
+  // NEW
+  Emoji:'#ff6ac1',
+  Reaction:'#ffb454'
 };
 
 export function colorKeyFor(type){
@@ -87,7 +103,7 @@ export function ensureTypeStylesInjected(){
   .node .header{display:flex;align-items:center;justify-content:flex-start;padding:8px 10px;color:#e5e7eb;background:#0a0f1a;border-bottom:1px solid #1f2937;border-top-left-radius:12px;border-top-right-radius:12px}
   .node .header .title{flex:1}
   .node .header .icon-btn{margin-left:auto;background:#111827;border:1px solid #374151;color:#e5e7eb;border-radius:6px;width:22px;height:22px;line-height:20px;text-align:center;padding:0;cursor:pointer}
-  .node .header .icon-btn:hover{background:#1f2937}
+  .node .icon-btn:hover{background:#1f2937}
   .node .pins{display:grid;grid-template-columns:auto auto;gap:8px 18px;padding:8px 10px}
   .node.outputs-only .pins{grid-template-columns:1fr;padding:8px 10px}
   .node.outputs-only .pins .side.outputs{justify-self:end;width:max-content}
@@ -111,14 +127,8 @@ export function ensureTypeStylesInjected(){
   .pin textarea.literal{line-height:1.2;min-height:18px}
   svg#wires path.wire{stroke:var(--wire, #64748b);stroke-width:2;fill:none;opacity:.95}
 
-  .pin.data.t-array .jack::after{
-    content:'[]';position:absolute;left:50%;top:50%;transform:translate(-50%,-55%);
-    font:600 8px/1 system-ui;color:currentColor
-  }
-  .pin.data.t-map .jack::after{
-    content:'{}';position:absolute;left:50%;top:50%;transform:translate(-50%,-55%);
-    font:700 8px/1 system-ui;color:currentColor
-  }
+  .pin.data.t-array .jack::after{content:'[]';position:absolute;left:50%;top:50%;transform:translate(-50%,-55%);font:600 8px/1 system-ui;color:currentColor}
+  .pin.data.t-map .jack::after{content:'{}';position:absolute;left:50%;top:50%;transform:translate(-50%,-55%);font:700 8px/1 system-ui;color:currentColor}
   `;
   for (const [key, hex] of Object.entries(TYPE_COLORS)){
     const cls = cssToken(key);
@@ -140,7 +150,6 @@ export const DISCORD_SHAPES = {
   HideAfterInactivity:'badge'
 };
 
-// keep generics so ForEach(Map) can infer K,V
 export function toFinalPrimitive(t){
   const base = baseOf(t);
   if (!base){
@@ -152,7 +161,7 @@ export function toFinalPrimitive(t){
 
 if (typeof window !== 'undefined') window.DISCORD_SHAPES = DISCORD_SHAPES;
 
-// Enum values for UI dropdowns
+// Enum values for UI dropdowns (originals kept) + VariableType + ChannelType
 if (typeof window !== 'undefined'){
   window.ENUMS = window.ENUMS || {};
   if (!Array.isArray(window.ENUMS.Slowmode)){
@@ -160,5 +169,66 @@ if (typeof window !== 'undefined'){
   }
   if (!Array.isArray(window.ENUMS.HideAfterInactivity)){
     window.ENUMS.HideAfterInactivity = ['1h','24h','3d','7d'];
+  }
+  if (!Array.isArray(window.ENUMS.MessageHas)){
+    window.ENUMS.MessageHas = ['link','embed','file'];
+  }
+  if (!Array.isArray(window.ENUMS.AuthorType)){
+    window.ENUMS.AuthorType = ['user','bot','webhook'];
+  }
+  // VariableType (kept)
+  if (!Array.isArray(window.ENUMS.VariableType)){
+    const base = [
+      'any','json','string','number','int','float','boolean','date','timestamp_ms','duration_ms','url','color','bigint'
+    ];
+    const discordish = [
+      'Client','Guild','User','GuildMember','Role','Channel','TextBasedChannel','VoiceBasedChannel','CategoryChannel',
+      'TextChannel','ThreadChannel','DMChannel','NewsChannel','ForumChannel','VoiceChannel','StageChannel',
+      'Message','Attachment','Webhook','Invite','Interaction',
+      'ChatInputCommandInteraction','MessageComponentInteraction','ModalSubmitInteraction','AutocompleteInteraction',
+      // NEW
+      'Emoji','Reaction'
+    ];
+    const perms = ['PermissionName','PermissionState','PermissionsEntry','Permissions','UserPermissions','PermissionClient'];
+    const special = ['Slowmode','HideAfterInactivity'];
+    const fromEquiv = Object.keys(TYPE_EQUIV);
+    const set = new Set([...base, ...discordish, ...perms, ...special, ...fromEquiv]);
+    window.ENUMS.VariableType = [...set].sort((a,b)=> String(a).localeCompare(String(b)));
+  }
+  // NEW: ChannelType for Create Channel
+  if (!Array.isArray(window.ENUMS.ChannelType)){
+    window.ENUMS.ChannelType = ['TextChannel','NewsChannel','ForumChannel','VoiceChannel','StageChannel'];
+  }
+
+  // NEW: Break Object field fallbacks for Emoji and Reaction
+  window.BREAK_FALLBACKS = window.BREAK_FALLBACKS || {};
+  if (!Array.isArray(window.BREAK_FALLBACKS.Emoji)){
+    window.BREAK_FALLBACKS.Emoji = [
+      { name:'id', type:'string' },
+      { name:'name', type:'string' },
+      { name:'animated', type:'boolean' },
+      { name:'available', type:'boolean' },
+      { name:'managed', type:'boolean' },
+      { name:'requiresColons', type:'boolean' },
+      { name:'createdTimestamp', type:'number' },
+      { name:'guildId', type:'string' },
+      { name:'identifier', type:'string' },
+      { name:'url', type:'string' }
+    ];
+  }
+  if (!Array.isArray(window.BREAK_FALLBACKS.Reaction)){
+    window.BREAK_FALLBACKS.Reaction = [
+      { name:'count', type:'number' },
+      { name:'me', type:'boolean' },
+      { name:'emoji', type:'Emoji' },
+      { name:'emojiId', type:'string' },
+      { name:'emojiName', type:'string' },
+      { name:'emojiAnimated', type:'boolean' },
+      { name:'emojiIdentifier', type:'string' },
+      { name:'messageId', type:'string' },
+      { name:'channelId', type:'string' },
+      { name:'guildId', type:'string' },
+      { name:'usersCount', type:'number' }
+    ];
   }
 }

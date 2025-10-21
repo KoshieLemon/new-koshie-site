@@ -60,3 +60,28 @@ export function drawWires(){
     els.wiresSvg.appendChild(p);
   }
 }
+
+// --- Added: safe public recalc and listeners (no removals) ---
+export function recalc(){
+  if (!els || !els.editor || !els.wiresSvg) return;
+  // Batch to next frame to avoid thrash on rapid events
+  requestAnimationFrame(() => {
+    fitSvg();
+    drawWires();
+  });
+}
+
+// Auto-attach listeners when running in browser
+if (typeof window !== 'undefined'){
+  // Core redraw triggers
+  window.addEventListener('resize', recalc, { passive: true });
+  window.addEventListener('scroll', recalc, { passive: true });
+
+  // From node/type changes and host graph updates
+  window.addEventListener('pin:type-changed', recalc);
+  window.addEventListener('wires:recalc', recalc);
+  window.addEventListener('wires:request-recalc', recalc);
+
+  // Optional: when params change (e.g., convertTo "to" enum)
+  window.addEventListener('kadie:param-changed', recalc);
+}

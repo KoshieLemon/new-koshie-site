@@ -5,12 +5,15 @@ let CACHE = { nodes: [], byId: new Map() };
 let LOADED = false;
 
 function mapPin(p) {
-  return {
+  const out = {
     name: String(p.name),
-    type: String(p.type || 'any'),
-    optional: !!p.optional,
-    ...(typeof p.desc === 'string' && p.desc.trim() ? { desc: p.desc } : {})
+    type: String(p.type ?? 'any'),
+    optional: !!p.optional
   };
+  if (typeof p.desc === 'string' && p.desc.trim()) out.desc = p.desc;
+  // Preserve dropdowns and enums for pins (needed for ChannelType select)
+  if (Array.isArray(p.enum)) out.enum = p.enum.slice();
+  return out;
 }
 
 function normalize(def) {
@@ -39,35 +42,13 @@ function normalize(def) {
     hasExecIn:  inPins.some(p => p.type === 'exec'),
     hasExecOut: outPins.some(p => p.type === 'exec'),
 
+    // Preserve metadata used by the editor for shaping and dynamic typing
+    ui: def.ui || null,
     runtime: def.runtime || null,
     discord: def.discord || null,
     hidden: !!def.hidden,
     tags: Array.isArray(def.tags) ? def.tags.slice() : [],
   };
-}
-
-// Add virtual nodes that are editor-defined (not served by /nodes-index)
-function injectVirtualNodes(nodes, byId){
-  if (!byId.has('flow.breakObject')) {
-    const v = normalize({
-      id: 'flow.breakObject',
-      name: 'Break Object',
-      category: 'flow',
-      kind: 'exec',
-      version: '1.0.0',
-      // single data input; dynamic outputs created client-side on connect
-      inputs: [
-        { name: 'in', type: 'exec' },
-        { name: 'object', type: 'any' }
-      ],
-      outputs: [
-        { name: 'out', type: 'exec' }
-      ],
-      tags: ['flow','introspection']
-    });
-    nodes.push(v);
-    byId.set(v.id, v);
-  }
 }
 
 export async function fetchNodesIndex() {
@@ -86,8 +67,7 @@ export async function fetchNodesIndex() {
     const byId = new Map(all.map(n => [n.id, n]));
     const nodes = all.filter(n => !n.hidden);
 
-    // ensure Break Object exists for the editor
-    injectVirtualNodes(nodes, byId);
+    // No virtual injection. Break Object must come from the server JSON.
 
     CACHE = { nodes, byId }; LOADED = true;
     window.NODE_INDEX = nodes;

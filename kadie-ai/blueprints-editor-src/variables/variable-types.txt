@@ -24,8 +24,9 @@ Message
 Attachment
 Webhook
 Invite
+Emoji
+Reaction
 
-Channels
 Channel
 TextBasedChannel (TextChannel, ThreadChannel, DMChannel, NewsChannel, ForumChannel)
 VoiceBasedChannel (VoiceChannel, StageChannel)

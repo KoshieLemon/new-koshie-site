@@ -1,4 +1,4 @@
-// interactions.js
+// /kadie-ai/blueprints-editor-src/interactions/interactions.js
 // Orchestrator: pan/zoom, marquee, wiring, context menus, and global shortcuts.
 
 import { els } from '../core/dom.js';
@@ -7,7 +7,7 @@ import { renderAll, registerNodeInteractions } from '../render/render.editor.js'
 import { drawWires, bezierPath, getPinCenter, fitSvg } from '../render/render.wires.js';
 import { openContextMenu } from '../menus/node-menu.js';
 import { TYPE_COLORS, colorKeyFor } from '../render/render.types.js';
-import { ensureViewport, applyView, unprojectClient, recenter } from './interactions.view.js';
+import { ensureViewport, applyView, unprojectClient } from './interactions.view.js';
 
 import { ix } from './interactions.ctx.js';
 import { ensureWireHint, showHint, hideHint, cancelDragWire, clearLockedWire } from './interactions.hint.js';
@@ -108,6 +108,39 @@ export function initInteractions(){
     const w = unprojectClient(ev.clientX, ev.clientY);
     await openContextMenu(ev.clientX, ev.clientY, (defId)=>{
       addNodeAt(defId, w.x - ix.NODE_W/2, w.y - ix.NODE_H/2);
+      const def = getDef(defId);
+      const pin = pickAvailableInput(def, ix.lockedWire?.kind || 'data', ix.lockedWire?.fromType || 'any', state.sel.values().next().value);
+      if (pin && ix.lockedWire){
+        const inId = incomingEdgeId(state.sel.values().next().value, pin);
+        if (inId) state.edges.delete(inId);
+
+        if (ix.lockedWire.kind === 'exec'){
+          for (const [id,e] of [...state.edges]){
+            if (e.kind!=='exec') continue;
+            const sameFrom = e.from.nid===ix.lockedWire.from.nid && e.from.pin===ix.lockedWire.from.pin;
+            if (sameFrom) state.edges.delete(id);
+          }
+        }
+
+        const edge = {
+          id: uid('E'),
+          from: ix.lockedWire.from,
+          to: { nid: state.sel.values().next().value, pin },
+          kind: ix.lockedWire.kind,
+          fromType: ix.lockedWire.fromType,
+          colorKey: ix.lockedWire.kind==='data' ? colorKeyFor(ix.lockedWire.fromType) : null,
+        };
+        state.edges.set(edge.id, edge);
+
+        // Break Object shaping on insert
+        if (defId === 'flow.breakObject' && ['object','payload'].includes(pin)){
+          const fallType   = getOutputType(state.nodes.get(edge.from.nid)?.defId, edge.from.pin);
+          const sourceType = ix.lockedWire.fromType || fallType || 'any';
+          applyBreakObjectShape(state.sel.values().next().value, sourceType, pin);
+        }
+      }
+
+      clearLockedWire();
       renderAll(); pushHistory(); markDirty(els.dirty);
     });
   });
@@ -215,7 +248,7 @@ export function initInteractions(){
               const sourceType = ix.lockedWire.fromType || fallType || 'any';
               applyMirrorShape(n.id, toDef, sourceType);
             }
-            if (defId === 'utils.breakObject' && ['object','payload'].includes(pin)){
+            if (defId === 'flow.breakObject' && ['object','payload'].includes(pin)){
               const fallType   = getOutputType(state.nodes.get(edge.from.nid)?.defId, edge.from.pin);
               const sourceType = ix.lockedWire.fromType || fallType || 'any';
               applyBreakObjectShape(n.id, sourceType, pin);
@@ -252,7 +285,7 @@ export function initInteractions(){
           const sourceType = ix.dragWire.fromType || fallType || 'any';
           applyMirrorShape(check.toNid, toDef, sourceType);
         }
-        if (toDef?.id === 'utils.breakObject' && ['object','payload'].includes(check.toPin)){
+        if (toDef?.id === 'flow.breakObject' && ['object','payload'].includes(check.toPin)){
           const fallType   = getOutputType(state.nodes.get(edge.from.nid)?.defId, edge.from.pin);
           const sourceType = ix.dragWire.fromType || fallType || 'any';
           applyBreakObjectShape(check.toNid, sourceType, check.toPin);
@@ -363,14 +396,13 @@ export function initInteractions(){
       renderAll(); pushHistory(); markDirty(els.dirty);
     }
     if (e.key==='0' && (e.ctrlKey||e.metaKey)){
-      e.preventDefault(); recenter(ix.NODE_W, ix.NODE_H);
+      e.preventDefault();
     }
   });
 
   // Initial
   drawWires();
   fitSvg();
-  recenter(ix.NODE_W, ix.NODE_H);
 }
 
 /* =============================
@@ -455,7 +487,7 @@ function findNameBasedConverter(fromType, toType){
 // Compute world-space midpoint between two pins
 function midpointWorld(from, to){
   const a = getPinCenter(from.nid, from.pin, 'right');
-  const b = getPinCenter(to.nid,   to.pin,   'left');
+  const b = getPinCenter(to.nid, to.pin, 'left');
   const mx = Math.round((a.x + b.x) / 2);
   const my = Math.round((a.y + b.y) / 2);
   const er = els.editor.getBoundingClientRect();

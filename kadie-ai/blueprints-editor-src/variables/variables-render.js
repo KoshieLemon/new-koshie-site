@@ -98,7 +98,7 @@ export function mkVarChip(v, idx, opts, deps){
     whiteSpace:'nowrap',
     overflow:'hidden',
     textOverflow:'ellipsis',
-    maxWidth:'160px', // prevents “long bar” expansion
+    maxWidth:'160px',
     lineHeight:'1.1'
   });
 
@@ -135,12 +135,16 @@ export function mkVarChip(v, idx, opts, deps){
   chip.addEventListener('dragstart', (e)=>{
     chip.classList.add('dragging');
     try{
-      // Treat EVERYTHING like a variable for DnD. Locking only affects editability.
       const varName = cleanLabelToVarName(v.name);
-      e.dataTransfer.setData('text/x-node-id', 'get.variable');
+      // Spawn the correct node id
+      e.dataTransfer.setData('text/x-node-id', 'flow.variable');
+      // Pass params so renderer can set dynamic output type and runtime can resolve
       e.dataTransfer.setData('application/x-node-params', JSON.stringify({
         name: varName,
         type: v.type,
+        // explicit kind/source to inform runtime resolution strategy
+        kind: v.type,
+        source: opts.readonly ? 'server' : 'user',
         readonly: !!opts.readonly,
         id: opts.id || null
       }));
@@ -151,17 +155,14 @@ export function mkVarChip(v, idx, opts, deps){
 
   chip.addEventListener('click', async (e)=>{
     if (e.target === x || e.target === type) return;
-    // Copy a useful identifier on click
     const text = opts.id ? String(opts.id) : String(v.name);
     try{ await navigator.clipboard.writeText(text); }catch{}
   });
 
   chip.addEventListener('dblclick', ()=>{
     if (opts.readonly){
-      // Locked chips: no rename/type edits and no cloning. Keep behavior consistent.
       return;
     }
-    // Editable user variable: inline rename
     chip.classList.add('editing');
     const input = document.createElement('input');
     input.className = 'rename';

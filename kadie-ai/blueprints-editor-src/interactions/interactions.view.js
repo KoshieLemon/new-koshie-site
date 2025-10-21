@@ -1,3 +1,4 @@
+// /kadie-ai/blueprints-editor-src/interactions/interactions.view.js
 // Viewport, background, and view helpers used by interactions.js
 import { els } from '../core/dom.js';
 import { state } from '../core/state.js';
@@ -74,25 +75,6 @@ export function ensureViewport(){
   if (!els.wiresSvg.parentElement || els.wiresSvg.parentElement !== els.editor){
     els.editor.appendChild(els.wiresSvg);
   }
-
-  // Re-center button
-  const btn = document.createElement('button');
-  btn.id = 'recenter';
-  btn.textContent = 'Re-center';
-  Object.assign(btn.style, {
-    position: 'absolute',
-    right: '12px',
-    bottom: '12px',
-    zIndex: 10000,
-    padding: '6px 10px',
-    borderRadius: '8px',
-    border: '1px solid #1f2937',
-    background: '#0b1020',
-    color: '#e5e7eb',
-    cursor: 'pointer',
-  });
-  els.editor.appendChild(btn);
-  els.recenter = btn;
 }
 
 export function applyView(){
@@ -129,29 +111,4 @@ export function positionCtxMenuAt(clientX, clientY){
     els.ctxMenu.style.left = `${lx}px`;
     els.ctxMenu.style.top  = `${ly}px`;
   });
-}
-
-export function recenter(nodeW, nodeH){
-  let first = true;
-  let minX=0, minY=0, maxX=0, maxY=0;
-  for (const n of state.nodes.values()){
-    const x1 = n.x, y1 = n.y;
-    const x2 = n.x + nodeW, y2 = n.y + nodeH;
-    if (first){ minX=x1; minY=y1; maxX=x2; maxY=y2; first=false; }
-    else {
-      if (x1<minX) minX=x1; if (y1<minY) minY=y1;
-      if (x2>maxX) maxX=x2; if (y2>maxY) maxY=y2;
-    }
-  }
-  const er = els.editor.getBoundingClientRect();
-  if (first){
-    state.view.x = er.width/2;
-    state.view.y = er.height/2;
-  } else {
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    state.view.x = er.width/2  - cx * state.view.z;
-    state.view.y = er.height/2 - cy * state.view.z;
-  }
-  applyView();
 }

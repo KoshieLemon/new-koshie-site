@@ -1,8 +1,6 @@
-// Universal node DOM builder used by both editor and menus.
-// Adds a visible "+" button to Make Map nodes that appends key/value pins.
-// Adds an "i in a circle" info button that opens nodes-docs for this node.
-
 import { ensureTypeStylesInjected, colorKeyFor, cssToken } from './render.types.js';
+import { openEmojiPicker } from '../menus/emoji-picker.js';
+import { state } from '../core/state.js';
 
 ensureTypeStylesInjected();
 
@@ -33,12 +31,30 @@ function autosize(el){
   if (el.tagName === 'TEXTAREA'){
     el.style.height = 'auto';
     el.style.height = `${Math.max(18, el.scrollHeight)}px`;
-    const w = Math.min(240, 18 + el.value.length * 6);
+    const w = Math.min(420, Math.max(60, el.scrollWidth + 16));
     el.style.width = `${w}px`;
   } else {
-    const w = Math.min(240, Math.max(18, 8 * String(el.value || '').length + 16));
+    const tmp = document.createElement('span');
+    tmp.style.visibility='hidden';
+    tmp.style.position='fixed';
+    tmp.style.whiteSpace='pre';
+    tmp.style.font = getComputedStyle(el).font;
+    tmp.textContent = el.value || '';
+    document.body.appendChild(tmp);
+    const w = Math.min(420, Math.max(60, tmp.getBoundingClientRect().width + 20));
+    document.body.removeChild(tmp);
     el.style.width = `${w}px`;
   }
+}
+
+function applySavedSizeTo(el, nid, pinName){
+  try{
+    const n = state?.nodes?.get?.(nid);
+    const sz = n?._ui?.literals?.[pinName];
+    if (!sz) return;
+    if (sz.w) el.style.width  = `${sz.w}px`;
+    if (sz.h) el.style.height = `${sz.h}px`;
+  }catch{}
 }
 
 function isIdLike(t){ return /Id$/.test(String(t||'')); }
@@ -50,7 +66,7 @@ function shouldRenderControl(t){
   const k = colorKeyFor(t || 'string');
   if (isEnumType(t)) return true;
   if (k === 'boolean') return true;
-  return k === 'number' || k === 'string' || isIdLike(t);
+  return k === 'number' || k === 'string' || k === 'date' || isIdLike(t) || String(t) === 'Emoji' || String(t) === 'Role';
 }
 
 function cleanNumeric(v, allowDot){
@@ -71,7 +87,104 @@ function cleanNumeric(v, allowDot){
   return s;
 }
 
-function mkLiteral(preview, paramsRef, pinDef){
+// ---------- makeMap helpers (kept) ----------
+function isMakeMapDef(def){
+  const id = String(def?.id || '');
+  const nm = String(def?.name || '');
+  return id === 'makeMap' || id === 'utils.makeMap' || /(^|\s)make\s*map/i.test(nm);
+}
+function augmentedInputsForMakeMap(def, params){
+  const base = Array.isArray(def?.inputs) ? def.inputs : [];
+  if (!isMakeMapDef(def)) return base;
+  const eff = base.slice();
+  const hasKey1 = base.some(p => p?.name === 'key1');
+  const hasVal1 = base.some(p => p?.name === 'value1');
+  const baseKey = hasKey1 ? 'key1' : (base.some(p=>p?.name==='key') ? 'key' : null);
+  const baseVal = hasVal1 ? 'value1' : (base.some(p=>p?.name==='value') ? 'value' : null);
+  if (!baseKey || !baseVal) return eff;
+  let maxIdx = 1;
+  for (const k of Object.keys(params||{})){
+    let m = /^key(\d+)$/.exec(k); if (m) maxIdx = Math.max(maxIdx, Number(m[1]));
+    m = /^value(\d+)$/.exec(k);   if (m) maxIdx = Math.max(maxIdx, Number(m[1]));
+  }
+  for (let i = 2; i <= maxIdx; i++){
+    eff.push({ name:`key${i}`, type:'any', optional:true });
+    eff.push({ name:`value${i}`, type:'any', optional:true });
+  }
+  return eff;
+}
+
+// ---------- makeArray helpers (new) ----------
+function isMakeArrayDef(def){
+  const id = String(def?.id || '');
+  const nm = String(def?.name || '');
+  return id === 'flow.makeArray' || /(^|\s)make\s*array/i.test(nm);
+}
+function augmentedInputsForMakeArray(def, params){
+  const base = Array.isArray(def?.inputs) ? def.inputs : [];
+  if (!isMakeArrayDef(def)) return base;
+  const eff = base.slice();
+  const hasItem1 = base.some(p => p?.name === 'item1') || base.some(p => p?.name === 'item');
+  if (!hasItem1) return eff;
+  let maxIdx = 1;
+  for (const k of Object.keys(params||{})){
+    const m = /^item(\d+)$/.exec(k);
+    if (m) maxIdx = Math.max(maxIdx, Number(m[1]));
+  }
+  for (let i = 2; i <= maxIdx; i++){
+    eff.push({ name:`item${i}`, type:'any', optional:true });
+  }
+  return eff;
+}
+
+// Combine both augmentations
+function augmentedInputs(def, params){
+  const mapAug = augmentedInputsForMakeMap(def, params);
+  return augmentedInputsForMakeArray({ ...def, inputs: mapAug }, params);
+}
+
+// ---- dynamic outputs (render-time) ----
+function applyDynamicOutputs(def, params){
+  const dyn = def?.ui?.dynamicOutputFromParam;
+  if (!dyn || !dyn.param || !dyn.pin) return (def?.outputs || []);
+  const chosen = String(params?.[dyn.param] || '').trim();
+  if (!chosen) return (def?.outputs || []);
+  return (def?.outputs || []).map(p => {
+    if (p.name !== dyn.pin) return p;
+    return { ...p, type: chosen };
+  });
+}
+
+function signalNodeDocs(nodeId){
+  try{
+    const payload = { type:'kadie:open-node-docs', nodeId: String(nodeId || '') };
+    window?.parent?.postMessage(payload, '*');
+  }catch{}
+}
+
+// ------- Role dropdown helpers -------
+function activeGuildId(){
+  try{
+    return (window?.KADIE?.guildId)
+        || (document.body?.dataset?.guildId)
+        || new URL(window.location.href).searchParams.get('guild_id')
+        || new URL(window.location.href).searchParams.get('gid')
+        || window.__ACTIVE_GUILD_ID__
+        || null;
+  }catch{ return null }
+}
+async function loadRolesForGuild(gid){
+  if (!gid) return [];
+  try{
+    const res = await fetch(`/runtime/guilds/${encodeURIComponent(gid)}/roles`, { credentials: 'include' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : (Array.isArray(data.roles) ? data.roles : []);
+  }catch{ return [] }
+}
+// -------------------------------------
+
+function mkLiteral(preview, paramsRef, pinDef, nid){
   const wrap = document.createElement('div');
   wrap.className = 'literal-wrap';
 
@@ -96,6 +209,7 @@ function mkLiteral(preview, paramsRef, pinDef){
     const cur = paramsRef?.[pinDef.name];
     sel.value = (cur == null ? '' : String(cur));
     if (preview) sel.disabled = true;
+    applySavedSizeTo(sel, nid, pinDef.name);
     input = sel;
   } else if (key === 'boolean'){
     const chk = document.createElement('input');
@@ -103,6 +217,7 @@ function mkLiteral(preview, paramsRef, pinDef){
     chk.className = 'pin-input';
     chk.checked = !!(paramsRef?.[pinDef.name]);
     if (preview) chk.disabled = true;
+    applySavedSizeTo(chk, nid, pinDef.name);
     input = chk;
   } else if (key === 'number'){
     const allowDot = String(rawType).toLowerCase() !== 'int';
@@ -113,6 +228,7 @@ function mkLiteral(preview, paramsRef, pinDef){
     txt.className = 'literal pin-input';
     txt.value = paramsRef?.[pinDef.name] ?? '';
     autosize(txt);
+    applySavedSizeTo(txt, nid, pinDef.name);
     if (!preview){
       txt.addEventListener('input', ()=> autosize(txt));
       txt.addEventListener('blur', ()=>{
@@ -124,15 +240,148 @@ function mkLiteral(preview, paramsRef, pinDef){
       txt.disabled = true;
     }
     input = txt;
+  } else if (rawType === 'date' || key === 'date'){
+    const dt = document.createElement('input');
+    dt.type = 'date';
+    dt.className = 'literal pin-input';
+    dt.value = paramsRef?.[pinDef.name] ?? '';
+    applySavedSizeTo(dt, nid, pinDef.name);
+    if (preview) dt.disabled = true;
+    input = dt;
+  } else if (rawType === 'Emoji'){
+    const row = document.createElement('div');
+    row.style.display = 'inline-flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '6px';
+
+    const disp = document.createElement('input');
+    disp.type = 'text';
+    disp.className = 'literal pin-input';
+    disp.readOnly = true;
+    disp.style.cursor = 'default';
+    disp.value = '';
+
+    const cur = paramsRef?.[pinDef.name];
+    if (cur && typeof cur === 'object'){
+      disp.value = cur.type === 'unicode' ? String(cur.value||'') : (cur.name ? `:${cur.name}:` : '');
+      try { disp.dataset.jsonValue = JSON.stringify(cur); } catch {}
+      disp.title = cur.type === 'custom' ? (cur.name || '') : (cur.value || '');
+    } else if (typeof cur === 'string'){
+      disp.value = cur;
+    }
+    autosize(disp);
+    applySavedSizeTo(disp, nid, pinDef.name);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Pick';
+    btn.className = 'icon-btn';
+    btn.title = 'Pick emoji';
+    btn.style.height = '22px';
+    btn.style.lineHeight = '20px';
+
+    if (preview){
+      btn.disabled = true;
+      disp.disabled = true;
+    } else {
+      btn.addEventListener('mousedown', e => e.stopPropagation());
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const guessGuildId = (window?.KADIE?.guildId) ||
+                             (document.body?.dataset?.guildId) ||
+                             new URL(window.location.href).searchParams.get('guild_id') ||
+                             new URL(window.location.href).searchParams.get('gid') ||
+                             window.__ACTIVE_GUILD_ID__ ||
+                             null;
+
+        openEmojiPicker({
+          anchor: btn,
+          guildId: guessGuildId,
+          onPick: (picked)=>{
+            try { disp.dataset.jsonValue = JSON.stringify(picked); } catch { delete disp.dataset.jsonValue; }
+            disp.value = picked.type === 'unicode'
+              ? String(picked.value || '')
+              : (picked.name ? `:${picked.name}:` : (picked.id ? `:${picked.id}:` : ''));
+            disp.title = picked.type === 'custom' ? (picked.name || '') : (picked.value || '');
+            autosize(disp);
+            disp.dispatchEvent(new Event('input', { bubbles:true }));
+            disp.dispatchEvent(new Event('change', { bubbles:true }));
+          }
+        });
+      });
+    }
+
+    row.appendChild(disp);
+    row.appendChild(btn);
+    input = row;
+  } else if (rawType === 'Role'){
+    const sel = document.createElement('select');
+    sel.className = 'literal pin-input';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = 'Select a role…';
+    sel.appendChild(ph);
+
+    const cur = paramsRef?.[pinDef.name];
+    const currentId = cur && typeof cur === 'object' ? String(cur.id || '') : (cur ? String(cur) : '');
+
+    // lazy-load roles when focused
+    let loaded = false;
+    const ensureLoaded = async ()=>{
+      if (loaded) return;
+      loaded = true;
+      const gid = activeGuildId();
+      const roles = await loadRolesForGuild(gid);
+      // clear and repopulate
+      sel.innerHTML = '';
+      const ph2 = document.createElement('option');
+      ph2.value = '';
+      ph2.textContent = roles.length ? 'Select a role…' : 'No roles';
+      sel.appendChild(ph2);
+      for (const r of roles){
+        const o = document.createElement('option');
+        o.value = String(r.id);
+        o.textContent = String(r.name || '');
+        o.dataset.jsonValue = JSON.stringify({ id: String(r.id), name: String(r.name || '') });
+        sel.appendChild(o);
+      }
+      if (currentId) sel.value = currentId;
+    };
+
+    sel.addEventListener('focus', ensureLoaded, { once: true });
+    sel.addEventListener('mousedown', ensureLoaded, { once: true });
+
+    // propagate selection as JSON payload {id,name}
+    sel.addEventListener('change', ()=>{
+      const opt = sel.selectedOptions?.[0];
+      if (!opt || !opt.value){
+        delete sel.dataset.jsonValue;
+        sel.value = '';
+        return;
+      }
+      try{
+        const payload = opt.dataset.jsonValue
+          ? JSON.parse(opt.dataset.jsonValue)
+          : { id: opt.value, name: opt.textContent || '' };
+        sel.dataset.jsonValue = JSON.stringify(payload);
+      }catch{
+        delete sel.dataset.jsonValue;
+      }
+    });
+
+    if (currentId) sel.value = currentId;
+    applySavedSizeTo(sel, nid, pinDef.name);
+    input = sel;
   } else {
     const ta = document.createElement('textarea');
     ta.rows = 1;
-    ta.maxLength = 100;
     ta.className = 'literal pin-input';
     ta.value = paramsRef?.[pinDef.name] ?? '';
     autosize(ta);
+    applySavedSizeTo(ta, nid, pinDef.name);
     if (!preview){
       ta.addEventListener('input', ()=> autosize(ta));
+      ta.addEventListener('paste', ()=> requestAnimationFrame(()=> autosize(ta)));
     } else {
       ta.disabled = true;
     }
@@ -140,63 +389,16 @@ function mkLiteral(preview, paramsRef, pinDef){
   }
 
   if (!preview){
-    input.addEventListener('mousedown', e => e.stopPropagation());
-    input.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.stopPropagation(); } });
-    input.addEventListener('contextmenu', e => e.stopPropagation());
+    const attachTo = input.querySelector?.('.pin-input') || input;
+    attachTo.addEventListener('mousedown', e => e.stopPropagation());
+    attachTo.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.stopPropagation(); } });
+    attachTo.addEventListener('contextmenu', e => e.stopPropagation());
   }
 
   wrap.appendChild(input);
   return wrap;
 }
 
-// ---- makeMap helpers ----
-function isMakeMapDef(def){
-  const id = String(def?.id || '');
-  const nm = String(def?.name || '');
-  return id === 'makeMap' || id === 'utils.makeMap' || /(^|\s)make\s*map/i.test(nm);
-}
-
-// Build effective inputs: base inputs + any dynamic keyN/valueN derived from params
-function augmentedInputsForMakeMap(def, params){
-  const base = Array.isArray(def?.inputs) ? def.inputs : [];
-  if (!isMakeMapDef(def)) return base;
-
-  const eff = base.slice();
-
-  // detect base pair in def: either key/value OR key1/value1
-  const hasKey1 = base.some(p => p?.name === 'key1');
-  const hasVal1 = base.some(p => p?.name === 'value1');
-  const baseKey = hasKey1 ? 'key1' : (base.some(p=>p?.name==='key') ? 'key' : null);
-  const baseVal = hasVal1 ? 'value1' : (base.some(p=>p?.name==='value') ? 'value' : null);
-  if (!baseKey || !baseVal) return eff; // leave untouched if definition is unusual
-
-  // determine highest index present in params
-  let maxIdx = 1;
-  for (const k of Object.keys(params||{})){
-    let m = /^key(\d+)$/.exec(k); if (m) maxIdx = Math.max(maxIdx, Number(m[1]));
-    m = /^value(\d+)$/.exec(k);   if (m) maxIdx = Math.max(maxIdx, Number(m[1]));
-  }
-
-  // if base uses unnumbered 'key'/'value', next pair starts at 2
-  for (let i = 2; i <= maxIdx; i++){
-    eff.push({ name:`key${i}`, type:'any', optional:true });
-    eff.push({ name:`value${i}`, type:'any', optional:true });
-  }
-  return eff;
-}
-
-function signalNodeDocs(nodeId){
-  try{
-    const payload = { type:'kadie:open-node-docs', nodeId: String(nodeId || '') };
-    window?.parent?.postMessage(payload, '*');
-  }catch{ /* no-op */ }
-}
-
-/**
- * Build a .node element from a definition.
- * @param {object} def {id,name,category,kind,inputs,outputs}
- * @param {{preview?:boolean, params?:object, nid?:string|null}} options
- */
 export function buildNodeDOM(def, options = {}){
   const { preview = false, params = {}, nid = null } = options;
 
@@ -211,33 +413,35 @@ export function buildNodeDOM(def, options = {}){
   title.textContent = def?.name || def?.id || 'Node';
   header.appendChild(title);
 
-  // Info icon to open nodes-docs for this node (skip in preview to avoid recursion inside nodes-docs page)
   if (!preview){
     const infoBtn = document.createElement('button');
     infoBtn.type = 'button';
     infoBtn.className = 'icon-btn';
     infoBtn.title = 'Open node docs';
     infoBtn.textContent = 'i';
-    // round and align
     infoBtn.style.borderRadius = '50%';
     infoBtn.style.marginLeft = 'auto';
     infoBtn.addEventListener('mousedown', e => e.stopPropagation());
     infoBtn.addEventListener('click', (e)=>{
       e.stopPropagation();
       const id = String(def?.id || def?.name || '');
-      if (id) signalNodeDocs(id);
+      if (id) {
+        try{
+          const payload = { type:'kadie:open-node-docs', nodeId: id };
+          window?.parent?.postMessage(payload, '*');
+        }catch{}
+      }
     });
     header.appendChild(infoBtn);
   }
 
-  // Always show "+" on Make Map nodes. nid is resolved at click.
+  // Existing: makeMap '+' button
   if (isMakeMapDef(def) && !preview){
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.className = 'icon-btn add-pair';
     addBtn.title = 'Add key/value pair';
     addBtn.textContent = '+';
-    // keep next to info button without huge gap
     addBtn.style.marginLeft = '6px';
     addBtn.addEventListener('mousedown', e => e.stopPropagation());
     addBtn.addEventListener('click', (e)=>{
@@ -245,10 +449,28 @@ export function buildNodeDOM(def, options = {}){
       const nodeEl = addBtn.closest('.node');
       const nodeId = nodeEl?.dataset?.nid || null;
       if (!nodeId) return;
-      // Emit global event; interactions.js will mutate params and re-render.
       window.dispatchEvent(new CustomEvent('makeMap:addPair', { detail:{ nid: nodeId } }));
     });
     header.appendChild(addBtn);
+  }
+
+  // New: makeArray '+' button
+  if (isMakeArrayDef(def) && !preview){
+    const addBtnArr = document.createElement('button');
+    addBtnArr.type = 'button';
+    addBtnArr.className = 'icon-btn add-item';
+    addBtnArr.title = 'Add item';
+    addBtnArr.textContent = '+';
+    addBtnArr.style.marginLeft = '6px';
+    addBtnArr.addEventListener('mousedown', e => e.stopPropagation());
+    addBtnArr.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const nodeEl = addBtnArr.closest('.node');
+      const nodeId = nodeEl?.dataset?.nid || null;
+      if (!nodeId) return;
+      window.dispatchEvent(new CustomEvent('makeArray:addItem', { detail:{ nid: nodeId } }));
+    });
+    header.appendChild(addBtnArr);
   }
 
   node.appendChild(header);
@@ -256,13 +478,15 @@ export function buildNodeDOM(def, options = {}){
   const pins = document.createElement('div');
   pins.className = 'pins';
 
-  // Use augmented inputs for makeMap so extra pairs from params render as pins
-  const effInputs = augmentedInputsForMakeMap(def, params);
+  // Dynamic inputs for makeMap and makeArray
+  const effInputs = augmentedInputs(def, params);
 
   const inExec  = execPins(effInputs || []);
   const inData  = dataPins(effInputs || []);
+
+  const outputsEffective = applyDynamicOutputs(def, params);
   const outExec = execPins(def?.outputs || []);
-  const outData = dataPins(def?.outputs || []);
+  const outData = dataPins(outputsEffective);
 
   const hasInputs = (inExec.length + inData.length) > 0;
 
@@ -280,7 +504,7 @@ export function buildNodeDOM(def, options = {}){
   inputs.className = 'side inputs';
   for (const p of [...inExec, ...inData]){
     const el = mkPin('left', p);
-    if (p.type !== 'exec' && shouldRenderControl(p.type)) el.appendChild(mkLiteral(preview, params, p));
+    if (p.type !== 'exec' && shouldRenderControl(p.type)) el.appendChild(mkLiteral(preview, params, p, nid));
     inputs.appendChild(el);
   }
 
