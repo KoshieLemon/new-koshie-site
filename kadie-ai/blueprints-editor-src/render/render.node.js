@@ -70,7 +70,7 @@ function shouldRenderControl(t){
   const k = colorKeyFor(t || 'string');
   if (isEnumType(t)) return true;
   if (k === 'boolean') return true;
-  return k === 'number' || k === 'string' || k === 'date' || isIdLike(t) || String(t) === 'Emoji' || String(t) === 'Role';
+  return k === 'number' || k === 'string' || k === 'date' || isIdLike(t) || String(t) === 'Emoji' || String(t) === 'Role' || String(t) === 'Channel' || String(t) === 'CategoryChannel';
 }
 
 function cleanNumeric(v, allowDot){
