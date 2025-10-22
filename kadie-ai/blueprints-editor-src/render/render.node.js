@@ -2,6 +2,8 @@
 import { ensureTypeStylesInjected, colorKeyFor, cssToken } from './render.types.js';
 import { openEmojiPicker } from '../menus/emoji-picker.js';
 import { state } from '../core/state.js';
+import { loadRolesForGuild } from '../variables/roles.fetch.js';
+import { loadChannelsForGuild, loadCategoriesForGuild } from '../variables/channels.fetch.js';
 
 ensureTypeStylesInjected();
 
@@ -185,15 +187,7 @@ function activeGuildId(){
         || null;
   }catch{ return null }
 }
-async function loadRolesForGuild(gid){
-  if (!gid) return [];
-  try{
-    const res = await fetch(`/runtime/guilds/${encodeURIComponent(gid)}/roles`, { credentials: 'include' });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : (Array.isArray(data.roles) ? data.roles : []);
-  }catch{ return [] }
-}
+
 // -------------------------------------
 
 function mkLiteral(preview, paramsRef, pinDef, nid){
@@ -223,6 +217,7 @@ function mkLiteral(preview, paramsRef, pinDef, nid){
     if (preview) sel.disabled = true;
     applySavedSizeTo(sel, nid, pinDef.name);
     input = sel;
+
   } else if (key === 'boolean'){
     const chk = document.createElement('input');
     chk.type = 'checkbox';
@@ -231,6 +226,7 @@ function mkLiteral(preview, paramsRef, pinDef, nid){
     if (preview) chk.disabled = true;
     applySavedSizeTo(chk, nid, pinDef.name);
     input = chk;
+
   } else if (key === 'number'){
     const allowDot = String(rawType).toLowerCase() !== 'int';
     const txt = document.createElement('input');
@@ -243,15 +239,13 @@ function mkLiteral(preview, paramsRef, pinDef, nid){
     applySavedSizeTo(txt, nid, pinDef.name);
     if (!preview){
       txt.addEventListener('input', ()=> autosize(txt));
-      txt.addEventListener('blur', ()=>{
-        txt.value = cleanNumeric(txt.value, allowDot);
-        autosize(txt);
-      });
+      txt.addEventListener('blur', ()=>{ txt.value = cleanNumeric(txt.value, allowDot); autosize(txt); });
       txt.addEventListener('paste', ()=> { requestAnimationFrame(()=> autosize(txt)); });
     } else {
       txt.disabled = true;
     }
     input = txt;
+
   } else if (rawType === 'date' || key === 'date'){
     const dt = document.createElement('input');
     dt.type = 'date';
@@ -260,6 +254,7 @@ function mkLiteral(preview, paramsRef, pinDef, nid){
     applySavedSizeTo(dt, nid, pinDef.name);
     if (preview) dt.disabled = true;
     input = dt;
+
   } else if (rawType === 'Emoji'){
     const row = document.createElement('div');
     row.style.display = 'inline-flex';
@@ -326,6 +321,7 @@ function mkLiteral(preview, paramsRef, pinDef, nid){
     row.appendChild(disp);
     row.appendChild(btn);
     input = row;
+
   } else if (rawType === 'Role'){
     const sel = document.createElement('select');
     sel.className = 'literal pin-input';
@@ -337,14 +333,12 @@ function mkLiteral(preview, paramsRef, pinDef, nid){
     const cur = paramsRef?.[pinDef.name];
     const currentId = cur && typeof cur === 'object' ? String(cur.id || '') : (cur ? String(cur) : '');
 
-    // lazy-load roles when focused
     let loaded = false;
     const ensureLoaded = async ()=>{
       if (loaded) return;
       loaded = true;
       const gid = activeGuildId();
       const roles = await loadRolesForGuild(gid);
-      // clear and repopulate
       sel.innerHTML = '';
       const ph2 = document.createElement('option');
       ph2.value = '';
@@ -359,31 +353,116 @@ function mkLiteral(preview, paramsRef, pinDef, nid){
       }
       if (currentId) sel.value = currentId;
     };
-
     sel.addEventListener('focus', ensureLoaded, { once: true });
     sel.addEventListener('mousedown', ensureLoaded, { once: true });
-
-    // propagate selection as JSON payload {id,name}
     sel.addEventListener('change', ()=>{
       const opt = sel.selectedOptions?.[0];
-      if (!opt || !opt.value){
-        delete sel.dataset.jsonValue;
-        sel.value = '';
-        return;
-      }
+      if (!opt || !opt.value){ delete sel.dataset.jsonValue; sel.value = ''; return; }
       try{
         const payload = opt.dataset.jsonValue
           ? JSON.parse(opt.dataset.jsonValue)
           : { id: opt.value, name: opt.textContent || '' };
         sel.dataset.jsonValue = JSON.stringify(payload);
-      }catch{
-        delete sel.dataset.jsonValue;
-      }
+      }catch{ delete sel.dataset.jsonValue; }
     });
-
     if (currentId) sel.value = currentId;
     applySavedSizeTo(sel, nid, pinDef.name);
     input = sel;
+
+  } else if (rawType === 'Channel'){
+    const sel = document.createElement('select');
+    sel.className = 'literal pin-input';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = 'Select a channel…';
+    sel.appendChild(ph);
+
+    const cur = paramsRef?.[pinDef.name];
+    const currentId = cur && typeof cur === 'object' ? String(cur.id || '') : (cur ? String(cur) : '');
+
+    let loaded = false;
+    const ensureLoaded = async ()=>{
+      if (loaded) return;
+      loaded = true;
+      const gid = activeGuildId();
+      const items = await loadChannelsForGuild(gid);
+      sel.innerHTML = '';
+      const ph2 = document.createElement('option');
+      ph2.value = '';
+      ph2.textContent = items.length ? 'Select a channel…' : 'No channels';
+      sel.appendChild(ph2);
+      for (const c of items){
+        const o = document.createElement('option');
+        o.value = String(c.id);
+        o.textContent = String(c.name || '');
+        o.dataset.jsonValue = JSON.stringify({ id: String(c.id), name: String(c.name || '') });
+        sel.appendChild(o);
+      }
+      if (currentId) sel.value = currentId;
+    };
+    sel.addEventListener('focus', ensureLoaded, { once: true });
+    sel.addEventListener('mousedown', ensureLoaded, { once: true });
+    sel.addEventListener('change', ()=>{
+      const opt = sel.selectedOptions?.[0];
+      if (!opt || !opt.value){ delete sel.dataset.jsonValue; sel.value = ''; return; }
+      try{
+        const payload = opt.dataset.jsonValue
+          ? JSON.parse(opt.dataset.jsonValue)
+          : { id: opt.value, name: opt.textContent || '' };
+        sel.dataset.jsonValue = JSON.stringify(payload);
+      }catch{ delete sel.dataset.jsonValue; }
+    });
+    if (currentId) sel.value = currentId;
+    applySavedSizeTo(sel, nid, pinDef.name);
+    input = sel;
+
+  } else if (rawType === 'CategoryChannel'){
+    const sel = document.createElement('select');
+    sel.className = 'literal pin-input';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = 'Select a category…';
+    sel.appendChild(ph);
+
+    const cur = paramsRef?.[pinDef.name];
+    const currentId = cur && typeof cur === 'object' ? String(cur.id || '') : (cur ? String(cur) : '');
+
+    let loaded = false;
+    const ensureLoaded = async ()=>{
+      if (loaded) return;
+      loaded = true;
+      const gid = activeGuildId();
+      const items = await loadCategoriesForGuild(gid);
+      sel.innerHTML = '';
+      const ph2 = document.createElement('option');
+      ph2.value = '';
+      ph2.textContent = items.length ? 'Select a category…' : 'No categories';
+      sel.appendChild(ph2);
+      for (const c of items){
+        const o = document.createElement('option');
+        o.value = String(c.id);
+        o.textContent = String(c.name || '');
+        o.dataset.jsonValue = JSON.stringify({ id: String(c.id), name: String(c.name || '') });
+        sel.appendChild(o);
+      }
+      if (currentId) sel.value = currentId;
+    };
+    sel.addEventListener('focus', ensureLoaded, { once: true });
+    sel.addEventListener('mousedown', ensureLoaded, { once: true });
+    sel.addEventListener('change', ()=>{
+      const opt = sel.selectedOptions?.[0];
+      if (!opt || !opt.value){ delete sel.dataset.jsonValue; sel.value = ''; return; }
+      try{
+        const payload = opt.dataset.jsonValue
+          ? JSON.parse(opt.dataset.jsonValue)
+          : { id: opt.value, name: opt.textContent || '' };
+        sel.dataset.jsonValue = JSON.stringify(payload);
+      }catch{ delete sel.dataset.jsonValue; }
+    });
+    if (currentId) sel.value = currentId;
+    applySavedSizeTo(sel, nid, pinDef.name);
+    input = sel;
+
   } else {
     const ta = document.createElement('textarea');
     ta.rows = 1;
