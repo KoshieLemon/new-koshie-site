@@ -1,14 +1,14 @@
-// variables-dock.js
+// File: kadie-ai-node/variables/variables-dock.js
 // Orchestrator: DOM wiring, resizing, persistence, type picker, and actions.
+// Guild loading removed. Only Firebase variables are used.
 
 import { BOT_BASE, gid } from '../core/config.js';
 import { markDirty, clearDirty } from '../core/state.js';
 import { VDock, KEYS, LAYOUT } from './variables-ctx.js';
 import { createTypePicker } from './variables-typepicker.js';
 import { renderDock } from './variables-render.js';
-import { loadVariables, saveVariables, loadGuildData } from './variables-api.js';
+import { loadVariables, saveVariables } from './variables-api.js';
 
-// All supported base types (kept identical to original list)
 const ALL_TYPES = [
   'boolean','string','int','float','number','bigint','json','buffer','stream','date',
   'timestamp_ms','duration_ms','url','color',
@@ -23,7 +23,6 @@ const ALL_TYPES = [
 ];
 
 (function init(){
-  // DOM
   const els = {
     dock: document.getElementById('varsDock'),
     resizer: document.querySelector('#varsDock .resizer'),
@@ -36,20 +35,17 @@ const ALL_TYPES = [
     dirty: document.getElementById('dirty'),
     bpSelect: document.getElementById('bpSelect'),
   };
-  if (!els.dock || !els.list || !els.addBtn || !els.editor){ console.warn('[variables-dock] required DOM missing'); return; }
+  if (!els.dock || !els.list || !els.addBtn || !els.editor){
+    console.warn('[variables-dock] required DOM missing');
+    return;
+  }
 
-  // Bind context
   VDock.els = els;
   VDock.gid = gid || null;
   VDock.BOT_BASE = BOT_BASE || '';
 
-  // Minor dock aesthetics for a cleaner panel
-  Object.assign(els.dock.style, {
-    background:'#0a0f19',
-    borderLeft:'1px solid #132133'
-  });
+  Object.assign(els.dock.style, { background:'#0a0f19', borderLeft:'1px solid #132133' });
 
-  // Width resizer (right-anchored)
   const clamp = (n,min,max)=> Math.max(min, Math.min(max, n));
   const savedW = Number(localStorage.getItem(KEYS.WIDTH) || 0);
   if (savedW) els.dock.style.width = `${clamp(savedW, LAYOUT.MIN_W, LAYOUT.MAX_W)}px`;
@@ -84,7 +80,6 @@ const ALL_TYPES = [
     els.resizer.addEventListener('touchstart', onDown, { passive:false });
   }
 
-  // Height sync with editor
   function ensureHeight(){
     const h = els.editor?.getBoundingClientRect().height || Math.round(window.innerHeight * 0.68);
     els.dock.style.maxHeight = `${h}px`;
@@ -94,18 +89,14 @@ const ALL_TYPES = [
   ensureHeight();
   window.addEventListener('resize', ensureHeight);
 
-  // Dirty state helpers
   function setVarsDirty(d){
     VDock.varsDirty = !!d;
     if (VDock.varsDirty) markDirty(els.dirty);
   }
-
-  // Expose minimal orchestrator hooks for renderer
   window.__VDock_setVarsDirty = setVarsDirty;
   window.__VDock_addVar = (v)=>{ VDock.VARS.push(v); setVarsDirty(true); renderDock(); };
   window.__VDock_removeVar = (idx)=>{ VDock.VARS = VDock.VARS.filter((_,i)=> i !== idx); setVarsDirty(true); renderDock(); };
 
-  // Type picker
   const typePicker = createTypePicker(ALL_TYPES);
   window.__VDock_openTypePicker = (idx, clientX, clientY)=>{
     const cur = VDock.VARS[idx]?.type || 'string';
@@ -114,7 +105,6 @@ const ALL_TYPES = [
     });
   };
 
-  // Actions
   els.addBtn.addEventListener('click', ()=>{ window.__VDock_addVar({ name: nextVarName('NewVar'), type:'string' }); });
   els.bpSelect?.addEventListener('change', ()=> renderDock());
   if (els.search) els.search.addEventListener('input', renderDock);
@@ -133,7 +123,6 @@ const ALL_TYPES = [
     renderDock();
   });
 
-  // External hook to add variables
   window.addEventListener('variables:add', (e)=>{
     const { name, type } = e.detail || {};
     if (!name || !type) return;
@@ -147,23 +136,8 @@ const ALL_TYPES = [
     let i = 2; while (taken.has(`${n}_${i}`)) i++; return `${n}_${i}`;
   }
 
-  // Load guild and variables then render
+  // Bootstrap: Firebase variables only
   (async function bootstrap(){
-    try{
-      if (VDock.gid){
-        await loadGuildData();
-        console.log('%c[variables-dock] guild loaded','color:#22c55e', {
-          channels: VDock.FULL.channels.length,
-          roles: VDock.FULL.roles.length,
-          messages: VDock.FULL.messages.length||0
-        });
-      }
-    }catch(err){
-      console.error('[variables-dock] guild load failed', err);
-    }finally{
-      renderDock();
-    }
-
     await loadVariables();
     renderDock();
   })();

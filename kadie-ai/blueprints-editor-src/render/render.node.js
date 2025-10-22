@@ -1,3 +1,4 @@
+// render.node.js
 import { ensureTypeStylesInjected, colorKeyFor, cssToken } from './render.types.js';
 import { openEmojiPicker } from '../menus/emoji-picker.js';
 import { state } from '../core/state.js';
@@ -18,7 +19,8 @@ function mkPin(side, pinDef){
   el.title = pinDef.type || (kind==='exec' ? 'exec' : 'string');
 
   const jack = document.createElement('span'); jack.className = 'jack';
-  const label = document.createElement('span'); label.className = 'label'; label.textContent = pinDef.name;
+  // allow a display label without changing the underlying pin name
+  const label = document.createElement('span'); label.className = 'label'; label.textContent = (pinDef.displayName || pinDef.name);
 
   if (side === 'right') { el.appendChild(label); el.appendChild(jack); }
   else { el.appendChild(jack); el.appendChild(label); }
@@ -153,6 +155,16 @@ function applyDynamicOutputs(def, params){
     if (p.name !== dyn.pin) return p;
     return { ...p, type: chosen };
   });
+}
+
+// ---- dynamic inputs (render-time) ----
+function applyDynamicInputs(def, params){
+  const dyn = def?.ui?.dynamicInputFromParam;
+  const list = Array.isArray(def?.inputs) ? def.inputs : [];
+  if (!dyn || !dyn.param || !dyn.pin) return list;
+  const chosen = String(params?.[dyn.param] || '').trim();
+  if (!chosen) return list;
+  return list.map(p => (p.name === dyn.pin ? ({ ...p, type: chosen }) : p));
 }
 
 function signalNodeDocs(nodeId){
@@ -478,15 +490,22 @@ export function buildNodeDOM(def, options = {}){
   const pins = document.createElement('div');
   pins.className = 'pins';
 
-  // Dynamic inputs for makeMap and makeArray
-  const effInputs = augmentedInputs(def, params);
+  // Dynamic inputs for makeMap/makeArray plus per-node dynamic input typing.
+  const dynInputs = applyDynamicInputs(def, params);
+  const effInputs = augmentedInputs({ ...def, inputs: dynInputs }, params);
 
   const inExec  = execPins(effInputs || []);
   const inData  = dataPins(effInputs || []);
 
   const outputsEffective = applyDynamicOutputs(def, params);
+  // Label Get Variable's single output with the variable name, without changing pin id
+  const outputsEffectiveLabeled =
+    (def?.id === 'flow.variable' && params?.name)
+      ? outputsEffective.map(p => (p.name === 'value' ? ({ ...p, displayName: String(params.name) }) : p))
+      : outputsEffective;
+
   const outExec = execPins(def?.outputs || []);
-  const outData = dataPins(outputsEffective);
+  const outData = dataPins(outputsEffectiveLabeled);
 
   const hasInputs = (inExec.length + inData.length) > 0;
 

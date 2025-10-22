@@ -1,7 +1,3 @@
-// interactions.nodes.js
-// Per-node interactions: selection, context menu, literal input handling,
-// dynamic typing, and plus-button actions for makeArray.
-
 import { els } from '../core/dom.js';
 import { state, uid, pushHistory, markDirty } from '../core/state.js';
 import { renderAll } from '../render/render.editor.js';
@@ -13,7 +9,6 @@ function isInteractiveTarget(t){
   return !!t.closest?.('input, textarea, select, button, [contenteditable], .pin-input, .literal-wrap');
 }
 
-// ------- LIVE dynamic output type UI for nodes that declare ui.dynamicOutputFromParam -------
 function normEnumValue(v){
   if (v == null) return '';
   if (typeof v === 'string') return v;
@@ -28,30 +23,41 @@ function getBaseDefById(defId){
   const list = (state.nodesIndex?.nodes || window.NODE_INDEX || []);
   return list.find(d => d.id === defId) || (window.NODE_DEFS && window.NODE_DEFS[defId]) || null;
 }
-function getDynamicOutputTypeForNode(n){
-  if (!n) return null;
-  const baseDef = getBaseDefById(n.defId);
-  const dyn = (n._defOverride?.ui?.dynamicOutputFromParam) || (baseDef?.ui?.dynamicOutputFromParam);
-  if (!dyn || !dyn.param || !dyn.pin) return null;
-  const chosen = normEnumValue(n.params?.[dyn.param]);
+
+function getDynamicOutputConfig(n){
+  const base = getBaseDefById(n.defId);
+  return (n._defOverride?.ui?.dynamicOutputFromParam) || (base?.ui?.dynamicOutputFromParam) || null;
+}
+function getDynamicInputConfig(n){
+  const base = getBaseDefById(n.defId);
+  return (n._defOverride?.ui?.dynamicInputFromParam) || (base?.ui?.dynamicInputFromParam) || null;
+}
+function getDynamicType(n, cfg){
+  if (!cfg || !cfg.param) return '';
+  const chosen = normEnumValue(n.params?.[cfg.param]);
   return chosen || '';
 }
-function repaintOutputPinType(nid){
+
+function repaintPinType(side, nid, cfg){
+  if (!cfg || !cfg.pin) return;
   const n = state.nodes.get(nid); if (!n) return;
-  const chosen = getDynamicOutputTypeForNode(n);
+  const chosen = getDynamicType(n, cfg);
   if (!chosen) return;
 
   const nodeEl = document.querySelector(`.node[data-nid="${nid}"]`);
   if (!nodeEl) return;
-  const pinEl = nodeEl.querySelector(`.side.outputs .pin.right[data-pin="channel"]`);
+
+  const selector = side === 'out'
+    ? `.side.outputs .pin.right[data-pin="${cfg.pin}"]`
+    : `.side.inputs  .pin.left[data-pin="${cfg.pin}"]`;
+
+  const pinEl = nodeEl.querySelector(selector) ||
+                nodeEl.querySelector(side === 'out' ? '.side.outputs .pin.right' : '.side.inputs .pin.left');
   if (!pinEl) return;
 
   pinEl.dataset.type = chosen;
 
-  const classes = [...pinEl.classList];
-  for (const c of classes){
-    if (c.startsWith('t-')) pinEl.classList.remove(c);
-  }
+  for (const c of [...pinEl.classList]) if (c.startsWith('t-')) pinEl.classList.remove(c);
   const colorKey = colorKeyFor(chosen || 'string');
   pinEl.classList.add(`t-${cssToken(colorKey)}`);
 
@@ -59,7 +65,13 @@ function repaintOutputPinType(nid){
   if (label) label.title = chosen;
 }
 
-// ---- handle plus-button actions for makeArray ----
+function repaintDynamicTypes(nid){
+  const n = state.nodes.get(nid); if (!n) return;
+  repaintPinType('out', nid, getDynamicOutputConfig(n));
+  repaintPinType('in',  nid, getDynamicInputConfig(n));
+}
+
+// ---- plus-button actions for makeArray
 window.addEventListener('makeArray:addItem', (ev)=>{
   const nid = ev?.detail?.nid;
   if (!nid) return;
@@ -79,7 +91,6 @@ window.addEventListener('makeArray:addItem', (ev)=>{
 });
 
 export function enableNodeInteractions(el, model, onStartDrag){
-  // Left-click select / multi-select; drag to move selection
   el.addEventListener('mousedown', (ev)=>{
     if (ev.button!==0) return;
     if (isInteractiveTarget(ev.target)) return;
@@ -108,7 +119,6 @@ export function enableNodeInteractions(el, model, onStartDrag){
     ev.preventDefault();
   });
 
-  // Node context menu
   el.addEventListener('contextmenu', (ev)=>{
     if (isInteractiveTarget(ev.target)) return;
     ev.preventDefault();
@@ -123,6 +133,7 @@ export function enableNodeInteractions(el, model, onStartDrag){
         state.nodes.set(n.id, n);
         state.sel.clear(); state.sel.add(n.id);
         renderAll(); pushHistory(); markDirty(els.dirty);
+        repaintDynamicTypes(n.id);
       },
       onDelete: ()=>{
         state.nodes.delete(model.id);
@@ -134,7 +145,6 @@ export function enableNodeInteractions(el, model, onStartDrag){
     });
   });
 
-  // Persist literal edits without full redraw
   el.addEventListener('input', (ev)=>{
     const t = ev.target;
     if (!t.classList || !t.classList.contains('pin-input')) return;
@@ -152,7 +162,6 @@ export function enableNodeInteractions(el, model, onStartDrag){
     }
     n.params[pinName] = nextVal;
 
-    // Keep growing size
     const cs = getComputedStyle(t);
     const w = parseFloat(cs.width)  || t.offsetWidth  || 0;
     const h = parseFloat(cs.height) || t.offsetHeight || 0;
@@ -165,7 +174,6 @@ export function enableNodeInteractions(el, model, onStartDrag){
     window.dispatchEvent(new CustomEvent('wires:soft-input', { detail:{ nid: model.id, pin: pinName } }));
   });
 
-  // Commit on change
   el.addEventListener('change', (ev)=>{
     const t = ev.target;
     if (!t.classList || !t.classList.contains('pin-input')) return;
@@ -182,7 +190,7 @@ export function enableNodeInteractions(el, model, onStartDrag){
         nextVal = t.type === 'checkbox' ? !!t.checked : t.value;
       }
       n.params[pinName] = nextVal;
-      // lock in final size
+
       const cs = getComputedStyle(t);
       const w = parseFloat(cs.width)  || t.offsetWidth  || 0;
       const h = parseFloat(cs.height) || t.offsetHeight || 0;
@@ -198,7 +206,7 @@ export function enableNodeInteractions(el, model, onStartDrag){
     pushHistory();
     markDirty(els.dirty);
     renderAll();
-    // reapply saved sizes
+
     window.requestAnimationFrame(()=>{
       const nodeEl = document.querySelector(`.node[data-nid="${model.id}"]`);
       if (nodeEl){
@@ -212,6 +220,7 @@ export function enableNodeInteractions(el, model, onStartDrag){
       }
     });
 
+    repaintDynamicTypes(model.id);
     window.dispatchEvent(new CustomEvent('wires:recalc', { detail:{ nid: model.id } }));
   });
 }
@@ -225,6 +234,8 @@ export function addNodeAt(defId, x, y, params = {}){
   applyVisibilityRules(n.id);
 
   renderAll();
+
+  repaintDynamicTypes(n.id);
 
   pushHistory(); markDirty(els.dirty);
   return n;
