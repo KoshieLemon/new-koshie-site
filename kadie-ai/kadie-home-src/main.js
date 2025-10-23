@@ -1,4 +1,4 @@
-import { printDiagnostics } from '../api.js';
+import { printDiagnostics, OAUTH_URL } from '../api.js';
 import { byId, setCSSVar } from './utils.js';
 import { store } from './state.js';
 import { showTab, wireTabClicks, getTabs } from './tabs.js';
@@ -19,6 +19,12 @@ window.addEventListener('resize', updateHeaderHeight);
 updateHeaderHeight();
 
 wireTabClicks();
+
+// Wire the center Sign in button to the same OAuth URL used by the header.
+const directBtn = document.getElementById('signinDirect');
+if (directBtn) {
+  directBtn.addEventListener('click', () => { location.href = OAUTH_URL; });
+}
 
 // iframe messages
 window.addEventListener('message', (ev) => {
