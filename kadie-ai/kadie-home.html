@@ -1,4 +1,3 @@
-<!-- /kadie-ai/kadie-home.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -16,7 +15,6 @@
     .header{display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:12px}
     .left{display:flex;align-items:center;gap:14px}
 
-    /* Title is plain text link, not a button */
     .brand-title{margin:0;font-weight:800;font-size:20px;color:#eaeaea;line-height:1}
     .brand-title a{color:inherit;text-decoration:none;cursor:pointer}
 
@@ -36,8 +34,17 @@
     .server-title{display:flex;align-items:baseline;gap:8px;min-width:0}
     .server-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
     .server-id{font-size:12px;color:#9aa4b2}
-    .server-spacer{flex:1 1 auto}
+    /* shrink spacer so CPU can take the space */
+    .server-spacer{flex:0 0 8px}
     .leave-btn{border:1px solid #3a1f1f;background:#1a1111;color:#fca5a5;padding:4px 8px;border-radius:8px;cursor:pointer;font-size:12px}
+
+    /* CPU progress bar */
+    .cpu{display:flex;align-items:center;gap:8px;min-width:160px;flex:1 1 auto;max-width:none}
+    .cpu-bar{position:relative;height:10px;flex:1 1 auto;border-radius:999px;background:#0f1117;border:1px solid #22293a;overflow:hidden}
+    /* critical: control width via JS; do NOT pin right */
+    .cpu-fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:linear-gradient(90deg,#1e40af,#60a5fa);filter:drop-shadow(0 0 6px #60a5fa55)}
+    /* keep label tight to bar */
+    .cpu-meta{font-size:12px;color:#9aa4b2;white-space:nowrap;min-width:auto;text-align:left}
 
     .full-bleed{width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}
     .viewport-wrap{position:relative;height:calc(100dvh - var(--header-h) - var(--banner-h) - var(--gap-y));}
@@ -45,7 +52,6 @@
     .frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:none}
     .frame.active{display:block}
 
-    /* Auth overlay stays below the sticky header so tabs remain clickable */
     .auth-block{position:absolute;inset:0;background:linear-gradient(160deg,#0b0f1a,#0f1324);display:none;align-items:center;justify-content:center;z-index:50}
     .auth-card{background:#0e1116;border:1px solid #2b2f3a;border-radius:12px;padding:18px;max-width:420px;box-shadow:0 10px 24px #000a}
     .auth-block.show{display:flex}
@@ -68,9 +74,7 @@
         <button class="tab-btn primary" data-tab="blueprints" id="tab-blueprints" hidden>Blueprints</button>
         <button class="tab-btn"        data-tab="community"  id="tab-community" hidden>Community</button>
         <button class="tab-btn"        data-tab="nodes"      id="tab-nodes">Nodes</button>
-        <!-- <button class="tab-btn"        data-tab="tutorials"  id="tab-tutorials">Tutorials</button> -->
         <button class="tab-btn"        data-tab="status"     id="tab-status">Status</button>
-        <!-- <a class="tab-btn upgrade" href="/kadie-ai/donate.html" id="btn-donate" target="_blank" rel="noopener noreferrer">Donate</a> -->
       </nav>
     </div>
   </header>
@@ -82,7 +86,15 @@
         <span id="sbName" class="server-name"></span>
         <span id="sbId" class="server-id"></span>
       </div>
+
       <div class="server-spacer"></div>
+
+      <!-- CPU usage progress bar (shows only MAX text) -->
+      <div class="cpu" id="cpuSlot" title="0/0" aria-label="CPU usage">
+        <div class="cpu-bar"><div class="cpu-fill" id="cpuFill" style="width:0%"></div></div>
+        <div class="cpu-meta" id="cpuMax">0</div>
+      </div>
+
       <button id="leaveServerBtn" class="leave-btn" title="Leave server">Leave</button>
     </div>
   </div>
@@ -93,7 +105,6 @@
       <iframe id="frame-blueprints" class="frame"        src="about:blank"                         title="Blueprints"></iframe>
       <iframe id="frame-community"  class="frame"        src="/kadie-ai/community-forums.html"     title="Community"></iframe>
       <iframe id="frame-nodes"      class="frame"        src="/kadie-ai/nodes-docs.html"           title="Nodes"></iframe>
-      <iframe id="frame-tutorials"  class="frame"        src="/kadie-ai/blueprint-tutorials.html"  title="Tutorials"></iframe>
       <iframe id="frame-status"     class="frame"        src="/kadie-ai/bot-status.html"           title="Status"></iframe>
 
       <div class="auth-block" id="authBlock" aria-live="polite">
@@ -110,7 +121,6 @@
 
   <script type="module" src="/kadie-ai/kadie-home.js"></script>
 
-  <!-- Lightweight listener to support node-docs navigation from child frames -->
   <script type="module">
     function activateTab(tabId){
       document.querySelectorAll('.tab-btn').forEach(btn=>{
@@ -129,12 +139,10 @@
         activateTab('nodes');
         const frame = document.getElementById('frame-nodes');
 
-        // Try live selection without reload
         try{
           frame?.contentWindow?.postMessage({ type:'kadie:select-node', nodeId:String(d.nodeId||'') }, '*');
         }catch{}
 
-        // Sync URL for persistence on reload
         try{
           const src = frame.getAttribute('src') || '/kadie-ai/nodes-docs.html';
           const u = new URL(src, location.origin);
