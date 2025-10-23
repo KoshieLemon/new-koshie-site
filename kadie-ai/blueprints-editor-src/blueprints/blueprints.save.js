@@ -1,26 +1,36 @@
 // blueprints.save.js
-// Save current blueprint with busy overlay.
+// Save current blueprint with busy overlay and client-side limits.
 
 import { state, snapshot, clearDirty } from '../core/state.js';
 import { saveBlueprint } from '../providers/providers.js';
 import { showBusy, hideBusy } from './blueprints.ctx.js';
+import { toast } from '../core/notify.js';
 
 const MAX_NODES = 70;
+
+function codeFromError(e){
+  try{
+    if (e?.error) return String(e.error);
+    if (e?.response?.error) return String(e.response.error);
+    if (typeof e?.message === 'string'){
+      const m = /"error"\s*:\s*"([^"]+)"/.exec(e.message);
+      if (m) return m[1];
+    }
+  }catch{}
+  return null;
+}
 
 export async function saveCurrentBlueprint(gid){
   if (!state.bpId) return false;
 
-  const graph = JSON.parse(snapshot());
+  let graph;
+  try { graph = JSON.parse(snapshot()); }
+  catch { toast('Invalid graph JSON.', { kind:'error' }); return false; }
 
-  // Robust node count across possible shapes
-  let nodeCount = 0;
-  const nodes = graph?.nodes;
-  if (Array.isArray(nodes)) nodeCount = nodes.length;
-  else if (nodes && typeof nodes === 'object') nodeCount = Object.keys(nodes).length;
-  else if (state?.nodes && typeof state.nodes.size === 'number') nodeCount = state.nodes.size || 0;
-
+  // Client-side enforcement for node count
+  const nodeCount = Array.isArray(graph?.nodes) ? graph.nodes.length : 0;
   if (nodeCount > MAX_NODES){
-    alert(`Save blocked. This blueprint has ${nodeCount} nodes. The limit is ${MAX_NODES}. Remove nodes before saving.`);
+    toast(`Maximum nodes per blueprint is ${MAX_NODES}. Current: ${nodeCount}.`, { kind:'error' });
     return false;
   }
 
@@ -29,8 +39,15 @@ export async function saveCurrentBlueprint(gid){
   try{
     const ok = await saveBlueprint(gid, bp);
     if (ok) clearDirty(document.getElementById('dirty'));
-    return ok;
-  }catch{
+    else toast('Save failed.', { kind:'error' });
+    return !!ok;
+  }catch(e){
+    const code = codeFromError(e);
+    if (code === 'too_many_nodes'){
+      toast(`Maximum nodes per blueprint is ${MAX_NODES}.`, { kind:'error' });
+    } else {
+      toast('Save failed.', { kind:'error' });
+    }
     return false;
   }finally{
     hideBusy();

@@ -4,7 +4,7 @@
 
 import { BOT_BASE, gid } from '../core/config.js';
 import { markDirty, clearDirty } from '../core/state.js';
-import { VDock, KEYS, LAYOUT } from './variables-ctx.js';
+import { VDock, KEYS, LAYOUT, LIMITS } from './variables-ctx.js';
 import { createTypePicker } from './variables-typepicker.js';
 import { renderDock } from './variables-render.js';
 import { loadVariables, saveVariables } from './variables-api.js';
@@ -39,6 +39,39 @@ const ALL_TYPES = [
     console.warn('[variables-dock] required DOM missing');
     return;
   }
+
+  // Toast notifier (fades away)
+  function notify(msg){
+    let root = document.getElementById('varsToast');
+    if (!root){
+      root = document.createElement('div');
+      root.id = 'varsToast';
+      Object.assign(root.style, {
+        position:'fixed', left:'50%', bottom:'18px', transform:'translateX(-50%)',
+        zIndex:2147483647, display:'flex', flexDirection:'column', gap:'8px', alignItems:'center', pointerEvents:'none'
+      });
+      document.body.appendChild(root);
+    }
+    const item = document.createElement('div');
+    Object.assign(item.style, {
+      background:'#111827', color:'#e5e7eb', border:'1px solid #1f2937',
+      borderRadius:'8px', padding:'8px 12px', boxShadow:'0 8px 24px rgba(0,0,0,.5)'
+    });
+    item.textContent = String(msg || '');
+    root.appendChild(item);
+    setTimeout(()=>{
+      item.style.transition = 'opacity .35s ease';
+      item.style.opacity = '0';
+      item.addEventListener('transitionend', ()=> item.remove(), { once:true });
+    }, 2200);
+  }
+
+  const atLimit = ()=> (VDock.VARS?.length || 0) >= LIMITS.MAX_VARS;
+  const updateAddButtonState = ()=>{
+    if (!els.addBtn) return;
+    els.addBtn.disabled = atLimit();
+    els.addBtn.title = atLimit() ? `Limit ${LIMITS.MAX_VARS} variables` : '';
+  };
 
   VDock.els = els;
   VDock.gid = gid || null;
@@ -94,38 +127,75 @@ const ALL_TYPES = [
     if (VDock.varsDirty) markDirty(els.dirty);
   }
   window.__VDock_setVarsDirty = setVarsDirty;
-  window.__VDock_addVar = (v)=>{ VDock.VARS.push(v); setVarsDirty(true); renderDock(); };
-  window.__VDock_removeVar = (idx)=>{ VDock.VARS = VDock.VARS.filter((_,i)=> i !== idx); setVarsDirty(true); renderDock(); };
+
+  window.__VDock_addVar = (v)=>{
+    if (atLimit()){
+      notify(`Variable limit reached (${LIMITS.MAX_VARS}). Delete one to add another.`);
+      updateAddButtonState();
+      return;
+    }
+    VDock.VARS.push(v);
+    setVarsDirty(true);
+    renderDock();
+    updateAddButtonState();
+  };
+
+  window.__VDock_removeVar = (idx)=>{
+    VDock.VARS = VDock.VARS.filter((_,i)=> i !== idx);
+    setVarsDirty(true);
+    renderDock();
+    updateAddButtonState();
+  };
 
   const typePicker = createTypePicker(ALL_TYPES);
   window.__VDock_openTypePicker = (idx, clientX, clientY)=>{
     const cur = VDock.VARS[idx]?.type || 'string';
     typePicker.open(clientX, clientY, cur, (finalType)=>{
-      if (VDock.VARS[idx]){ VDock.VARS[idx].type = finalType; setVarsDirty(true); renderDock(); }
+      if (VDock.VARS[idx]){
+        VDock.VARS[idx].type = finalType;
+        setVarsDirty(true);
+        renderDock();
+      }
     });
   };
 
-  els.addBtn.addEventListener('click', ()=>{ window.__VDock_addVar({ name: nextVarName('NewVar'), type:'string' }); });
+  els.addBtn.addEventListener('click', ()=>{
+    if (atLimit()){
+      notify(`Variable limit reached (${LIMITS.MAX_VARS}).`);
+      updateAddButtonState();
+      return;
+    }
+    window.__VDock_addVar({ name: nextVarName('NewVar'), type:'string' });
+  });
+
   els.bpSelect?.addEventListener('change', ()=> renderDock());
   if (els.search) els.search.addEventListener('input', renderDock);
 
   els.saveBtn?.addEventListener('click', async ()=>{
     if (!VDock.varsDirty) return;
     const ok = await saveVariables();
-    if (ok){ setVarsDirty(false); clearDirty(els.dirty); }
-    else { console.warn('[variables-dock] save failed on all URLs; keeping dirty state'); }
+    if (ok){
+      setVarsDirty(false);
+      clearDirty(els.dirty);
+    } else {
+      console.warn('[variables-dock] save failed on all URLs; keeping dirty state');
+      notify('Save failed. Check connection or limits.');
+    }
   });
+
   els.revertBtn?.addEventListener('click', ()=>{
     if (!VDock.varsDirty) return;
     VDock.VARS = JSON.parse(JSON.stringify(VDock.SNAP));
     setVarsDirty(false);
     clearDirty(els.dirty);
     renderDock();
+    updateAddButtonState();
   });
 
   window.addEventListener('variables:add', (e)=>{
     const { name, type } = e.detail || {};
     if (!name || !type) return;
+    if (atLimit()){ notify(`Variable limit reached (${LIMITS.MAX_VARS}).`); updateAddButtonState(); return; }
     window.__VDock_addVar({ name: nextVarName(String(name)), type: String(type) });
   });
 
@@ -140,6 +210,10 @@ const ALL_TYPES = [
   (async function bootstrap(){
     await loadVariables();
     renderDock();
+    updateAddButtonState();
+    if (VDock.VARS.length > LIMITS.MAX_VARS){
+      notify(`You have ${VDock.VARS.length} variables. Limit is ${LIMITS.MAX_VARS}. Remove some to save new changes.`);
+    }
   })();
 
 })();

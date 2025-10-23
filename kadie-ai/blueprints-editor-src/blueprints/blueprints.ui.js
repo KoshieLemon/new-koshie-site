@@ -10,16 +10,19 @@ import { canonicalId } from './blueprints.util.js';
 import { refreshList } from './blueprints.list.js';
 import { openById } from './blueprints.open.js';
 import { saveCurrentBlueprint } from './blueprints.save.js';
+import { toast } from '../core/notify.js';
 
-const MAX_BLUEPRINTS = 10;
-
-function countBlueprintsFromDOM(){
+function codeFromError(e){
   try{
-    const list = document.getElementById('bpList');
-    if (!list) return 0;
-    // Count chips that represent real blueprints (exclude the “add” affordance if present)
-    return Array.from(list.querySelectorAll('.chip')).filter(el => !el.classList.contains('add')).length;
-  }catch{ return 0 }
+    // common shapes: { error: "too_many_blueprints" } or fetch Response JSON
+    if (e?.error) return String(e.error);
+    if (e?.response?.error) return String(e.response.error);
+    if (typeof e?.message === 'string'){
+      const m = /"error"\s*:\s*"([^"]+)"/.exec(e.message);
+      if (m) return m[1];
+    }
+  }catch{}
+  return null;
 }
 
 export async function initBlueprints(gid){
@@ -88,7 +91,7 @@ export async function initBlueprints(gid){
   if (btnSave){
     btnSave.addEventListener('click', async ()=>{
       if (BUSY || !state.bpId) return;
-      await saveCurrentBlueprint(gid);
+      await saveCurrentBlueprint(gid); // save handles its own toasts
     });
   }
 
@@ -132,14 +135,6 @@ export async function initBlueprints(gid){
   // Create
   btnCreate?.addEventListener('click', async ()=>{
     if (BUSY) return;
-
-    // Enforce max blueprints per guild
-    const count = countBlueprintsFromDOM();
-    if (count >= MAX_BLUEPRINTS){
-      alert(`Limit reached: maximum ${MAX_BLUEPRINTS} blueprints per server.`);
-      return;
-    }
-
     const name = prompt('New blueprint name?')?.trim();
     if (!name) return;
     showBusy('Creating…');
@@ -149,7 +144,14 @@ export async function initBlueprints(gid){
       els.bpSelect.value = '';
       window.dispatchEvent(new CustomEvent('bp:selected', { detail:{ id:'' } }));
       els.overlay.style.display = '';
-    }finally{
+    } catch(e){
+      const code = codeFromError(e);
+      if (code === 'too_many_blueprints'){
+        toast('Maximum blueprints reached (10). Delete one to create another.', { kind:'error' });
+      } else {
+        toast('Create failed.', { kind:'error' });
+      }
+    } finally{
       hideBusy();
     }
   });

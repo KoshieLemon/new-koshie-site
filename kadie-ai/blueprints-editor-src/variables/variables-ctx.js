@@ -20,12 +20,15 @@ export const KEYS = {
 };
 export const LAYOUT = { MIN_W: 240, MAX_W: 640 };
 
+// Hard limit for variable count
+export const LIMITS = { MAX_VARS: 15 };
+
 // Utilities
 export function typeColor(t){
   return TYPE_COLORS[colorKeyFor(t || 'string')] || '#a3a3a3';
 }
 export function mix(a, b, t){
-  function hexToRgb(h){ const n=parseInt(h.slice(1),16); return {r:(n>>16)&255,g:(n>>8)&255,b:n&255}; }
+  function hexToRgb(h){ const n=parseInt(h.slice(1),16); return {r:(n>>16)&255,g:(n>>8)&255,b:(n>>8>>8)&255}; }
   function toHex(n){ return n.toString(16).padStart(2,'0'); }
   const A = hexToRgb(a), B = hexToRgb(b);
   const r = Math.round(A.r*(1-t)+B.r*t);
