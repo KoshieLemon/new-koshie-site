@@ -11,6 +11,17 @@ import { refreshList } from './blueprints.list.js';
 import { openById } from './blueprints.open.js';
 import { saveCurrentBlueprint } from './blueprints.save.js';
 
+const MAX_BLUEPRINTS = 10;
+
+function countBlueprintsFromDOM(){
+  try{
+    const list = document.getElementById('bpList');
+    if (!list) return 0;
+    // Count chips that represent real blueprints (exclude the “add” affordance if present)
+    return Array.from(list.querySelectorAll('.chip')).filter(el => !el.classList.contains('add')).length;
+  }catch{ return 0 }
+}
+
 export async function initBlueprints(gid){
   ensureBusyUI();
 
@@ -121,6 +132,14 @@ export async function initBlueprints(gid){
   // Create
   btnCreate?.addEventListener('click', async ()=>{
     if (BUSY) return;
+
+    // Enforce max blueprints per guild
+    const count = countBlueprintsFromDOM();
+    if (count >= MAX_BLUEPRINTS){
+      alert(`Limit reached: maximum ${MAX_BLUEPRINTS} blueprints per server.`);
+      return;
+    }
+
     const name = prompt('New blueprint name?')?.trim();
     if (!name) return;
     showBusy('Creating…');
