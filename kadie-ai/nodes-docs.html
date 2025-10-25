@@ -5,18 +5,52 @@
   <title>Kadie AI • Node Diagram</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  <script>
+    window.KADIE_HEADER = { title: "Node Diagram", description: "Interactive diagram and documentation for Kadie nodes." };
+  </script>
+  <script src="/header.mount.js" defer></script>
   <link rel="stylesheet" href="/assets/main.css" />
   <style>
     :root{ --pad:14px; --bg:#0c0f16; --bd:#1e2230; --fg:#e5e7eb; --mut:#9aa4b2; }
+
     html,body{height:100%;margin:0;background:#0b0b0c;color:var(--fg)}
-    .wrap{display:grid;grid-template-columns:300px 1fr;gap:16px;max-width:1600px;margin:0 auto;padding:var(--pad)}
+
+    /* layout */
+    .wrap{
+      display:grid;
+      grid-template-columns:300px 1fr;
+      gap:16px;
+      max-width:1600px;
+      margin:0 auto;
+      padding:var(--pad);
+      height:calc(72dvh - 2*var(--pad)); /* fixed height -> no page growth */
+      align-items:stretch;
+      min-height:0;
+    }
 
     /* left menu */
-    .menu{background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:10px;height:calc(100dvh - 2*var(--pad))}
+    .menu{
+      background:var(--bg);
+      border:1px solid var(--bd);
+      border-radius:12px;
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+      overflow:hidden;        /* confine internal scroll */
+    }
     .menu h2{margin:6px 8px 10px 8px;font-size:14px}
-    .search{display:flex;gap:8px;margin:0 8px 10px 8px;position:sticky;top:0;background:var(--bg);padding-bottom:8px;z-index:2}
+    .search{
+      display:flex;gap:8px;margin:0 8px 10px 8px;
+      position:sticky;top:0;background:var(--bg);padding-bottom:8px;z-index:2
+    }
     .search input{flex:1;border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;border-radius:8px;padding:6px 8px}
-    .cats{overflow:auto;height:calc(100% - 72px);padding:0 4px}
+    .cats{
+      overflow:auto;          /* scrolls here instead of expanding page */
+      flex:1 1 auto;
+      min-height:0;
+      padding:0 4px
+    }
     details{border-bottom:1px solid #141824}
     details:last-child{border-bottom:0}
     summary{cursor:pointer;padding:8px 6px;color:#cbd5e1;font-weight:600;user-select:none;outline:none}
@@ -25,16 +59,41 @@
     .item:hover,.item.active{background:#0f1422}
     .item small{display:block;color:#9aa4b2;font-size:11px}
 
+    /* right column uses two rows: desc then view that fills */
+    main{
+      display:grid;
+      grid-template-rows:auto 1fr;
+      min-height:0;
+      overflow:hidden;        /* keep column height fixed */
+    }
+
     /* header info */
-    .desc{background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:10px;margin-bottom:12px}
+    .desc{
+      background:var(--bg);
+      border:1px solid var(--bd);
+      border-radius:12px;
+      padding:10px;
+      margin-bottom:12px
+    }
 
     /* diagram panel */
     .view{
-      position:relative;display:flex;flex-direction:column;gap:6px;
-      background:var(--bg);border:1px solid var(--bd);border-radius:12px;
-      padding:10px;overflow:hidden;
+      position:relative;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      background:var(--bg);
+      border:1px solid var(--bd);
+      border-radius:12px;
+      padding:10px;
+      overflow:hidden;
+      min-height:0;
     }
-    #stage{position:relative;min-height:320px}
+    #stage{
+      position:relative;
+      flex:1 1 auto;
+      min-height:220px;       /* shorter diagram area */
+    }
     #wires{position:absolute;inset:0;pointer-events:none;z-index:1}
     #labels{position:absolute;inset:0;pointer-events:none;z-index:2}
 
@@ -58,7 +117,7 @@
     .hidden{display:none}
   </style>
 </head>
-<body>
+<body data-kadie-header-title="Node Diagram" data-kadie-header-desc="Interactive diagram and documentation for Kadie nodes.">
   <div class="wrap">
     <aside class="menu" aria-label="Nodes">
       <h2>Nodes</h2>
@@ -99,18 +158,17 @@
     const sr=el=>el.getBoundingClientRect();
     const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-    const rowById=new Map(); // id -> menu row element
+    const rowById=new Map();
     let nodes=[];
 
-    /* menu */
     function catPath(def){
       if(Array.isArray(def.categoryPath)&&def.categoryPath.length) return def.categoryPath;
       const raw=String(def.category||'').trim();
       return raw?raw.replace(/[.\\]/g,'/').split('/').filter(Boolean):['uncategorized'];
     }
-    function treeify(nodesArr){
+    function treeify(arr){
       const root={label:'root',folders:new Map(),items:[]};
-      for(const d of nodesArr){ const parts=catPath(d); let cur=root;
+      for(const d of arr){ const parts=catPath(d); let cur=root;
         for(const p of parts){ if(!cur.folders.has(p)) cur.folders.set(p,{label:p,folders:new Map(),items:[]}); cur=cur.folders.get(p); }
         cur.items.push(d);
       } return root;
@@ -135,9 +193,9 @@
       for(const [lab,sub] of subs) body.appendChild(renderFolder(lab,sub));
       det.appendChild(sum); det.appendChild(body); if(label.toLowerCase()==='actions') det.open=true; return det;
     }
-    function buildMenu(nodesArr){
+    function buildMenu(arr){
       catsEl.innerHTML='';
-      const root=treeify(nodesArr);
+      const root=treeify(arr);
       const folders=[...root.folders.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
       for(const [label,folder] of folders) catsEl.appendChild(renderFolder(label,folder));
       const filter=q=>{
@@ -149,7 +207,6 @@
       qEl.addEventListener('input',()=>filter(qEl.value)); filter('');
     }
 
-    /* diagram */
     let nodeEl=null, nodeDef=null;
 
     function setViewBox(){ const w=stage.clientWidth||100, h=stage.clientHeight||100; wires.setAttribute('viewBox',`0 0 ${w} ${h}`); }
@@ -305,10 +362,9 @@
     const idx=await fetchNodesIndex();
     nodes=Array.isArray(idx?.nodes)?idx.nodes:[];
     buildMenu(nodes);
-    // default selection
     if(nodes[0]) renderPreview(nodes[0]);
-    // param-based selection
     selectFromQuery();
   </script>
+  <script src="/footer.mount.js" defer></script>
 </body>
 </html>

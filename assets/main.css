@@ -34,3 +34,22 @@ h2 { margin: 8px 0 16px; font-size: 20px; }
 .badge.mgmt { background: #2ecc7122; border-color: #2ecc7166; }
 .guild-meta { font-size: 12px; opacity: .85; display: flex; gap: 10px; }
 .actions { display: grid; grid-auto-flow: column; gap: 8px; }
+
+/* ====== Site scrollbar theme ====== */
+html { scrollbar-color: #6b7280 transparent; scrollbar-width: thin; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background-color: #6b7280;         /* slate-500 */
+  border-radius: 999px;
+  border: 2px solid transparent;     /* ring gap */
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; } /* slate-400 */
+*::-webkit-scrollbar-corner { background: transparent; }
+
+/* ====== Overflow guards ====== */
+html, body { overflow-x: clip; }
+
+/* media safety for wide embeds */
+img, svg, video, canvas, iframe { max-width: 100%; }

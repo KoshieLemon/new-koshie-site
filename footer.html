@@ -1,0 +1,79 @@
+<footer class="kf" aria-labelledby="kf-title">
+  <style>
+    .kf{--kf-bg1:#0b0f1a;--kf-bg2:#0f1420;--kf-text:#e5e7eb;--kf-muted:#94a3b8;--kf-border:#1f2532;
+        font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--kf-text);
+        background:linear-gradient(160deg,var(--kf-bg1),var(--kf-bg2));margin:0;padding:0;border-top:1px solid var(--kf-border);display:block;width:100%}
+    .kf *{box-sizing:border-box}
+    .kf .container{max-width:1200px;margin:0 auto;padding:32px 20px 22px}
+    .kf .brand{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+    .kf .logo{width:34px;height:34px;border-radius:10px;background:radial-gradient(circle at 35% 35%,#79d2ff,#36bffa 55%,#0ea5e9 90%);box-shadow:0 0 24px #38bdf866}
+    .kf .name{font-size:22px;font-weight:800;letter-spacing:.2px}
+    .kf .tag{font-size:18px;font-weight:800;margin:6px 0 20px}
+    .kf .tag .hi{color:#22d3ee}
+    /* Two columns + social */
+    .kf .grid{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr)) 160px;gap:24px}
+    .kf h4{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:#c7d2fe;margin:0 0 10px}
+    .kf ul{list-style:none;padding:0;margin:0}
+    .kf a{display:block;color:#cbd5e1;text-decoration:none;padding:6px 0;border-radius:6px}
+    .kf a:hover{color:#fff}
+    .kf .social{display:flex;gap:14px;align-items:center;justify-content:flex-end}
+    .kf .social a{display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border:1px solid var(--kf-border);border-radius:8px;background:#0f1420}
+    .kf .social a:hover{border-color:#314158;box-shadow:0 0 0 2px #1b2435 inset}
+    .kf .bar{margin-top:20px;padding-top:14px;border-top:1px solid var(--kf-border);display:flex;justify-content:space-between;align-items:center;color:var(--kf-muted);font-size:13px}
+    .kf .note{opacity:.9}
+    @media (max-width:900px){
+      .kf .grid{grid-template-columns:1fr 160px}
+      .kf .social{justify-content:flex-start}
+      .kf .bar{flex-direction:column;gap:8px;align-items:flex-start}
+    }
+    @media (max-width:520px){.kf .grid{grid-template-columns:1fr}}
+  </style>
+
+  <div class="container">
+    <div class="brand"><div class="logo" aria-hidden="true"></div><div class="name">Kadie.AI</div></div>
+    <h2 id="kf-title" class="tag">A Discord bot — <span class="hi">Done Right</span></h2>
+
+    <div class="grid">
+      <div>
+        <h4>Other</h4>
+        <ul>
+          <li><a href="https://discord.com/oauth2/authorize?client_id=1395827053928120341&permissions=0&response_type=code&redirect_uri=https%3A%2F%2Fapi.koshiestudios.com%2Fapi%2Fcallback&integration_type=0&scope=identify+bot">Invite bot</a></li>
+          <li><a href="https://discord.gg/gMPCeSYD">Support Server</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="/legal/terms.html">Terms of Service</a></li>
+          <li><a href="/legal/privacy.html">Privacy Policy</a></li>
+        </ul>
+      </div>
+
+      <div class="social" aria-label="Social links">
+        <a href="https://discord.com/" aria-label="Discord">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#60a5fa" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20.317 4.37A16.9 16.9 0 0 0 16.558 3a12.39 12.39 0 0 0-.6 1.233 15.28 15.28 0 0 0-4.915 0A12.44 12.44 0 0 0 10.44 3a16.82 16.82 0 0 0-3.76 1.37C3.03 7.36 2.37 10.25 2.58 13.1c1.56 1.16 3.07 1.87 4.53 2.33.36-.49.68-1.01.95-1.56-.52-.2-1.02-.46-1.5-.76.13-.1.25-.2.37-.3 2.87 1.34 5.98 1.34 8.85 0 .12.1.24.2.37.3-.48.3-.98.56-1.5.76.27.55.59 1.07.95 1.56 1.46-.46 2.97-1.17 4.53-2.33.3-3.78-.63-6.63-2.82-8.73ZM9.6 12.9c-.66 0-1.2-.62-1.2-1.38s.54-1.39 1.2-1.39 1.2.62 1.2 1.39-.54 1.38-1.2 1.38Zm4.8 0c-.66 0-1.2-.62-1.2-1.38s.54-1.39 1.2-1.39 1.2.62 1.2 1.39-.54 1.38-1.2 1.38Z"/>
+          </svg>
+        </a>
+        <a href="https://twitter.com/" aria-label="Twitter/X">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#60a5fa" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18.244 2H21l-6.61 7.548L22 22h-6.828l-4.96-6.042L4.4 22H2l7.07-8.084L2 2h6.828l4.54 5.53L18.244 2Zm-1.2 18h1.32L7.08 4h-1.32L17.044 20Z"/>
+          </svg>
+        </a>
+        <a href="https://www.patreon.com/" aria-label="Patreon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#60a5fa" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="15" cy="8" r="4.5"/><rect x="4" y="4" width="3.5" height="16" rx="1.2"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+
+    <div class="bar">
+      <div>© <span id="kf-year"></span> Koshie Studios</div>
+      <div class="note">Not affiliated with Discord Inc.</div>
+    </div>
+  </div>
+
+  <script>document.getElementById('kf-year').textContent=new Date().getFullYear();</script>
+</footer>

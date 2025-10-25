@@ -136,7 +136,14 @@
     })();
   </script>
 
-  <script type="module" src="/kadie-ai/blueprints-editor.js?v=7"></script>
+  <!-- Inlined former /kadie-ai/blueprints-editor.js -->
+  <script type="module">
+    import './blueprints-editor-src/core/index.js';
+    import './blueprints-editor-src/core/events-ui.js';
+    import './blueprints-editor-src/variables/variables-dock.js';
+    import './blueprints-editor-src/blueprints/blueprints-dock.js';
+  </script>
+
   <script type="module" src="/kadie-ai/blueprints-editor-src/menus/pin-actions.js?v=2"></script>
 </body>
 </html>

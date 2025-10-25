@@ -1,12 +1,16 @@
 <!doctype html>
 <html lang="en">
+<script>
+  window.KADIE_HEADER = { title: "Bot Status", description: "Live shard health and uptime across services." };
+</script>
+<script src="/header.mount.js" defer></script>
 <head>
   <meta charset="utf-8" />
   <title>Kadie AI • Bot Status</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
-  <meta name="description" content="Live Kadie AI bot status. See per-shard health, learn how sharding works, and understand how to read uptime signals, outages, and maintenance for your Discord servers." />
-  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1" />
+  <meta name="description" content="Live Kadie AI bot status." />
+  <meta name="robots" content="index,follow" />
   <link rel="stylesheet" href="/assets/main.css" />
   <style>
     :root { --ok:#10b981; --warn:#f59e0b; --down:#ef4444; --bg:#0b0b0c; --panel:#0c0f14; --muted:#9ca3af; --fg:#e5e7eb; --tile:#11131a; }
@@ -33,60 +37,7 @@
     .pill{border:1px solid #1e293b;background:#0c111b;border-radius:999px;padding:6px 10px;font:700 12px/1 system-ui,Segoe UI,Roboto,Arial,sans-serif;color:#93c5fd}
     .meta{display:flex;gap:14px;flex-wrap:wrap;color:#93a3af;font-size:13px}
     .ts{color:#9aa3af}
-
-    /* Article content for AdSense-quality useful info */
-    .article{line-height:1.6}
-    .article h2{font:700 20px/1.2 system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:6px 0 8px}
-    .article h3{font:700 16px/1.2 system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:14px 0 6px}
-    .article p{margin:8px 0;color:#d5d7db}
-    .article ul{margin:8px 0 8px 18px;padding:0}
-    .article li{margin:6px 0}
-    details.faq{border:1px solid #1b2332;background:#0d1118;border-radius:10px;padding:10px 12px;margin:8px 0}
-    details.faq>summary{cursor:pointer;font-weight:700;color:#dbeafe}
-    details.faq>div{margin-top:8px;color:#d5d7db}
-    .kbd{display:inline-block;border:1px solid #263246;background:#0f1420;border-radius:6px;padding:0 6px;font:600 12px/18px ui-monospace,Consolas,monospace;color:#e2e8f0}
-    .callout{border-left:3px solid #2563eb;padding:8px 12px;background:#0d1220;border-radius:8px;margin:10px 0;color:#cfe0ff}
   </style>
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
-      {
-        "@type": "Question",
-        "name": "How do I find which shard my Discord server is on?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Paste your server ID into the search box. The page calculates shard = (guild_id >> 22) % shard_count and highlights that shard."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "What do the green, yellow, and red states mean?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Green means the shard reported a healthy signal within the last 45 seconds. Yellow means it is responding but the most recent healthy signal is older or the check is stale. Red indicates no recent healthy signal and the shard is considered down."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "How often does the status refresh?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "The page refreshes automatically every 15 seconds and shows the time of the last update."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Does this page expose any private data?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "No. It displays aggregated shard health and optional guild counts. It does not show message content or user data."
-        }
-      }
-    ]
-  }
-  </script>
 </head>
 <body>
   <div class="wrap">
@@ -99,9 +50,9 @@
         <div id="countPill" class="pill">— / — shards</div>
       </div>
       <div class="legend" aria-label="Legend">
-        <span class="dot ok" aria-hidden="true"></span><span>Operational</span>
-        <span class="dot warn" style="margin-left:10px" aria-hidden="true"></span><span>Partial outage</span>
-        <span class="dot down" style="margin-left:10px" aria-hidden="true"></span><span>Major outage</span>
+        <span class="dot ok"></span><span>Operational</span>
+        <span class="dot warn" style="margin-left:10px"></span><span>Partial outage</span>
+        <span class="dot down" style="margin-left:10px"></span><span>Major outage</span>
       </div>
       <div class="row">
         <input id="search" type="search" placeholder="Look up your server (by ID)" autocomplete="off" aria-label="Search by server ID">
@@ -114,95 +65,6 @@
       <div class="meta" id="meta"></div>
       <div class="grid" id="grid" aria-live="polite"></div>
     </div>
-
-    <!-- Useful, explanatory content to qualify as a valuable page -->
-    <article class="panel article" aria-labelledby="about-title">
-      <h2 id="about-title">About this status page</h2>
-      <p>
-        This status page shows the real-time operating state of the Kadie AI bot across all active shards. Large Discord bots are split into multiple
-        “shards,” which are independent workers that each manage a slice of servers. Sharding improves resilience and throughput. If one shard is
-        congested or offline, other shards can continue serving their assigned servers normally. The dashboard above renders a tile per shard with an
-        at-a-glance color that summarizes health: green for <em>operational</em>, yellow for <em>partial outage or stale</em>, and red for
-        <em>major outage</em>. Hover any tile to see details like the shard index, the last known healthy timestamp, optional guild counts, and the
-        process ID reported by the worker.
-      </p>
-      <p>
-        Use the search box to determine which shard a specific server lives on. Paste a Discord server ID and the page will compute a deterministic shard
-        index and highlight it. This is useful when you need to correlate a local incident (“commands feel slow in my server”) with a shard-level event.
-        You can also watch the “Shards” and “Max concurrency” counters to understand how much parallel capacity is available when reconnecting to Discord.
-        The page refreshes every 15 seconds and stamps the last update time so you know you are looking at fresh data.
-      </p>
-
-      <h3>How shard health is determined</h3>
-      <p>
-        The health logic favors clear signals and predictable thresholds. A shard is marked green when it reports a healthy check-in within the last
-        45 seconds. If a shard is reporting but the most recent healthy time is older than that threshold, or the last check is stale, the tile turns
-        yellow. If there has been no recent healthy signal for an extended period, the shard is treated as down and the tile turns red. This approach
-        aligns with the practical reality of Discord gateway connections, where short reconnects are normal and brief bursts of stale data should not
-        trigger a false outage.
-      </p>
-
-      <h3>Finding your server’s shard</h3>
-      <p>
-        Paste your server ID into the search field. Discord server IDs are Snowflakes. The shard index is computed with
-        <span class="kbd">(guild_id &raquo; 22) % shard_count</span>. The highlighted tile shows the shard that handles your server. If you operate
-        multiple servers, repeat the lookup for each ID. Knowing the shard helps narrow triage: if only one shard shows warnings, only servers on that
-        shard are likely affected.
-      </p>
-
-      <h3>What to do if something looks wrong</h3>
-      <ul>
-        <li><strong>Check the legend and timestamp.</strong> If the page shows yellow for your shard, wait a minute and see if it returns to green as the gateway stabilizes.</li>
-        <li><strong>Verify bot presence.</strong> Confirm the bot is online in your server member list. If it appears offline and your shard is red, you are likely impacted.</li>
-        <li><strong>Retry a simple command.</strong> Run a lightweight command after 30–60 seconds. If it executes, the outage was transient.</li>
-        <li><strong>Review rate limits on your side.</strong> Excessive bursts can trigger back-pressure. Stagger jobs or reduce concurrency.</li>
-        <li><strong>Escalate only with context.</strong> When reporting an issue, include your server ID, approximate time, and shard index shown here.</li>
-      </ul>
-
-      <h3>Reliability goals and maintenance</h3>
-      <p>
-        Target reliability is high availability across shards with graceful degradation during provider incidents. Rolling restarts are performed to
-        deploy updates and rotate credentials. During a rollout you may briefly see some shards in yellow while others remain green. The system favors
-        gradual reconnection to respect Discord’s concurrency guidance, which reduces reconnect storms and keeps the service steady under load.
-      </p>
-
-      <h3>Privacy and data handling</h3>
-      <p>
-        This page surfaces operational metadata only. It does <strong>not</strong> display message content, user identities, or per-server activity.
-        The optional guild count displayed in tooltips, when available, is an aggregate number meant for capacity monitoring. Health timestamps are based
-        on worker heartbeats and do not encode user behavior. All data shown here is intended for observability and reliability work.
-      </p>
-
-      <h3>Glossary</h3>
-      <ul>
-        <li><strong>Shard:</strong> An independent worker that maintains a gateway session and services a portion of servers.</li>
-        <li><strong>Concurrency:</strong> How many shards may log in or reconnect in parallel without tripping provider limits.</li>
-        <li><strong>Heartbeat:</strong> A routine signal sent by a worker to indicate it is healthy and processing events.</li>
-        <li><strong>Partial outage:</strong> The worker is reachable but signals are stale or degraded; expect intermittent behavior.</li>
-      </ul>
-
-      <div class="callout" role="note">
-        Tip: Bookmark this page and keep your server ID handy. During any incident, identifying the shard quickly shortens time to resolution.
-      </div>
-
-      <h3>FAQ</h3>
-      <details class="faq">
-        <summary>How often does the page refresh?</summary>
-        <div>The dashboard refreshes every 15 seconds and lists the last update time in the header for transparency.</div>
-      </details>
-      <details class="faq">
-        <summary>Why do some tiles show no guild count?</summary>
-        <div>Guild counts are optional and may be hidden when not essential to diagnosis or when a worker is still warming up.</div>
-      </details>
-      <details class="faq">
-        <summary>What triggers a red “down” state?</summary>
-        <div>Extended absence of a healthy heartbeat. This usually correlates with a gateway disconnect or a worker restart that exceeded the stale threshold.</div>
-      </details>
-      <details class="faq">
-        <summary>Do I need to take action during a yellow state?</summary>
-        <div>Usually no. Yellow often clears as a reconnect finishes. If yellow persists alongside command failures in your server, gather the shard index and time window before escalating.</div>
-      </details>
-    </article>
   </div>
 
   <script type="module">
@@ -229,7 +91,6 @@
 
       let workers = [];
       if (status && Array.isArray(status.workers)) workers = status.workers;
-      // if no workers reported, synthesize one for single-process fallback
       if (!workers.length) workers = Array.from({length:COUNT}, (_,i)=>({id:i, ok:true, last_ok: Date.now(), guild_count: null}));
 
       const probs = workers.filter(w => !w.ok).length;
@@ -246,7 +107,6 @@
     }
 
     function statusClass(w){
-      // ok = green if last_ok seen recently
       const now = Date.now();
       const fresh = typeof w.last_ok === 'number' && (now - w.last_ok) <= 45_000;
       if (w.ok && fresh) return 'ok';
@@ -288,14 +148,13 @@
       const raw = search.value.trim();
       const idx = raw ? shardFor(raw, COUNT) : null;
       SEL = idx;
-      if (raw && idx !== null){
-        lookup.textContent = `Server ${raw} → Shard ${idx+1}/${COUNT}`;
-      } else lookup.textContent = '';
+      lookup.textContent = raw && idx !== null ? `Server ${raw} → Shard ${idx+1}/${COUNT}` : '';
       highlightSelected();
     });
 
     await fetchStatus();
     setInterval(fetchStatus, 15_000);
   </script>
-</body>
+  <script src="/footer.mount.js" defer></script>
+<body data-kadie-header-title="Bot Status" data-kadie-header-desc="Live shard health and uptime across services.">
 </html>

@@ -6,26 +6,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
   <link rel="stylesheet" href="/assets/main.css" />
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3366084057758708" crossorigin="anonymous"></script>
   <style>
     :root{ --header-h:72px; --banner-h:0px; --gap-y:0px; }
     html,body{height:100%; margin:0}
+    body{overflow-x:clip}
 
-    #siteHeader{position:sticky; top:0; z-index:100; background:#0b0b0c; border-bottom:1px solid #151923;}
+    /* Header must sit above iframes and overlays */
+    #siteHeader{position:sticky; top:0; z-index:99999; background:#0b0b0c; border-bottom:1px solid #151923;}
     .header{display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:12px}
     .left{display:flex;align-items:center;gap:14px}
-
     .brand-title{margin:0;font-weight:800;font-size:20px;color:#eaeaea;line-height:1}
     .brand-title a{color:inherit;text-decoration:none;cursor:pointer}
 
+    /* Desktop tabs */
     .tabs{display:flex;gap:8px;flex-wrap:wrap}
-    .tab-btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:8px 12px;border-radius:10px;cursor:pointer;text-decoration:none}
+    .tab-btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:8px 12px;border-radius:10px;cursor:pointer;text-decoration:none; position:relative; z-index:100000}
     .tab-btn[hidden]{display:none}
     .tab-btn.active{outline:2px solid #5ac8fa}
     .tab-btn.primary{background:#0e2238;border-color:#1e3a8a;color:#dbeafe}
     .tab-btn.primary.active{outline:2px solid #60a5fa}
     .tab-btn.upgrade{background:#2a0e12;border-color:#5f1a20;color:#ffd7d7;font-weight:700}
     .tab-btn.upgrade:hover{background:#47141b}
+
+    /* Mobile hamburger */
+    .hamburger{display:none;align-items:center;justify-content:center;gap:6px;width:40px;height:40px;border:1px solid #2b2f3a;background:#11131a;border-radius:10px;cursor:pointer}
+    .hamburger .bar{display:block;width:18px;height:2px;background:#eaeaea;border-radius:2px;position:relative}
+    .hamburger .bar::before,
+    .hamburger .bar::after{content:"";position:absolute;left:0;width:18px;height:2px;background:#eaeaea;border-radius:2px}
+    .hamburger .bar::before{top:-6px}
+    .hamburger .bar::after{top:6px}
+
+    /* Mobile menu panel */
+    .mobile-menu{position:fixed;left:0;right:0;top:var(--header-h);background:#0b0b0c;border-bottom:1px solid #151923;display:none;flex-direction:column;gap:8px;padding:12px;z-index:99998}
+    .mobile-menu.show{display:flex}
+    .mobile-menu .tab-btn{width:100%;text-align:left}
+
+    /* Optional backdrop to capture outside clicks below header */
+    .mobile-backdrop{position:fixed;inset:var(--header-h) 0 0 0;background:#0000;display:none;z-index:99990}
+    .mobile-backdrop.show{display:block}
 
     .server-badge{display:none;background:#0b0b0c;border-bottom:1px solid #151923;}
     .server-badge.show{display:block}
@@ -34,50 +52,72 @@
     .server-title{display:flex;align-items:baseline;gap:8px;min-width:0}
     .server-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
     .server-id{font-size:12px;color:#9aa4b2}
-    /* shrink spacer so CPU can take the space */
     .server-spacer{flex:0 0 8px}
     .leave-btn{border:1px solid #3a1f1f;background:#1a1111;color:#fca5a5;padding:4px 8px;border-radius:8px;cursor:pointer;font-size:12px}
 
-    /* CPU progress bar */
     .cpu{display:flex;align-items:center;gap:8px;min-width:160px;flex:1 1 auto;max-width:none}
     .cpu-bar{position:relative;height:10px;flex:1 1 auto;border-radius:999px;background:#0f1117;border:1px solid #22293a;overflow:hidden}
-    /* critical: control width via JS; do NOT pin right */
     .cpu-fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:linear-gradient(90deg,#1e40af,#60a5fa);filter:drop-shadow(0 0 6px #60a5fa55)}
-    /* keep label tight to bar */
     .cpu-meta{font-size:12px;color:#9aa4b2;white-space:nowrap;min-width:auto;text-align:left}
 
-    .full-bleed{width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}
-    .viewport-wrap{position:relative;height:calc(100dvh - var(--header-h) - var(--banner-h) - var(--gap-y));}
-    .content{position:absolute;inset:0;border:0;overflow:hidden;background:#0b0b0c}
-    .frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:none}
+    .full-bleed{width:100%; margin-left:0; margin-right:0}
+
+    /* Ensure frames never cover the header */
+    .viewport-wrap{position:relative;height:calc(100dvh - var(--header-h) - var(--banner-h) - var(--gap-y)); z-index:1}
+    .content{position:absolute;inset:0;border:0;overflow:hidden;background:#0b0b0c; z-index:1}
+    .frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:none; z-index:1}
     .frame.active{display:block}
 
-    .auth-block{position:absolute;inset:0;background:linear-gradient(160deg,#0b0f1a,#0f1324);display:none;align-items:center;justify-content:center;z-index:50}
+    /* Auth overlay should never block header when hidden */
+    .auth-block{position:absolute;inset:0;background:linear-gradient(160deg,#0b0f1a,#0f1324);display:none;align-items:center;justify-content:center;z-index:50; pointer-events:none}
+    .auth-block.show{display:flex; pointer-events:auto}
     .auth-card{background:#0e1116;border:1px solid #2b2f3a;border-radius:12px;padding:18px;max-width:420px;box-shadow:0 10px 24px #000a}
-    .auth-block.show{display:flex}
+
     .btn{border:1px solid #2b2f3a;background:#111;color:#eee;padding:8px 12px;border-radius:10px;cursor:pointer}
     .muted{color:#9aa4b2;font-size:12px}
-    @media (max-width: 1100px){ .header{flex-wrap:wrap} }
+
+    /* Layout tweaks for medium screens */
+    @media (max-width:1100px){.header{flex-wrap:wrap}}
+
+    /* Mobile breakpoint: show hamburger, hide desktop tabs */
+    @media (max-width: 860px){
+      .tabs{display:none}
+      .hamburger{display:inline-flex}
+      .server-name{max-width:38vw}
+    }
   </style>
 </head>
 <body>
   <header id="siteHeader">
     <div class="container header">
       <div class="left">
-        <h1 class="brand-title">
-          <a id="brandHome" href="../index.html" aria-label="Back to cover">Kadie AI</a>
-        </h1>
+        <h1 class="brand-title"><a id="brandHome" href="../index.html" aria-label="Back to cover">Kadie AI</a></h1>
       </div>
 
+      <!-- Desktop nav -->
       <nav class="tabs" id="tabs" aria-label="Workspace">
-        <button class="tab-btn active" data-tab="simple"     id="tab-simple">Simple Server</button>
-        <button class="tab-btn primary" data-tab="blueprints" id="tab-blueprints" hidden>Blueprints</button>
-        <!-- <button class="tab-btn"        data-tab="community"  id="tab-community" hidden>Community</button> -->
-        <button class="tab-btn"        data-tab="nodes"      id="tab-nodes">Nodes</button>
-        <!-- <button class="tab-btn"        data-tab="tutorials"  id="tab-tutorials">Tutorials</button> -->
-        <button class="tab-btn"        data-tab="status"     id="tab-status">Status</button>
+        <button class="tab-btn active" data-tab="simple" id="tab-simple" aria-controls="frame-simple">Simple Server</button>
+        <button class="tab-btn primary" data-tab="blueprints" id="tab-blueprints" aria-controls="frame-blueprints" hidden>Blueprints</button>
+        <button class="tab-btn" data-tab="nodes" id="tab-nodes" aria-controls="frame-nodes">Nodes</button>
+        <button class="tab-btn" data-tab="discover" id="tab-discover" aria-controls="frame-discover">Discover</button>
+        <button class="tab-btn" data-tab="status" id="tab-status" aria-controls="frame-status">Status</button>
       </nav>
+
+      <!-- Mobile trigger -->
+      <button id="mobileMenuBtn" class="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobileMenu" type="button">
+        <span class="bar"></span>
+      </button>
     </div>
+
+    <!-- Mobile menu panel (mirrors tabs) -->
+    <nav id="mobileMenu" class="mobile-menu" aria-label="Mobile">
+      <button class="tab-btn" data-tab="simple" aria-controls="frame-simple">Simple Server</button>
+      <button class="tab-btn primary" data-tab="blueprints" aria-controls="frame-blueprints" hidden>Blueprints</button>
+      <button class="tab-btn" data-tab="nodes" aria-controls="frame-nodes">Nodes</button>
+      <button class="tab-btn" data-tab="discover" aria-controls="frame-discover">Discover</button>
+      <button class="tab-btn" data-tab="status" aria-controls="frame-status">Status</button>
+    </nav>
+    <div id="mobileBackdrop" class="mobile-backdrop" aria-hidden="true"></div>
   </header>
 
   <div id="serverBadge" class="server-badge" aria-live="polite">
@@ -87,74 +127,107 @@
         <span id="sbName" class="server-name"></span>
         <span id="sbId" class="server-id"></span>
       </div>
-
       <div class="server-spacer"></div>
-
-      <!-- CPU usage progress bar (shows only MAX text) -->
       <div class="cpu" id="cpuSlot" title="0/0" aria-label="CPU usage">
         <div class="cpu-bar"><div class="cpu-fill" id="cpuFill" style="width:0%"></div></div>
         <div class="cpu-meta" id="cpuMax">0</div>
       </div>
-
       <button id="leaveServerBtn" class="leave-btn" title="Leave server">Leave</button>
     </div>
   </div>
 
   <main class="viewport-wrap full-bleed">
     <div class="content" id="content">
-      <iframe id="frame-simple"     class="frame active" src="/kadie-ai/server-listings.html"      title="Server listings"></iframe>
-      <iframe id="frame-blueprints" class="frame"        src="about:blank"                         title="Blueprints"></iframe>
-      <!-- <iframe id="frame-community"  class="frame"        src="/kadie-ai/community-forums.html"     title="Community"></iframe>  -->
-      <iframe id="frame-nodes"      class="frame"        src="/kadie-ai/nodes-docs.html"           title="Nodes"></iframe>
-      <!-- <iframe id="frame-tutorials"  class="frame"        src="/kadie-ai/blueprint-tutorials.html"  title="Tutorials"></iframe>  -->
-      <iframe id="frame-status"     class="frame"        src="/kadie-ai/bot-status.html"           title="Status"></iframe>
+      <iframe id="frame-simple"     class="frame active" src="/kadie-ai/server-listings.html"   title="Server listings"></iframe>
+      <iframe id="frame-blueprints" class="frame"        src="about:blank"                      title="Blueprints"></iframe>
+      <iframe id="frame-nodes"      class="frame"        src="/kadie-ai/nodes-docs.html"        title="Nodes"></iframe>
+      <iframe id="frame-discover"   class="frame"        src="/kadie-ai/discover.html"          title="Discover"></iframe>
+      <iframe id="frame-status"     class="frame"        src="/kadie-ai/bot-status.html"        title="Status"></iframe>
 
       <div class="auth-block" id="authBlock" aria-live="polite">
         <div class="auth-card">
           <h3 style="margin:0 0 8px 0">Sign in required</h3>
           <p id="authStatus" class="muted" style="margin:0 0 12px 0">Please sign in to access this section.</p>
           <div style="display:flex;gap:10px;justify-content:flex-end">
-            <button class="btn" id="signinDirect">Sign in with Discord</button>
+            <a class="btn" id="signinDirect" href="https://discord.com/oauth2/authorize?client_id=1395827053928120341&permissions=0&response_type=code&redirect_uri=https%3A%2F%2Fapi.koshiestudios.com%2Fapi%2Fcallback&integration_type=0&scope=identify+bot">Sign in with Discord</a>
           </div>
         </div>
       </div>
     </div>
   </main>
 
-  <script type="module" src="/kadie-ai/kadie-home.js"></script>
-
+  <!-- Safe tab switcher + mobile menu controller -->
   <script type="module">
-    function activateTab(tabId){
-      document.querySelectorAll('.tab-btn').forEach(btn=>{
-        const on = btn.dataset.tab === tabId;
-        btn.classList.toggle('active', on);
-      });
-      document.querySelectorAll('.frame').forEach(fr=>{
-        const on = fr.id === `frame-${tabId}`;
-        fr.classList.toggle('active', on);
-      });
+    const frames = Array.from(document.querySelectorAll('.frame'));
+    const desktopTabsEl = document.getElementById('tabs');
+    const mobileTabsEl  = document.getElementById('mobileMenu');
+    const allTabButtons = () => Array.from(document.querySelectorAll('.tab-btn'));
+    const mobileBtn     = document.getElementById('mobileMenuBtn');
+    const mobileMenu    = document.getElementById('mobileMenu');
+    const backdrop      = document.getElementById('mobileBackdrop');
+
+    function setActiveTab(tab){
+      const targetId = `frame-${tab}`;
+      allTabButtons().forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+      frames.forEach(f => f.classList.toggle('active', f.id === targetId));
+      console.log('[home] switched to', tab, '->', targetId);
     }
 
-    window.addEventListener('message', (ev)=>{
-      const d = ev?.data || {};
-      if (d.type === 'kadie:open-node-docs'){
-        activateTab('nodes');
-        const frame = document.getElementById('frame-nodes');
+    function onTabsClickFactory(scope){
+      return (e)=>{
+        const btn = e.target.closest('.tab-btn');
+        if(!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        console.log(`[home] ${scope} tab click`, {tab: btn.dataset.tab});
+        setActiveTab(btn.dataset.tab);
+        // Close mobile menu after selection
+        if(scope === 'mobile') closeMobileMenu();
+      };
+    }
 
-        try{
-          frame?.contentWindow?.postMessage({ type:'kadie:select-node', nodeId:String(d.nodeId||'') }, '*');
-        }catch{}
+    function openMobileMenu(){
+      mobileMenu.classList.add('show');
+      backdrop.classList.add('show');
+      mobileBtn.setAttribute('aria-expanded','true');
+      console.log('[home] mobile menu opened');
+    }
+    function closeMobileMenu(){
+      mobileMenu.classList.remove('show');
+      backdrop.classList.remove('show');
+      mobileBtn.setAttribute('aria-expanded','false');
+      console.log('[home] mobile menu closed');
+    }
+    function toggleMobileMenu(){
+      const open = mobileMenu.classList.contains('show');
+      open ? closeMobileMenu() : openMobileMenu();
+    }
 
-        try{
-          const src = frame.getAttribute('src') || '/kadie-ai/nodes-docs.html';
-          const u = new URL(src, location.origin);
-          u.pathname = '/kadie-ai/nodes-docs.html';
-          u.searchParams.set('node', String(d.nodeId||''));
-          const next = `${u.pathname}?${u.searchParams.toString()}`;
-          if (frame.src !== next) frame.src = next;
-        }catch{}
-      }
-    });
+    desktopTabsEl.addEventListener('click', onTabsClickFactory('desktop'));
+    mobileTabsEl.addEventListener('click',  onTabsClickFactory('mobile'));
+
+    mobileBtn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleMobileMenu(); });
+    backdrop.addEventListener('click', closeMobileMenu);
+    window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeMobileMenu(); });
+
+    // Global click inspector to identify blockers
+    window.addEventListener('click', (e)=>{
+      const path = e.composedPath ? e.composedPath() : [];
+      const chain = path.map(n=>{
+        if(!n || !n.nodeName) return '';
+        const id = n.id ? `#${n.id}` : '';
+        const cls = n.className && typeof n.className === 'string' ? '.'+n.className.split(/\s+/).filter(Boolean).join('.') : '';
+        const zi = n.style && n.style.zIndex ? ` z:${n.style.zIndex}` : '';
+        return `${n.nodeName.toLowerCase()}${id}${cls}${zi}`;
+      }).filter(Boolean);
+      console.log('[home] click target:', e.target, 'path:', chain.join(' > '));
+    }, true);
+
+    // Defensive: ensure header is above any future overlays
+    document.getElementById('siteHeader').style.zIndex = '99999';
   </script>
+
+  <!-- Your original app code -->
+  <script type="module">import './kadie-home-src/main.js';</script>
 </body>
 </html>

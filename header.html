@@ -1,0 +1,67 @@
+<header class="kh" aria-labelledby="kh-title">
+  <style>
+    .kh {
+      --kh-bg1: #0b0f1a;
+      --kh-bg2: #0f1420;
+      --kh-border: #1f2532;
+      --kh-text: #e5e7eb;
+      --kh-muted: #94a3b8;
+      --kh-accent: #38bdf8;
+      position: relative;
+      display: block;
+      width: 100%;
+      color: var(--kh-text);
+      background: linear-gradient(160deg, var(--kh-bg1), var(--kh-bg2));
+      border-bottom: 1px solid var(--kh-border);
+    }
+    .kh .beam {
+      position: absolute;
+      top: -36px;
+      left: 50%;
+      width: min(1200px, 92vw);
+      height: 110px;
+      transform: translateX(-50%);
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, rgba(56, 189, 248, 0.55), rgba(56, 189, 248, 0) 60%);
+      filter: blur(24px);
+    }
+    .kh .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 54px 20px 26px;
+    }
+    .kh h1 {
+      margin: 0 0 10px;
+      font: 800 40px/1.1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      letter-spacing: 0.2px;
+      background: linear-gradient(90deg, #e2e8f0, #ffffff 30%, #a5f3fc 60%, #e2e8f0);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 24px rgba(56, 189, 248, 0.18);
+    }
+    @media (max-width: 520px) {
+      .kh h1 { font-size: 32px; }
+    }
+    .kh .desc {
+      margin: 0;
+      max-width: 70ch;
+      font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--kh-muted);
+    }
+    .kh .divider {
+      height: 1px;
+      margin-top: 18px;
+      background: linear-gradient(90deg, transparent, #223049, transparent);
+      opacity: 0.8;
+    }
+  </style>
+
+  <div class="beam" aria-hidden="true"></div>
+
+  <div class="container">
+    <h1 id="kh-title">Header</h1>
+    <p id="kh-desc" class="desc">Description</p>
+    <div class="divider" aria-hidden="true"></div>
+  </div>
+</header>

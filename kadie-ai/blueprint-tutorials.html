@@ -1,5 +1,9 @@
 <!doctype html>
 <html lang="en">
+<script>
+  window.KADIE_HEADER = { title: "Blueprint Tutorials", description: "Step-by-step lessons, auto-built from JSON files." };
+</script>
+<script src="/header.mount.js" defer></script>
 <head>
   <meta charset="utf-8" />
   <title>Blueprint Tutorials</title>
@@ -258,5 +262,6 @@ window.addEventListener('hashchange',()=>{ const m=location.hash.replace(/^#/,''
 /* ===== Boot ===== */
 loadAll();
 </script>
-</body>
+<script src="/footer.mount.js" defer></script>
+<body data-kadie-header-title="Blueprint Tutorials" data-kadie-header-desc="Step-by-step lessons, auto-built from JSON files.">
 </html>

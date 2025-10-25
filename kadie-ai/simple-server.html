@@ -1,5 +1,9 @@
 <!doctype html>
 <html lang="en">
+<script>
+  window.KADIE_HEADER = { title: "Server", description: "Manage this server’s blueprints and settings." };
+</script>
+<script src="/header.mount.js" defer></script>
 <head>
   <meta charset="utf-8" />
   <title>Kadie AI • Server</title>
@@ -53,5 +57,6 @@
     name = decodeURIComponent(name).replace(/\+/g,' ');
     document.getElementById('serverTitle').textContent = name;
   </script>
-</body>
+  <script src="/footer.mount.js" defer></script>
+<body data-kadie-header-title="Server" data-kadie-header-desc="Manage this server’s blueprints and settings.">
 </html>

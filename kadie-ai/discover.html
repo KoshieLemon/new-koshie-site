@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<script>
+  window.KADIE_HEADER = { title: "Discover", description: "Add and browse community blueprints." };
+</script>
+<script src="/header.mount.js" defer></script>
+<head>
+  <meta charset="utf-8" />
+  <title>Kadie AI • Discover</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/assets/main.css" />
+  <style>
+    :root{
+      --bg:#0b0b0c;--fg:#e5e7eb;--muted:#9aa4b2;--card:#12141a;--stroke:#242936;--accent:#5865f2
+    }
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--fg);min-height:100vh}
+    .container{max-width:1200px;margin:0 auto;padding:24px 16px 96px}
+
+    .hdr{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:16px}
+    .hdr h1{margin:0 0 4px;font-size:28px;line-height:1.2}
+    .hdr p{margin:0;color:var(--muted);font-size:13px}
+    .btn{border:1px solid var(--stroke);background:#171a22;color:var(--fg);padding:10px 12px;border-radius:10px;cursor:pointer}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+
+    .search{margin:8px 0 12px}
+    .search input[type="search"]{width:100%;background:#11131a;color:var(--fg);border:1px solid var(--stroke);border-radius:10px;padding:10px 12px;font-size:14px;outline:none}
+
+    .catalog{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;align-items:start}
+    @media (max-width:1100px){ .catalog{grid-template-columns:repeat(3,minmax(0,1fr));} }
+    @media (max-width:860px){ .catalog{grid-template-columns:repeat(2,minmax(0,1fr));} }
+    @media (max-width:560px){ .catalog{grid-template-columns:1fr;} }
+
+    .tile{display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--stroke);border-radius:14px;background:var(--card);transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;box-shadow:0 0 0 rgba(0,0,0,0);cursor:pointer}
+    .tile:hover{ transform:translateY(-2px); border-color:#30364a; box-shadow:0 8px 20px rgba(0,0,0,.35); }
+
+    .thumb{position:relative;aspect-ratio:16/10;background:#0f1320;background-size:cover;background-position:center;overflow:hidden}
+    .thumb::after{content:""; position:absolute; inset:0; background:linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,.55) 100%);}
+
+    .appchip{position:absolute; left:12px; bottom:52px; z-index:2; width:42px; height:42px; border-radius:10px; background:#0b0e18; border:1px solid #283044; display:grid; place-items:center; font-weight:800; font-size:16px; color:#fff; overflow:hidden}
+    .appchip img{width:100%;height:100%;object-fit:cover;display:block}
+
+    .label-wrap{position:absolute; left:12px; right:12px; bottom:10px; z-index:2; display:flex; flex-direction:column; gap:2px}
+    .title{font-weight:800; font-size:16px; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .category{color:#d1d5db; font-size:12px; opacity:.9}
+
+    .tile-body{padding:12px 12px 14px}
+    .desc{font-size:12px; color:var(--muted); line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+
+    #empty{padding:10px 0;color:var(--muted);font-size:13px;display:none}
+    #status{display:none;color:#fca5a5;margin:8px 0 12px}
+    #status.show{display:block}
+
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:1000}
+    .overlay.show{display:flex}
+    .modal{width:min(980px,96vw);max-height:90vh;overflow:auto;background:#0b0b0c;border:1px solid #151923;border-radius:12px}
+    .modal header{position:sticky;top:0;background:#0b0b0c;border-bottom:1px solid #151923;padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
+    .modal h3{margin:0;font-size:16px}
+    .modal .body{padding:14px}
+    .row{display:flex;gap:10px;align-items:center}
+    .list{display:flex;flex-direction:column;gap:10px;max-width:760px;margin:0 auto}
+
+    .gcard{display:flex;align-items:center;gap:12px;border:1px solid #1f2432;background:#10131a;border-radius:12px;padding:14px 12px;min-height:74px}
+    .gcard.not-permitted{filter:grayscale(1);opacity:.55}
+    .gico{width:44px;height:44px;border-radius:10px;background:#0002;object-fit:cover;display:block;flex:0 0 auto}
+    .fallback{width:44px;height:44px;border-radius:10px;background:#0002;display:grid;place-items:center;font-weight:700}
+    .gname{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .spacer{flex:1 1 auto}
+    .stepper{display:flex;gap:8px;margin-bottom:10px}
+    .step{font-size:12px;border:1px solid #2b2f3a;background:#0d1118;color:#cbd5e1;padding:4px 8px;border-radius:999px}
+    .step.on{background:#1a1f2e;border-color:#3b445a}
+  </style>
+</head>
+<body data-kadie-header-title="Discover" data-kadie-header-desc="Add and browse community blueprints.">
+  <div class="container">
+    <header class="hdr" role="region" aria-labelledby="page-title">
+      <div>
+        <h1 id="page-title">Discover</h1>
+        <p>Add community blueprints to this list.</p>
+      </div>
+      <button id="addBtn" class="btn primary">Add Yours</button>
+    </header>
+
+    <div id="status" role="status" aria-live="polite"></div>
+
+    <div class="search">
+      <label class="sr-only" for="search">Search</label>
+      <input id="search" type="search" placeholder="Search" autocomplete="off" />
+    </div>
+
+    <div id="items" class="catalog" aria-live="polite"></div>
+    <div id="empty" class="muted">No items match your search.</div>
+  </div>
+
+  <!-- Modal: Add Yours -->
+  <div id="overlay" class="overlay" aria-modal="true" role="dialog" aria-labelledby="modal-title">
+    <div class="modal">
+      <header>
+        <h3 id="modal-title">Choose a server</h3>
+        <div class="row">
+          <div class="stepper">
+            <span id="s1" class="step on">1. Server</span>
+            <span id="s2" class="step">2. Blueprint</span>
+          </div>
+          <button id="closeModal" class="btn">Close</button>
+        </div>
+      </header>
+      <div class="body">
+        <div id="modalStatus" class="muted" style="margin-bottom:8px;"></div>
+        <div id="stepServers" class="list" style="display:block"></div>
+        <div id="stepBlueprints" class="list" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import {
+      apiGet,
+      apiGetFirst,
+      ME_URL,
+      GUILDS_URLS,
+      printDiagnostics,
+      NODE_API_BASE
+    } from './api.js';
+
+    printDiagnostics('discover tiles + import v2');
+
+    const IMPORT_KEY = 'kadie.discoverImport'; // shared with editor
+
+    const $ = (id)=>document.getElementById(id);
+    const addBtn = $('addBtn');
+    const overlay = $('overlay');
+    const closeModal = $('closeModal');
+    const stepServers = $('stepServers');
+    const stepBlueprints = $('stepBlueprints');
+    const modalStatus = $('modalStatus');
+    const s1 = $('s1'); const s2 = $('s2');
+    const grid = $('items'); const emptyEl = $('empty');
+    const statusEl = $('status');
+    const qEl = $('search');
+
+    const ADMIN = 1<<3, MANAGE_GUILD = 1<<5;
+    const hasManagePerms = g => Boolean(g.owner || (Number(g.permissions||0)&ADMIN) || (Number(g.permissions||0)&MANAGE_GUILD));
+    const guildIconUrl = g => g?.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=128` : null;
+
+    function setError(m){ statusEl.textContent=m; statusEl.classList.add('show'); }
+    function clearError(){ statusEl.textContent=''; statusEl.classList.remove('show'); }
+
+    function hueFrom(str){ let h=0; for (let i=0;i<str.length;i++) h=(h*31 + str.charCodeAt(i))>>>0; return h%360; }
+    function defaultThumbStyle(key){ const h=hueFrom(String(key||'x')); const h2=(h+30)%360; return `linear-gradient(135deg, hsl(${h} 65% 18%), hsl(${h2} 70% 28%))`; }
+
+    async function fetchDiscoverList() {
+      const urls = [`${NODE_API_BASE}/discover`, `${NODE_API_BASE}/api/discover`];
+      for (const u of urls) {
+        try{ const r = await fetch(u, { credentials:'include', cache:'no-store' }); if (r.ok) return await r.json(); }catch{}
+      }
+      return [];
+    }
+
+    function escapeHtml(s){
+      return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;");
+    }
+
+    function tileNode(it){
+      const cover = it.cover_url || it.icon_url || '';
+      const style = cover ? `background-image:url("${cover}")` : `background-image:${defaultThumbStyle(it.blueprint_id||it.guild_id||it.name||'k')}`;
+      const chipLetter = (it.name||it.blueprint_id||'?').slice(0,1).toUpperCase();
+
+      const el = document.createElement('article');
+      el.className='tile';
+      el.innerHTML = `
+        <div class="thumb" style='${style}'>
+          <div class="appchip">${chipLetter}</div>
+          <div class="label-wrap">
+            <div class="title">${escapeHtml(it.name || it.blueprint_id || '(unnamed)')}</div>
+            <div class="category">Blueprint</div>
+          </div>
+        </div>
+        <div class="tile-body">
+          <div class="desc">Guild ${escapeHtml(String(it.guild_id))} • Blueprint ${escapeHtml(String(it.blueprint_id))}</div>
+        </div>
+      `;
+      el.addEventListener('click', ()=> importFromDiscover(it));
+      return el;
+    }
+
+    function renderCatalog(arr){
+      const q = qEl.value.trim().toLowerCase();
+      const data = q
+        ? arr.filter(x =>
+            (x.name||'').toLowerCase().includes(q) ||
+            String(x.blueprint_id||'').includes(q) ||
+            String(x.guild_id||'').includes(q)
+          )
+        : arr;
+
+      grid.innerHTML = '';
+      if (!data.length){ emptyEl.style.display='block'; return; }
+      emptyEl.style.display='none';
+
+      const frag = document.createDocumentFragment();
+      for (const it of data) frag.appendChild(tileNode(it));
+      grid.appendChild(frag);
+    }
+
+    async function loadAndRenderDiscover(){
+      try{
+        clearError();
+        const data = await fetchDiscoverList();
+        if (!Array.isArray(data)) { setError('Discover API returned invalid data.'); return; }
+        renderCatalog(data);
+      }catch{ setError('Network error loading Discover list.'); }
+    }
+
+    qEl.addEventListener('input', ()=>loadAndRenderDiscover());
+
+    function openModal(){ overlay.classList.add('show'); modalStatus.textContent=''; stepServers.style.display='block'; stepBlueprints.style.display='none'; s1.classList.add('on'); s2.classList.remove('on'); $('modal-title').textContent='Choose a server'; }
+    function closeModalFn(){ overlay.classList.remove('show'); }
+
+    addBtn.addEventListener('click', openModal);
+    closeModal.addEventListener('click', closeModalFn);
+    overlay.addEventListener('click', (e)=>{ if (e.target === overlay) closeModalFn(); });
+
+    function guildCard(g){
+      const manageable = hasManagePerms(g);
+      const card = document.createElement('div'); card.className=`gcard${manageable?'':' not-permitted'}`;
+      const url = guildIconUrl(g);
+      if (url){ const i=new Image(); i.src=url; i.className='gico'; card.appendChild(i); }
+      else { const d=document.createElement('div'); d.className='fallback'; d.textContent=(g.name||'?').slice(0,1).toUpperCase(); card.appendChild(d); }
+      const meta = document.createElement('div'); meta.style.minWidth='0';
+      const name = document.createElement('div'); name.className='gname'; name.textContent=g.name || '(unnamed)'; meta.appendChild(name);
+      card.appendChild(meta);
+      const spacer = document.createElement('div'); spacer.className='spacer'; card.appendChild(spacer);
+      const btn = document.createElement('button'); btn.className='btn'; btn.textContent='Select'; btn.disabled=!manageable;
+      btn.addEventListener('click', ()=>selectGuild(g));
+      card.appendChild(btn);
+      return card;
+    }
+
+    async function listGuilds(){
+      stepServers.innerHTML='';
+      modalStatus.textContent = 'Loading servers…';
+      try{
+        const meRes = await apiGet(ME_URL, 'me');
+        if (meRes.status === 401) { modalStatus.innerHTML = `Not logged in.`; }
+        const { res: gRes } = await apiGetFirst(GUILDS_URLS, 'guilds');
+        if (!gRes.ok) { modalStatus.textContent = `Guilds error: ${gRes.status} ${gRes.statusText}`; return; }
+        const guilds = await gRes.json();
+        if (!Array.isArray(guilds)) { modalStatus.textContent='Guilds payload invalid.'; return; }
+
+        const weight = g => g.owner ? 0 : hasManagePerms(g) ? 1 : 2;
+        guilds.sort((a,b)=> weight(a)-weight(b) || (a.name||'').localeCompare(b.name||''));
+
+        const frag = document.createDocumentFragment();
+        for (const g of guilds) frag.appendChild(guildCard(g));
+        stepServers.appendChild(frag);
+        modalStatus.textContent='';
+      }catch{
+        modalStatus.textContent='Network or CORS error.';
+      }
+    }
+
+    async function selectGuild(g){
+      s1.classList.remove('on'); s2.classList.add('on');
+      $('modal-title').textContent = `Choose a blueprint — ${g.name}`;
+      stepServers.style.display='none'; stepBlueprints.style.display='block';
+      stepBlueprints.innerHTML='';
+      modalStatus.textContent='Loading blueprints…';
+      try{
+        const params = new URLSearchParams({ guild_id:String(g.id), guild_name:String(g.name||'') });
+        const r = await fetch(`${NODE_API_BASE}/blueprints?${params}`, { credentials:'include', cache:'no-store' });
+        if (!r.ok){ modalStatus.textContent=`Blueprints error: ${r.status} ${r.statusText}`; return; }
+        const list = await r.json();
+        if (!Array.isArray(list)){ modalStatus.textContent='Blueprints payload invalid.'; return; }
+        const frag = document.createDocumentFragment();
+        for (const bp of list){
+          const row = document.createElement('div'); row.className='gcard';
+          const ico = document.createElement('div'); ico.className='fallback'; ico.textContent=(bp.name||bp.id||'?').slice(0,1).toUpperCase(); row.appendChild(ico);
+          const meta = document.createElement('div');
+          const nm = document.createElement('div'); nm.className='gname'; nm.textContent=bp.name || bp.id; meta.appendChild(nm);
+          const sub = document.createElement('div'); sub.className='muted'; sub.textContent = `ID ${bp.id}`; meta.appendChild(sub);
+          row.appendChild(meta);
+          const spacer = document.createElement('div'); spacer.className='spacer'; row.appendChild(spacer);
+          const add = document.createElement('button'); add.className='btn primary'; add.textContent='Add to Discover';
+          add.addEventListener('click', ()=>addToDiscover(g.id, bp.id));
+          row.appendChild(add);
+          frag.appendChild(row);
+        }
+        stepBlueprints.appendChild(frag);
+        modalStatus.textContent='';
+      }catch{
+        modalStatus.textContent='Network or CORS error.';
+      }
+    }
+
+    async function addToDiscover(guildId, blueprintId){
+      modalStatus.textContent='Saving…';
+      const body = JSON.stringify({ guild_id:String(guildId), blueprint_id:String(blueprintId) });
+      const opts = { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body };
+      const urls = [`${NODE_API_BASE}/discover`, `${NODE_API_BASE}/api/discover`];
+      let ok = false, last = null;
+      for (const u of urls){
+        try{ const r = await fetch(u, opts); last = r; if (r.ok){ ok = true; break; } }catch{}
+      }
+      if (!ok){ modalStatus.textContent = last ? `Save failed: ${last.status} ${last.statusText}` : 'Save failed.'; return; }
+      modalStatus.textContent='Added.';
+      closeModalFn();
+      await loadAndRenderDiscover();
+    }
+
+    // ------- Import flow: click a tile to import as UNSAVED draft into editor -------
+    async function importFromDiscover(item){
+      try{
+        const srcGuild = String(item.guild_id||'').trim();
+        const srcBpId  = String(item.blueprint_id||'').trim();
+        if (!srcGuild || !srcBpId) return;
+
+        const tryUrls = [
+          `${NODE_API_BASE}/blueprints/open?guild_id=${encodeURIComponent(srcGuild)}&id=${encodeURIComponent(srcBpId)}`,
+          `${NODE_API_BASE}/blueprints/open?guild_id=${encodeURIComponent(srcGuild)}&blueprint_id=${encodeURIComponent(srcBpId)}`,
+          `${NODE_API_BASE}/blueprints/${encodeURIComponent(srcBpId)}?guild_id=${encodeURIComponent(srcGuild)}`
+        ];
+        let bp = null, last=null;
+        for (const u of tryUrls){
+          try{
+            const r = await fetch(u, { credentials:'include', cache:'no-store' });
+            last = r; if (!r.ok) continue;
+            const j = await r.json();
+            if (j && (j.data?.graph || j.graph || j.nodes)) { bp = j; break; }
+          }catch{}
+        }
+        if (!bp){ alert(`Import failed${last?`: ${last.status} ${last.statusText}`:''}`); return; }
+
+        const graph = bp.data?.graph ?? bp.graph ?? { nodes:bp.nodes||[], edges:bp.edges||[] };
+        const payload = {
+          id: String(srcBpId),
+          name: String(item.name || bp.name || srcBpId),
+          graph
+        };
+        sessionStorage.setItem(IMPORT_KEY, JSON.stringify(payload));
+        // Navigate to editor; it will consume the session payload and NOT save.
+        window.location.href = '/blueprints-editor.html?import=1';
+      }catch{
+        alert('Import failed');
+      }
+    }
+
+    // Boot
+    loadAndRenderDiscover();
+    addBtn.addEventListener('click', listGuilds);
+  </script>
+  <script src="/footer.mount.js" defer></script>
+</body>
+</html>
