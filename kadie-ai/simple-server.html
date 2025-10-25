@@ -1,23 +1,35 @@
 <!doctype html>
 <html lang="en">
-<script>
-  window.KADIE_HEADER = { title: "Server", description: "Manage this server’s blueprints and settings." };
-</script>
-<script src="/header.mount.js" defer></script>
 <head>
   <meta charset="utf-8" />
   <title>Kadie AI • Server</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3366084057758708" crossorigin="anonymous"></script>
+  <script>
+    // Compute server name for the header title
+    (function () {
+      const sp = new URLSearchParams(location.search);
+      let title = sp.get('guild_name') || sp.get('guild_id') || 'Server';
+      title = decodeURIComponent(title).replace(/\+/g, ' ');
+      window.KADIE_HEADER = { title, description: "" };
+    })();
+  </script>
+  <script src="/header.mount.js" defer></script>
   <link rel="stylesheet" href="/assets/main.css" />
   <style>
     .bar{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:12px}
     .btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:8px 12px;border-radius:10px;cursor:pointer}
     .btn.primary{background:#0e2238;border-color:#1e3a8a;color:#dbeafe}
     .page{max-width:900px;margin:0 auto}
-    .title{margin:10px 0 8px 0;font-size:22px;font-weight:800}
-    .notice{background:#231d00;border:1px dashed #ffd54a;color:#ffd54a;padding:12px;border-radius:12px}
+    /* Big single-action list */
+    .actions{list-style:none;margin:24px 0;padding:0;display:flex;flex-direction:column;gap:14px}
+    .actions .btn.big{
+      width:100%;
+      padding:22px 18px;
+      font-size:18px;
+      font-weight:800;
+      border-radius:14px;
+    }
   </style>
 </head>
 <body>
@@ -28,35 +40,25 @@
   </header>
 
   <main class="container page">
-    <h2 id="serverTitle" class="title">Server</h2>
-
-    <p class="notice">
-      This page is currently under construction. In the future, any public variables and blueprints you make will be forwarded here on an easy-to-use page where you can turn them off, on, adjust their settings, etc. Along with allowing specified users or roles to have access to parts of your blueprints and variables.
-    </p>
-
-    <div style="margin-top:10px">
-      <button id="goBlueprints" class="btn primary">Go To Blueprints</button>
-    </div>
+    <ul class="actions">
+      <li>
+        <button id="goBlueprints" class="btn primary big" type="button">Blueprints</button>
+      </li>
+    </ul>
   </main>
 
   <script type="module">
     // Back → tell parent to clear selection and return to listings
-    document.getElementById('backBtn').addEventListener('click', () => {
+    document.getElementById('backBtn')?.addEventListener('click', () => {
       parent?.postMessage({ type: 'exitServer' }, '*');
     });
 
-    // Go To Blueprints → switch tab on Kadie Home
-    document.getElementById('goBlueprints').addEventListener('click', () => {
+    // Open Blueprints in parent
+    document.getElementById('goBlueprints')?.addEventListener('click', () => {
       parent?.postMessage({ type: 'openBlueprints' }, '*');
     });
-
-    // Set server name from query params (?guild_name=... or fallback to guild_id)
-    const sp = new URLSearchParams(location.search);
-    let name = sp.get('guild_name') || '';
-    if (!name) name = sp.get('guild_id') || 'Server';
-    name = decodeURIComponent(name).replace(/\+/g,' ');
-    document.getElementById('serverTitle').textContent = name;
   </script>
+
   <script src="/footer.mount.js" defer></script>
-<body data-kadie-header-title="Server" data-kadie-header-desc="Manage this server’s blueprints and settings.">
+</body>
 </html>

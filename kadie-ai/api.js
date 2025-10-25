@@ -114,7 +114,6 @@ async function getFirst(urls, label) {
     }
   }
   const err = new Error('No endpoint for ' + label);
-  // Expose attempts for quick console inspection.
   err.attempts = attempts;
   throw err;
 }
@@ -173,3 +172,46 @@ export function buildInviteUrl(appId, guildId, permissionsInt = 0) {
 
 export const ME_URL_LABEL = 'GET /me';
 export const GUILDS_URLS_LABEL = 'GET guilds';
+
+// ---------- New: mount a header-identical Sign-in button into any container ----------
+/**
+ * mountSigninClone('#authActions')
+ *   - Clones the header sign-in anchor if present.
+ *   - Otherwise builds one from OAUTH_URL.
+ *   - Forces navigation on click.
+ */
+export function mountSigninClone(target, { forceNavigate = true } = {}) {
+  const container = typeof target === 'string' ? document.querySelector(target) : target;
+  if (!container) return null;
+
+  let btn =
+    document.querySelector('#siteHeader a[data-auth="signin"]') ||
+    document.querySelector('#siteHeader a[href*="api.koshiestudios.com"][href*="/auth/discord"]');
+
+  if (btn) {
+    const clone = document.createElement('a');
+    clone.className = btn.className || 'btn';
+    clone.textContent = btn.textContent || 'Sign in';
+    clone.href = btn.getAttribute('href') || OAUTH_URL;
+    clone.setAttribute('data-auth', 'signin');
+    btn = clone;
+  } else {
+    btn = document.createElement('a');
+    btn.className = 'btn';
+    btn.textContent = 'Sign in';
+    btn.href = OAUTH_URL;
+    btn.setAttribute('data-auth', 'signin');
+  }
+
+  if (forceNavigate) {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const url = btn.href;
+      if (url && url !== '#') window.location.assign(url);
+    }, { capture: true });
+  }
+
+  container.appendChild(btn);
+  return btn;
+}

@@ -11,14 +11,12 @@
     html,body{height:100%; margin:0}
     body{overflow-x:clip}
 
-    /* Header */
     #siteHeader{position:sticky; top:0; z-index:99999; background:#0b0b0c; border-bottom:1px solid #151923;}
     .header{display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:12px}
     .left{display:flex;align-items:center;gap:14px}
     .brand-title{margin:0;font-weight:800;font-size:20px;color:#eaeaea;line-height:1}
     .brand-title a{color:inherit;text-decoration:none;cursor:pointer}
 
-    /* Tabs */
     .tabs{display:flex;gap:8px;flex-wrap:wrap}
     .tab-btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:8px 12px;border-radius:10px;cursor:pointer;text-decoration:none; position:relative; z-index:100000}
     .tab-btn[hidden]{display:none}
@@ -26,7 +24,6 @@
     .tab-btn.primary{background:#0e2238;border-color:#1e3a8a;color:#dbeafe}
     .tab-btn.primary.active{outline:2px solid #60a5fa}
 
-    /* Mobile menu */
     .hamburger{display:none;align-items:center;justify-content:center;gap:6px;width:40px;height:40px;border:1px solid #2b2f3a;background:#11131a;border-radius:10px;cursor:pointer}
     .hamburger .bar{display:block;width:18px;height:2px;background:#eaeaea;border-radius:2px;position:relative}
     .hamburger .bar::before,.hamburger .bar::after{content:"";position:absolute;left:0;width:18px;height:2px;background:#eaeaea;border-radius:2px}
@@ -38,7 +35,6 @@
     .mobile-backdrop{position:fixed;inset:var(--header-h) 0 0 0;background:#0000;display:none;z-index:99990}
     .mobile-backdrop.show{display:block}
 
-    /* Server badge */
     .server-badge{display:none;background:#0b0b0c;border-bottom:1px solid #151923;}
     .server-badge.show{display:block}
     .server-badge > .container{display:flex;align-items:center;gap:10px;padding:8px 12px}
@@ -51,21 +47,19 @@
     .cpu-bar{position:relative;height:10px;flex:1 1 auto;border-radius:999px;background:#0f1117;border:1px solid #22293a;overflow:hidden}
     .cpu-fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:linear-gradient(90deg,#1e40af,#60a5fa)}
 
-    /* Viewport */
     .full-bleed{width:100%}
     .viewport-wrap{position:relative;height:calc(100dvh - var(--header-h) - var(--banner-h) - var(--gap-y)); z-index:1}
     .content{position:absolute;inset:0;border:0;overflow:hidden;background:#0b0b0c; z-index:1}
     .frame{position:absolute;inset:0;width:100%;height:100%;border:0;display:none; z-index:1}
     .frame.active{display:block}
 
-    /* Auth overlay */
-    .auth-block{position:absolute;inset:0;background:linear-gradient(160deg,#0b0f1a,#0f1324);display:none;align-items:center;justify-content:center;z-index:50; pointer-events:none}
-    .auth-block.show{display:flex; pointer-events:auto}
-    .auth-card{background:#0e1116;border:1px solid #2b2f3a;border-radius:12px;padding:18px;max-width:420px;box-shadow:0 10px 24px #000a}
+    .auth-block{position:absolute;inset:0;background:linear-gradient(160deg,#0b0f1a,#0f1324);display:none;align-items:center;justify-content:center;z-index:50}
+    .auth-block.show{display:flex}
+    .auth-card{background:#0e1116;border:1px solid #2b2f3a;border-radius:12px;padding:18px;max-width:520px;box-shadow:0 10px 24px #000a}
     .btn{border:1px solid #2b2f3a;background:#111;color:#eee;padding:8px 12px;border-radius:10px;cursor:pointer}
     .muted{color:#9aa4b2;font-size:12px}
 
-    /* Kill header user menu and avatar interactivity */
+    /* Disable PFP dropdown per request */
     [data-role="user-menu"], .user-menu, .user-dropdown, [data-menu="user"], [data-menu="profile"]{display:none !important}
     [data-role="user-avatar"], .user-avatar, .discord-avatar, #userAvatar{pointer-events:none !important; cursor:default !important}
 
@@ -80,33 +74,29 @@
         <h1 class="brand-title"><a id="brandHome" href="../index.html" aria-label="Back to cover">Kadie AI</a></h1>
       </div>
 
-      <!-- Tabs -->
       <nav class="tabs" id="tabs" aria-label="Workspace">
-        <button class="tab-btn active" data-tab="simple" id="tab-simple" aria-controls="frame-simple">Simple Server</button>
-        <button class="tab-btn primary" data-tab="blueprints" id="tab-blueprints" aria-controls="frame-blueprints" hidden>Blueprints</button>
-        <button class="tab-btn" data-tab="nodes" id="tab-nodes" aria-controls="frame-nodes">Nodes</button>
-        <button class="tab-btn" data-tab="discover" id="tab-discover" aria-controls="frame-discover">Discover</button>
-        <button class="tab-btn" data-tab="status" id="tab-status" aria-controls="frame-status">Status</button>
+        <button class="tab-btn active" data-tab="simple" id="tab-simple" aria-controls="frame-simple" type="button">Dashboard</button>
+        <button class="tab-btn primary" data-tab="blueprints" id="tab-blueprints" aria-controls="frame-blueprints" hidden type="button">Blueprints</button>
+        <button class="tab-btn" data-tab="nodes" id="tab-nodes" aria-controls="frame-nodes" type="button">Nodes</button>
+        <button class="tab-btn" data-tab="discover" id="tab-discover" aria-controls="frame-discover" type="button">Discover</button>
+        <button class="tab-btn" data-tab="status" id="tab-status" aria-controls="frame-status" type="button">Status</button>
       </nav>
 
-      <!-- Mobile trigger -->
       <button id="mobileMenuBtn" class="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="mobileMenu" type="button">
         <span class="bar"></span>
       </button>
     </div>
 
-    <!-- Mobile menu panel -->
     <nav id="mobileMenu" class="mobile-menu" aria-label="Mobile">
-      <button class="tab-btn" data-tab="simple" aria-controls="frame-simple">Simple Server</button>
-      <button class="tab-btn primary" data-tab="blueprints" aria-controls="frame-blueprints" hidden>Blueprints</button>
-      <button class="tab-btn" data-tab="nodes" aria-controls="frame-nodes">Nodes</button>
-      <button class="tab-btn" data-tab="discover" aria-controls="frame-discover">Discover</button>
-      <button class="tab-btn" data-tab="status" aria-controls="frame-status">Status</button>
+      <button class="tab-btn" data-tab="simple" aria-controls="frame-simple" type="button">Dashboard</button>
+      <button class="tab-btn primary" data-tab="blueprints" aria-controls="frame-blueprints" hidden type="button">Blueprints</button>
+      <button class="tab-btn" data-tab="nodes" aria-controls="frame-nodes" type="button">Nodes</button>
+      <button class="tab-btn" data-tab="discover" aria-controls="frame-discover" type="button">Discover</button>
+      <button class="tab-btn" data-tab="status" aria-controls="frame-status" type="button">Status</button>
     </nav>
     <div id="mobileBackdrop" class="mobile-backdrop" aria-hidden="true"></div>
   </header>
 
-  <!-- Server banner -->
   <div id="serverBadge" class="server-badge" aria-live="polite">
     <div class="container">
       <img id="sbIcon" class="server-ico" alt="">
@@ -131,157 +121,78 @@
       <iframe id="frame-discover"   class="frame"        src="/kadie-ai/discover.html"          title="Discover"></iframe>
       <iframe id="frame-status"     class="frame"        src="/kadie-ai/bot-status.html"        title="Status"></iframe>
 
-      <!-- Center sign-in -->
+      <!-- Center gate -->
       <div class="auth-block" id="authBlock" aria-live="polite">
         <div class="auth-card">
-          <h3 style="margin:0 0 8px 0">Sign in required</h3>
-          <p id="authStatus" class="muted" style="margin:0 0 12px 0">Please sign in to access this section.</p>
-          <div style="display:flex;gap:10px;justify-content:flex-end">
-            <a class="btn" id="signinOverlay"
-               href="https://discord.com/oauth2/authorize?client_id=1395827053928120341&permissions=0&response_type=code&redirect_uri=https%3A%2F%2Fapi.koshiestudios.com%2Fapi%2Fcallback&integration_type=0&scope=identify+bot">
-              Sign in with Discord
-            </a>
-          </div>
+          <p id="authStatus" class="muted" style="margin:0 0 12px 0">
+            You must sign in with Discord to use the dashboard.
+          </p>
+          <div id="authActions" style="display:flex;gap:10px;justify-content:flex-end"></div>
         </div>
       </div>
     </div>
   </main>
 
+  <!-- Use API to inject the identical Sign in control -->
   <script type="module">
-    /* ---------- Tabs + mobile ---------- */
-    const frames = Array.from(document.querySelectorAll('.frame'));
-    const desktopTabsEl = document.getElementById('tabs');
-    const mobileTabsEl  = document.getElementById('mobileMenu');
-    const allTabButtons = () => Array.from(document.querySelectorAll('.tab-btn'));
-    const mobileBtn     = document.getElementById('mobileMenuBtn');
-    const mobileMenu    = document.getElementById('mobileMenu');
-    const backdrop      = document.getElementById('mobileBackdrop');
-
-    function setActiveTab(tab){
-      const targetId = `frame-${tab}`;
-      allTabButtons().forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-      frames.forEach(f => f.classList.toggle('active', f.id === targetId));
-    }
-    function onTabsClickFactory(scope){
-      return (e)=>{
-        const btn = e.target.closest('.tab-btn');
-        if(!btn) return;
-        e.preventDefault();
-        setActiveTab(btn.dataset.tab);
-        if(scope === 'mobile'){ mobileMenu.classList.remove('show'); backdrop.classList.remove('show'); }
-      };
-    }
-    desktopTabsEl.addEventListener('click', onTabsClickFactory('desktop'));
-    mobileTabsEl.addEventListener('click',  onTabsClickFactory('mobile'));
-    mobileBtn.addEventListener('click', ()=>{ const o=mobileMenu.classList.contains('show'); mobileMenu.classList.toggle('show', !o); backdrop.classList.toggle('show', !o); });
-    backdrop.addEventListener('click', ()=>{ mobileMenu.classList.remove('show'); backdrop.classList.remove('show'); });
-    document.getElementById('siteHeader').style.zIndex = '99999';
-
-    /* ---------- Ephemeral guild selection ---------- */
-    const SB   = document.getElementById('serverBadge');
-    const EL_I = document.getElementById('sbIcon');
-    const EL_N = document.getElementById('sbName');
-    const EL_ID= document.getElementById('sbId');
-    const LEAVE= document.getElementById('leaveServerBtn');
-    const ROOT = document.documentElement;
-
-    let currentGuild = null;
-    const iconUrl = (id, icon) => icon ? `https://cdn.discordapp.com/icons/${id}/${icon}.png?size=128` : '';
-    function setBannerVars(){ const h = SB.classList.contains('show') ? (SB.offsetHeight||0) : 0; ROOT.style.setProperty('--banner-h', `${h}px`); }
-    function applyGuild(g){
-      currentGuild = g && g.id ? { id:String(g.id), name:g.name||'', icon:g.icon||'' } : null;
-      if(currentGuild){
-        EL_I.src = iconUrl(currentGuild.id, currentGuild.icon||'');
-        EL_I.alt = currentGuild.name ? `${currentGuild.name} icon` : 'server icon';
-        EL_N.textContent = currentGuild.name || '(unnamed)';
-        EL_ID.textContent = currentGuild.id;
-        SB.classList.add('show');
-      }else{
-        EL_I.removeAttribute('src'); EL_I.alt=''; EL_N.textContent=''; EL_ID.textContent=''; SB.classList.remove('show');
-      }
-      requestAnimationFrame(setBannerVars);
-      frames.forEach(f=>{ try{ f.contentWindow && f.contentWindow.postMessage({ type:'activeGuild', guild: currentGuild }, '*'); }catch{} });
-    }
-    applyGuild(null);
-
-    // External messages
-    window.addEventListener('message', (e)=>{
-      const d = e && e.data;
-      if (d?.type === 'openServer' && d.guild && d.guild.id){
-        applyGuild({ id:String(d.guild.id), name:d.guild.name||'', icon:d.guild.icon||'' });
-      }
-      if (d?.type === 'kadie:requestActiveGuild'){
-        try{ e.source && e.source.postMessage({ type:'activeGuild', guild: currentGuild }, '*'); }catch{}
-      }
-      if (d?.type === 'kadie:switchTab'){
-        const tab = String(d.tab||'').trim();
-        if (!tab) return;
-        if (tab === 'blueprints'){
-          const f = document.getElementById('frame-blueprints');
-          if (f && (!f.src || f.src === 'about:blank')) f.src = '/kadie-ai/blueprints-editor.html';
-          setActiveTab('blueprints');
-          try{ f?.contentWindow?.location?.reload(); }catch{}
-        } else {
-          setActiveTab(tab);
-        }
-      }
-    });
-
-    LEAVE.addEventListener('click', ()=>applyGuild(null));
-    window.addEventListener('resize', ()=>requestAnimationFrame(setBannerVars), { passive:true });
-
-    /* ---------- Make center Sign In match header Sign In ---------- */
-    const overlayLink = document.getElementById('signinOverlay');
-    const FALLBACK_SIGNIN = overlayLink.getAttribute('href');
-
-    function sameSigninHref(){
-      // Search likely header sign-in anchors and copy href.
-      const candidates = Array.from(document.querySelectorAll(
-        '#siteHeader a[href*="discord.com/oauth2/authorize"], ' +
-        '#siteHeader a[data-auth="signin"], ' +
-        '#siteHeader [data-auth="signin"] a'
-      ));
-      const top = candidates.find(a => a instanceof HTMLAnchorElement && a.href);
-      const href = top?.getAttribute('href');
-      overlayLink.setAttribute('href', href || FALLBACK_SIGNIN);
-    }
-    sameSigninHref();
-    // In case header mounts later
-    setTimeout(sameSigninHref, 500);
-    document.addEventListener('readystatechange', sameSigninHref);
-
-    /* ---------- Disable PFP clicks and any user menu ---------- */
-    function neutralizeAvatar(){
-      const avatars = Array.from(document.querySelectorAll(
-        '#siteHeader [data-role="user-avatar"], '+
-        '#siteHeader .user-avatar, #siteHeader .discord-avatar, '+
-        '#siteHeader #userAvatar, #siteHeader img[alt*="avatar" i], #siteHeader img[alt*="profile" i]'
-      ));
-      avatars.forEach(el=>{
-        el.setAttribute('aria-disabled','true');
-        el.setAttribute('tabindex','-1');
-        el.style.pointerEvents = 'none';
-      });
-      // Block any residual toggle handlers
-      document.addEventListener('click', (ev)=>{
-        const t = ev.target;
-        if (!(t instanceof Element)) return;
-        if (t.closest('#siteHeader [data-role="user-avatar"], #siteHeader .user-avatar, #siteHeader .discord-avatar, #siteHeader #userAvatar')){
-          ev.stopImmediatePropagation();
-          ev.preventDefault();
-        }
-        if (t.closest('[data-role="user-menu"], .user-menu, .user-dropdown, [data-menu="user"], [data-menu="profile"]')){
-          ev.stopImmediatePropagation();
-          ev.preventDefault();
-        }
-      }, true);
-    }
-    neutralizeAvatar();
-    // Re-run if header re-renders
-    setTimeout(neutralizeAvatar, 600);
+    import { mountSigninClone, printDiagnostics } from './api.js';
+    printDiagnostics('kadie-home.html');
+    mountSigninClone('#authActions');
   </script>
 
-  <!-- App bootstrap -->
+  <!-- App bootstrap (kept) -->
   <script type="module">import './kadie-home-src/main.js';</script>
+
+  <!-- Resilient tab + mobile wiring (adds if missing) -->
+  <script type="module">
+    (() => {
+      const header = document.getElementById('siteHeader');
+      if (header.dataset.tabsWired === '1') return;
+      header.dataset.tabsWired = '1';
+
+      const $ = (sel, root=document) => root.querySelector(sel);
+      const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+      const frames = $$('.frame');
+      const tabsAll = $$('#siteHeader [data-tab]');
+      const mobileBtn = $('#mobileMenuBtn');
+      const mobileMenu = $('#mobileMenu');
+      const mobileBackdrop = $('#mobileBackdrop');
+
+      function setMobile(open){
+        mobileBtn.setAttribute('aria-expanded', String(open));
+        mobileMenu.classList.toggle('show', open);
+        mobileBackdrop.classList.toggle('show', open);
+      }
+      mobileBtn?.addEventListener('click', () => setMobile(mobileMenu?.classList.contains('show') ? false : true));
+      mobileBackdrop?.addEventListener('click', () => setMobile(false));
+
+      function switchTab(tab){
+        if (!tab) return;
+        // buttons
+        for (const b of tabsAll){ b.classList.toggle('active', b.dataset.tab === tab); }
+        // frames
+        for (const f of frames){ f.classList.toggle('active', f.id === `frame-${tab}`); }
+        // close mobile if open
+        setMobile(false);
+      }
+
+      // click binding for both desktop and mobile sets
+      tabsAll.forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+      });
+
+      // accept postMessage from children: { type:'kadie:switchTab', tab:'simple'|'discover'|'blueprints'|'nodes'|'status' }
+      window.addEventListener('message', (e) => {
+        const d = e?.data;
+        if (d && d.type === 'kadie:switchTab' && typeof d.tab === 'string'){
+          switchTab(d.tab);
+        }
+      });
+
+      // ensure current active reflects markup default
+      const current = $('#siteHeader .tab-btn.active')?.dataset.tab || 'simple';
+      switchTab(current);
+    })();
+  </script>
 </body>
 </html>

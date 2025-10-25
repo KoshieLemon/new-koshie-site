@@ -1,3 +1,4 @@
+// kadie-home-src/auth-ui.js
 import { byId } from './utils.js';
 import { store } from './state.js';
 
@@ -15,10 +16,12 @@ function ensureUserStyles(){
     .kadie-dot{ position:absolute; right:-2px; top:-2px; width:10px; height:10px; border-radius:50%;
                 background:#ff8a00; border:2px solid #0b0b0c; display:none; }
     .kadie-dot.show{ display:block; }
-    .btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:7px 10px;border-radius:10px;cursor:pointer;text-decoration:none;font-size:13px}
+
+    .btn{border:1px solid #2b2f3a;background:#11131a;color:#eaeaea;padding:7px 10px;border-radius:10px;cursor:pointer;text-decoration:none;font-size:13px; display:inline-flex; align-items:center}
     .btn.danger{border-color:#5f1a20;background:#2a0e12;color:#ffd7d7}
     .btn.danger:hover{background:#47141b}
 
+    /* User menu portal (kept but you disabled avatar clicks elsewhere) */
     .k-portal{ position:fixed; inset:0; z-index:2147483647; display:none; }
     .k-portal.show{ display:block; }
     .k-backdrop{ position:absolute; inset:0; background:transparent; }
@@ -102,27 +105,41 @@ export function openMenu(anchorEl, selectTabFn, getPostsByIds, getNotifications,
 export function renderSignedOut(container, oauthUrl){
   container.innerHTML = '';
   const a = document.createElement('a'); a.href = oauthUrl; a.className = 'btn'; a.textContent = 'Sign in';
+  a.setAttribute('data-auth','signin');
   container.appendChild(a);
 }
+
 export function renderSignedIn(container, user, openMenuHandler, signOut){
   container.innerHTML = '';
 
-  const wrap = document.createElement('div'); wrap.className = 'kadie-userwrap'; wrap.setAttribute('role','button'); wrap.setAttribute('tabindex','0');
-  const img = document.createElement('img'); img.className = 'kadie-avatar'; img.alt = user?.username || 'profile';
+  const wrap = document.createElement('div');
+  wrap.className = 'kadie-userwrap';
+  wrap.setAttribute('role','button');
+  wrap.setAttribute('tabindex','0');
+
+  const img = document.createElement('img');
+  img.className = 'kadie-avatar';
+  img.alt = user?.username || 'profile';
   const url = avatarUrl(user); if (url) img.src = url;
+
   dot = document.createElement('span'); dot.className = 'kadie-dot'; dot.id = 'kadieNotifDot';
+
   wrap.appendChild(img); wrap.appendChild(dot);
   container.appendChild(wrap);
 
+  // Always render a visible Sign out button beside the avatar
   const signout = document.createElement('button');
   signout.className = 'btn danger';
   signout.id = 'signOutBtn';
+  signout.setAttribute('data-auth','signout');
   signout.textContent = 'Sign out';
   signout.addEventListener('click', signOut);
   container.appendChild(signout);
 
+  // You disabled the dropdown elsewhere. Keep handlers for completeness.
   wrap.onclick = openMenuHandler;
   wrap.onkeydown = (e)=>{ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openMenuHandler(); } };
 }
+
 export function ensureUserPillMounted(){ return ensureUserPill(); }
 export function setDot(on){ const el = document.getElementById('kadieNotifDot') || dot; if (!el) return; el.classList.toggle('show', !!on); }
