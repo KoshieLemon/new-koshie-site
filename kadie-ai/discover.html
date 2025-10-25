@@ -10,48 +10,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/assets/main.css" />
   <style>
-    :root{
-      --bg:#0b0b0c;--fg:#e5e7eb;--muted:#9aa4b2;--card:#12141a;--stroke:#242936;--accent:#5865f2
-    }
+    :root{ --bg:#0b0b0c;--fg:#e5e7eb;--muted:#9aa4b2;--card:#12141a;--stroke:#242936;--accent:#5865f2 }
     html,body{height:100%}
     body{margin:0;background:var(--bg);color:var(--fg);min-height:100vh}
     .container{max-width:1200px;margin:0 auto;padding:24px 16px 96px}
-
     .hdr{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:16px}
     .hdr h1{margin:0 0 4px;font-size:28px;line-height:1.2}
     .hdr p{margin:0;color:var(--muted);font-size:13px}
     .btn{border:1px solid var(--stroke);background:#171a22;color:var(--fg);padding:10px 12px;border-radius:10px;cursor:pointer}
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
     .btn[disabled]{opacity:.6;cursor:not-allowed}
-
     .search{margin:8px 0 12px}
     .search input[type="search"]{width:100%;background:#11131a;color:var(--fg);border:1px solid var(--stroke);border-radius:10px;padding:10px 12px;font-size:14px;outline:none}
-
-    .catalog{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;align-items:start}
-    @media (max-width:1100px){ .catalog{grid-template-columns:repeat(3,minmax(0,1fr));} }
-    @media (max-width:860px){ .catalog{grid-template-columns:repeat(2,minmax(0,1fr));} }
+    .catalog{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:18px; align-items:start; }
+    @media (max-width:1100px){ .catalog{grid-template-columns:repeat(3, minmax(0,1fr));} }
+    @media (max-width:860px){ .catalog{grid-template-columns:repeat(2, minmax(0,1fr));} }
     @media (max-width:560px){ .catalog{grid-template-columns:1fr;} }
-
-    .tile{display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--stroke);border-radius:14px;background:var(--card);transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;box-shadow:0 0 0 rgba(0,0,0,0);cursor:pointer}
+    .tile{ display:flex;flex-direction:column;overflow:hidden; border:1px solid var(--stroke);border-radius:14px;background:var(--card); transition:transform .12s, box-shadow .12s, border-color .12s; cursor:pointer; }
     .tile:hover{ transform:translateY(-2px); border-color:#30364a; box-shadow:0 8px 20px rgba(0,0,0,.35); }
-
-    .thumb{position:relative;aspect-ratio:16/10;background:#0f1320;background-size:cover;background-position:center;overflow:hidden}
-    .thumb::after{content:""; position:absolute; inset:0; background:linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,.55) 100%);}
-
-    .appchip{position:absolute; left:12px; bottom:52px; z-index:2; width:42px; height:42px; border-radius:10px; background:#0b0e18; border:1px solid #283044; display:grid; place-items:center; font-weight:800; font-size:16px; color:#fff; overflow:hidden}
+    .thumb{ position:relative; aspect-ratio:16/10; background:#0f1320; background-size:cover; background-position:center; overflow:hidden; }
+    .thumb::after{ content:""; position:absolute; inset:0; background:linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,.55) 100%); }
+    .appchip{ position:absolute; left:12px; bottom:52px; z-index:2; width:42px; height:42px; border-radius:10px; background:#0b0e18; border:1px solid #283044; display:grid; place-items:center; font-weight:800; font-size:16px; color:#fff; overflow:hidden; }
     .appchip img{width:100%;height:100%;object-fit:cover;display:block}
-
-    .label-wrap{position:absolute; left:12px; right:12px; bottom:10px; z-index:2; display:flex; flex-direction:column; gap:2px}
+    .label-wrap{ position:absolute; left:12px; right:12px; bottom:10px; z-index:2; display:flex; flex-direction:column; gap:2px; }
     .title{font-weight:800; font-size:16px; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
     .category{color:#d1d5db; font-size:12px; opacity:.9}
-
     .tile-body{padding:12px 12px 14px}
     .desc{font-size:12px; color:var(--muted); line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
-
     #empty{padding:10px 0;color:var(--muted);font-size:13px;display:none}
     #status{display:none;color:#fca5a5;margin:8px 0 12px}
     #status.show{display:block}
-
     .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:1000}
     .overlay.show{display:flex}
     .modal{width:min(980px,96vw);max-height:90vh;overflow:auto;background:#0b0b0c;border:1px solid #151923;border-radius:12px}
@@ -60,7 +48,6 @@
     .modal .body{padding:14px}
     .row{display:flex;gap:10px;align-items:center}
     .list{display:flex;flex-direction:column;gap:10px;max-width:760px;margin:0 auto}
-
     .gcard{display:flex;align-items:center;gap:12px;border:1px solid #1f2432;background:#10131a;border-radius:12px;padding:14px 12px;min-height:74px}
     .gcard.not-permitted{filter:grayscale(1);opacity:.55}
     .gico{width:44px;height:44px;border-radius:10px;background:#0002;object-fit:cover;display:block;flex:0 0 auto}
@@ -93,7 +80,6 @@
     <div id="empty" class="muted">No items match your search.</div>
   </div>
 
-  <!-- Modal: Add Yours -->
   <div id="overlay" class="overlay" aria-modal="true" role="dialog" aria-labelledby="modal-title">
     <div class="modal">
       <header>
@@ -114,19 +100,25 @@
     </div>
   </div>
 
+  <div id="needOverlay" class="overlay" aria-modal="true" role="dialog" aria-labelledby="need-title">
+    <div class="modal">
+      <header>
+        <h3 id="need-title">Select a server first</h3>
+        <button id="needClose" class="btn">Close</button>
+      </header>
+      <div class="body">
+        <p class="muted" style="margin:0 0 12px">To import a blueprint you must have a server selected in Kadie Home.</p>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button id="gotoListings" class="btn primary">Open Server Listings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
-    import {
-      apiGet,
-      apiGetFirst,
-      ME_URL,
-      GUILDS_URLS,
-      printDiagnostics,
-      NODE_API_BASE
-    } from './api.js';
+    import { apiGet, apiGetFirst, ME_URL, GUILDS_URLS, printDiagnostics, NODE_API_BASE } from './api.js';
 
-    printDiagnostics('discover tiles + import v2');
-
-    const IMPORT_KEY = 'kadie.discoverImport'; // shared with editor
+    printDiagnostics('discover • switch + dup guard + handshake');
 
     const $ = (id)=>document.getElementById(id);
     const addBtn = $('addBtn');
@@ -139,16 +131,40 @@
     const grid = $('items'); const emptyEl = $('empty');
     const statusEl = $('status');
     const qEl = $('search');
+    const needOverlay = $('needOverlay');
+    const needClose   = $('needClose');
+    const gotoListings= $('gotoListings');
+
+    let activeGuild = null;
+    const isGuildValid = ()=> !!(activeGuild && activeGuild.id);
+
+    window.addEventListener('message', (e)=>{
+      const d = e && e.data;
+      if (d?.type === 'activeGuild'){
+        activeGuild = d.guild && d.guild.id ? { id:String(d.guild.id), name:d.guild.name||'', icon:d.guild.icon||'' } : null;
+      }
+    });
+    function requestActiveGuild(){
+      try{ window.top && window.top.postMessage({ type:'kadie:requestActiveGuild' }, '*'); }catch{}
+    }
+
+    function openNeedModal(){ needOverlay.classList.add('show'); }
+    function closeNeedModal(){ needOverlay.classList.remove('show'); }
+    needClose.addEventListener('click', closeNeedModal);
+    needOverlay.addEventListener('click', (e)=>{ if (e.target === needOverlay) closeNeedModal(); });
+    window.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeNeedModal(); });
+    gotoListings.addEventListener('click', ()=>{
+      closeNeedModal();
+      try{ window.top && window.top.postMessage({ type:'kadie:switchTab', tab:'simple' }, '*'); }catch{}
+    });
 
     const ADMIN = 1<<3, MANAGE_GUILD = 1<<5;
     const hasManagePerms = g => Boolean(g.owner || (Number(g.permissions||0)&ADMIN) || (Number(g.permissions||0)&MANAGE_GUILD));
     const guildIconUrl = g => g?.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=128` : null;
-
     function setError(m){ statusEl.textContent=m; statusEl.classList.add('show'); }
     function clearError(){ statusEl.textContent=''; statusEl.classList.remove('show'); }
-
     function hueFrom(str){ let h=0; for (let i=0;i<str.length;i++) h=(h*31 + str.charCodeAt(i))>>>0; return h%360; }
-    function defaultThumbStyle(key){ const h=hueFrom(String(key||'x')); const h2=(h+30)%360; return `linear-gradient(135deg, hsl(${h} 65% 18%), hsl(${h2} 70% 28%))`; }
+    function defaultThumbStyle(key){ const h=hueFrom(String(key||'x')), h2=(h+30)%360; return `linear-gradient(135deg, hsl(${h} 65% 18%), hsl(${h2} 70% 28%))`; }
 
     async function fetchDiscoverList() {
       const urls = [`${NODE_API_BASE}/discover`, `${NODE_API_BASE}/api/discover`];
@@ -157,16 +173,57 @@
       }
       return [];
     }
-
     function escapeHtml(s){
       return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;");
+    }
+    async function httpGetJson(url){
+      const r = await fetch(url, { credentials:'include', cache:'no-store' });
+      return { ok:r.ok, status:r.status, data: r.ok ? await r.json() : null };
+    }
+    async function fetchBlueprintByList(sourceGuildId, sourceGuildName, blueprintId){
+      const params = new URLSearchParams({ guild_id:String(sourceGuildId), guild_name:String(sourceGuildName||'') });
+      const urls = [`${NODE_API_BASE}/blueprints?${params}`, `${NODE_API_BASE}/api/blueprints?${params}`];
+      for (const u of urls){
+        try{
+          const res = await httpGetJson(u);
+          if (!res.ok || !Array.isArray(res.data)) continue;
+          const key = String(blueprintId).toLowerCase();
+          const match = res.data.find(b => String(b?.id||'').toLowerCase() === key);
+          if (match) return match;
+        }catch{}
+      }
+      return null;
+    }
+    function normalizeGraph(data){
+      const raw = data?.graph ?? data ?? {};
+      const nodes = Array.isArray(raw.nodes) ? raw.nodes : [];
+      const edges = Array.isArray(raw.edges) ? raw.edges : [];
+      return { nodes, edges };
+    }
+    function stashImportAndOpen(payload){
+      try{ sessionStorage.setItem('kadie.discoverImport', JSON.stringify(payload)); }catch{}
+      try{ window.top && window.top.postMessage({ type:'kadie:switchTab', tab:'blueprints' }, '*'); }catch{}
+    }
+
+    async function onTileClick(it){
+      if (!isGuildValid()){ openNeedModal(); return; }
+      const sourceGuildId   = String(it.guild_id || '');
+      const sourceGuildName = String(it.guild_name || '');
+      const idOrSlug        = String(it.blueprint_id || '');
+      const displayName     = String(it.name || idOrSlug || 'Imported');
+
+      const bp = await fetchBlueprintByList(sourceGuildId, sourceGuildName, idOrSlug);
+      if (!bp){ alert('Import failed: blueprint not found at source guild.'); return; }
+
+      const graph = normalizeGraph(bp.data);
+      const payload = { id: bp.id, name: displayName, graph };
+      stashImportAndOpen(payload);
     }
 
     function tileNode(it){
       const cover = it.cover_url || it.icon_url || '';
       const style = cover ? `background-image:url("${cover}")` : `background-image:${defaultThumbStyle(it.blueprint_id||it.guild_id||it.name||'k')}`;
       const chipLetter = (it.name||it.blueprint_id||'?').slice(0,1).toUpperCase();
-
       const el = document.createElement('article');
       el.className='tile';
       el.innerHTML = `
@@ -178,10 +235,14 @@
           </div>
         </div>
         <div class="tile-body">
-          <div class="desc">Guild ${escapeHtml(String(it.guild_id))} • Blueprint ${escapeHtml(String(it.blueprint_id))}</div>
+          <div class="desc">
+            Guild ${escapeHtml(String(it.guild_id))}
+            ${it.guild_name ? `• ${escapeHtml(String(it.guild_name))}` : ''}
+            • Blueprint ${escapeHtml(String(it.blueprint_id))}
+          </div>
         </div>
       `;
-      el.addEventListener('click', ()=> importFromDiscover(it));
+      el.addEventListener('click', ()=> onTileClick(it));
       return el;
     }
 
@@ -190,15 +251,14 @@
       const data = q
         ? arr.filter(x =>
             (x.name||'').toLowerCase().includes(q) ||
-            String(x.blueprint_id||'').includes(q) ||
-            String(x.guild_id||'').includes(q)
+            String(x.blueprint_id||'').toLowerCase().includes(q) ||
+            String(x.guild_id||'').includes(q) ||
+            String(x.guild_name||'').toLowerCase().includes(q)
           )
         : arr;
-
       grid.innerHTML = '';
       if (!data.length){ emptyEl.style.display='block'; return; }
       emptyEl.style.display='none';
-
       const frag = document.createDocumentFragment();
       for (const it of data) frag.appendChild(tileNode(it));
       grid.appendChild(frag);
@@ -217,7 +277,6 @@
 
     function openModal(){ overlay.classList.add('show'); modalStatus.textContent=''; stepServers.style.display='block'; stepBlueprints.style.display='none'; s1.classList.add('on'); s2.classList.remove('on'); $('modal-title').textContent='Choose a server'; }
     function closeModalFn(){ overlay.classList.remove('show'); }
-
     addBtn.addEventListener('click', openModal);
     closeModal.addEventListener('click', closeModalFn);
     overlay.addEventListener('click', (e)=>{ if (e.target === overlay) closeModalFn(); });
@@ -273,6 +332,7 @@
         if (!r.ok){ modalStatus.textContent=`Blueprints error: ${r.status} ${r.statusText}`; return; }
         const list = await r.json();
         if (!Array.isArray(list)){ modalStatus.textContent='Blueprints payload invalid.'; return; }
+
         const frag = document.createDocumentFragment();
         for (const bp of list){
           const row = document.createElement('div'); row.className='gcard';
@@ -282,8 +342,8 @@
           const sub = document.createElement('div'); sub.className='muted'; sub.textContent = `ID ${bp.id}`; meta.appendChild(sub);
           row.appendChild(meta);
           const spacer = document.createElement('div'); spacer.className='spacer'; row.appendChild(spacer);
-          const add = document.createElement('button'); add.className='btn primary'; add.textContent='Add to Discover';
-          add.addEventListener('click', ()=>addToDiscover(g.id, bp.id));
+          const add = document.createElement('button'); add.className='btn primary'; add.textContent='Add';
+          add.addEventListener('click', ()=>addToDiscover(g.id, g.name||'', bp.id, bp.name||''));
           row.appendChild(add);
           frag.appendChild(row);
         }
@@ -294,59 +354,28 @@
       }
     }
 
-    async function addToDiscover(guildId, blueprintId){
+    async function addToDiscover(guildId, guildName, blueprintId, name){
       modalStatus.textContent='Saving…';
-      const body = JSON.stringify({ guild_id:String(guildId), blueprint_id:String(blueprintId) });
+      try{
+        const current = await fetchDiscoverList();
+        const dup = current.find(x => String(x.guild_id)===String(guildId) && String(x.blueprint_id)===String(blueprintId));
+        if (dup){ modalStatus.textContent='Cannot add duplicate blueprint to Discover.'; return; }
+      }catch{}
+      const body = JSON.stringify({ guild_id:String(guildId), guild_name:String(guildName||''), blueprint_id:String(blueprintId), name:String(name||'') });
       const opts = { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body };
       const urls = [`${NODE_API_BASE}/discover`, `${NODE_API_BASE}/api/discover`];
-      let ok = false, last = null;
+      let ok = false, last = null, dup409 = false;
       for (const u of urls){
-        try{ const r = await fetch(u, opts); last = r; if (r.ok){ ok = true; break; } }catch{}
+        try{ const r = await fetch(u, opts); last = r; if (r.status === 409){ dup409 = true; break; } if (r.ok){ ok = true; break; } }catch{}
       }
+      if (dup409){ modalStatus.textContent='Cannot add duplicate blueprint to Discover.'; return; }
       if (!ok){ modalStatus.textContent = last ? `Save failed: ${last.status} ${last.statusText}` : 'Save failed.'; return; }
       modalStatus.textContent='Added.';
-      closeModalFn();
+      overlay.classList.remove('show');
       await loadAndRenderDiscover();
     }
 
-    // ------- Import flow: click a tile to import as UNSAVED draft into editor -------
-    async function importFromDiscover(item){
-      try{
-        const srcGuild = String(item.guild_id||'').trim();
-        const srcBpId  = String(item.blueprint_id||'').trim();
-        if (!srcGuild || !srcBpId) return;
-
-        const tryUrls = [
-          `${NODE_API_BASE}/blueprints/open?guild_id=${encodeURIComponent(srcGuild)}&id=${encodeURIComponent(srcBpId)}`,
-          `${NODE_API_BASE}/blueprints/open?guild_id=${encodeURIComponent(srcGuild)}&blueprint_id=${encodeURIComponent(srcBpId)}`,
-          `${NODE_API_BASE}/blueprints/${encodeURIComponent(srcBpId)}?guild_id=${encodeURIComponent(srcGuild)}`
-        ];
-        let bp = null, last=null;
-        for (const u of tryUrls){
-          try{
-            const r = await fetch(u, { credentials:'include', cache:'no-store' });
-            last = r; if (!r.ok) continue;
-            const j = await r.json();
-            if (j && (j.data?.graph || j.graph || j.nodes)) { bp = j; break; }
-          }catch{}
-        }
-        if (!bp){ alert(`Import failed${last?`: ${last.status} ${last.statusText}`:''}`); return; }
-
-        const graph = bp.data?.graph ?? bp.graph ?? { nodes:bp.nodes||[], edges:bp.edges||[] };
-        const payload = {
-          id: String(srcBpId),
-          name: String(item.name || bp.name || srcBpId),
-          graph
-        };
-        sessionStorage.setItem(IMPORT_KEY, JSON.stringify(payload));
-        // Navigate to editor; it will consume the session payload and NOT save.
-        window.location.href = '/blueprints-editor.html?import=1';
-      }catch{
-        alert('Import failed');
-      }
-    }
-
-    // Boot
+    requestActiveGuild();
     loadAndRenderDiscover();
     addBtn.addEventListener('click', listGuilds);
   </script>

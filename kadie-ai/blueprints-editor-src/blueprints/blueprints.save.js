@@ -1,55 +1,71 @@
 // blueprints.save.js
-// Save current blueprint with busy overlay and client-side limits.
+// Save current graph. Create path first for unsaved or imported entries.
 
+import { els } from '../core/dom.js';
 import { state, snapshot, clearDirty } from '../core/state.js';
-import { saveBlueprint } from '../providers/providers.js';
-import { showBusy, hideBusy } from './blueprints.ctx.js';
-import { toast } from '../core/notify.js';
+import { createBlueprint, saveBlueprint } from '../providers/providers.js';
+import { showBusy, hideBusy, stepLog } from './blueprints.ctx.js';
+import { refreshList } from './blueprints.list.js';
+import { Cache } from './blueprints.cache.js';
 
-const MAX_NODES = 70;
+export async function saveCurrentBlueprint(gid) {
+  if (!gid || !state.bpId) return false;
 
-function codeFromError(e){
-  try{
-    if (e?.error) return String(e.error);
-    if (e?.response?.error) return String(e.response.error);
-    if (typeof e?.message === 'string'){
-      const m = /"error"\s*:\s*"([^"]+)"/.exec(e.message);
-      if (m) return m[1];
-    }
-  }catch{}
-  return null;
-}
-
-export async function saveCurrentBlueprint(gid){
-  if (!state.bpId) return false;
-
+  // Serialize the in-memory graph.
   let graph;
-  try { graph = JSON.parse(snapshot()); }
-  catch { toast('Invalid graph JSON.', { kind:'error' }); return false; }
-
-  // Client-side enforcement for node count
-  const nodeCount = Array.isArray(graph?.nodes) ? graph.nodes.length : 0;
-  if (nodeCount > MAX_NODES){
-    toast(`Maximum nodes per blueprint is ${MAX_NODES}. Current: ${nodeCount}.`, { kind:'error' });
+  try {
+    graph = JSON.parse(snapshot());
+  } catch {
+    stepLog(8, 'Save blueprint', 'FAIL', 'snapshot parse error');
     return false;
   }
 
-  const bp = { id: state.bpId, name: state.bpName, data: { graph, script: null } };
   showBusy('Saving…');
-  try{
-    const ok = await saveBlueprint(gid, bp);
-    if (ok) clearDirty(document.getElementById('dirty'));
-    else toast('Save failed.', { kind:'error' });
-    return !!ok;
-  }catch(e){
-    const code = codeFromError(e);
-    if (code === 'too_many_nodes'){
-      toast(`Maximum nodes per blueprint is ${MAX_NODES}.`, { kind:'error' });
+
+  try {
+    let entry = Cache.get(state.bpId);
+    if (!entry) {
+      entry = Cache.put(state.bpId, { name: state.bpName || state.bpId, graph, exists: false });
     } else {
-      toast('Save failed.', { kind:'error' });
+      Cache.updateGraph(state.bpId, graph);
     }
+
+    // Create path first if this is a draft/import that does not exist yet.
+    if (!entry.exists || String(state.bpId).startsWith('import-')) {
+      const created = await createBlueprint(gid, { name: entry.name });
+      const oldId = state.bpId;
+
+      // Move cache entry to the server id and mark as existing.
+      entry = Cache.replaceId(oldId, created.id);
+      Cache.markExists(created.id, true);
+      entry.name = created.name;
+
+      // Sync runtime + UI.
+      state.bpId = created.id;
+      state.bpName = created.name;
+      await refreshList(gid, state.bpId);
+      if (els.bpSelect) els.bpSelect.value = state.bpId;
+
+      stepLog(8, 'Create blueprint path', 'OK', `old=${oldId} new=${created.id}`);
+    }
+
+    // Persist graph.
+    await saveBlueprint(gid, {
+      id: state.bpId,
+      name: state.bpName || state.bpId,
+      data: { graph, script: null },
+    });
+
+    // Update baseline so Revert restores this exact save.
+    Cache.setBaseline(state.bpId, graph);
+
+    clearDirty(els.dirty);
+    stepLog(8, 'Save blueprint', 'OK', `id=${state.bpId} nodes=${graph.nodes.length} edges=${graph.edges.length}`);
+    return true;
+  } catch (e) {
+    stepLog(8, 'Save blueprint', 'FAIL', e?.message || 'error');
     return false;
-  }finally{
+  } finally {
     hideBusy();
   }
 }

@@ -1,8 +1,8 @@
 // blueprints.ui.js
-// UI wiring: events, external requests, initial list, and Discover import bridge.
+// Instant switching via cache. Universal Save/Revert. No suffixes in names.
 
 import { els } from '../core/dom.js';
-import { state, clearDirty, loadSnapshot } from '../core/state.js';
+import { state, clearDirty, loadSnapshot, snapshot } from '../core/state.js';
 import { renderAll } from '../render/render.js';
 import { createBlueprint, renameBlueprint, deleteBlueprint } from '../providers/providers.js';
 import { ensureBusyUI, stepLog, showBusy, hideBusy, BUSY, nextLoadSeq } from './blueprints.ctx.js';
@@ -11,6 +11,7 @@ import { refreshList } from './blueprints.list.js';
 import { openById } from './blueprints.open.js';
 import { saveCurrentBlueprint } from './blueprints.save.js';
 import { toast } from '../core/notify.js';
+import { Cache } from './blueprints.cache.js';
 
 function codeFromError(e){
   try{
@@ -40,37 +41,19 @@ async function importDraftFromSession(){
     ? { nodes: Array.isArray(payload.graph.nodes)?payload.graph.nodes:[], edges: Array.isArray(payload.graph.edges)?payload.graph.edges:[] }
     : { nodes: [], edges: [] };
 
-  // Build a temporary, unsaved option so user can see and switch away if desired.
   const tempId = `import-${Date.now()}`;
+  Cache.put(tempId, { name, graph, exists: false });
+
+  // Option label is exact name. No suffixes.
   const opt = document.createElement('option');
   opt.value = tempId;
-  opt.textContent = `${name} (import)`;
+  opt.textContent = name;
   els.bpSelect.prepend(opt);
   els.bpSelect.value = tempId;
 
-  showBusy('Importing…');
-
-  try{
-    // Clear, paint, then load the imported graph WITHOUT saving.
-    state.bpId = tempId;
-    state.bpName = `${name} (import)`;
-
-    state.nodes?.clear?.();
-    state.edges?.clear?.();
-    renderAll();
-    await nextFrame();
-
-    loadSnapshot(graph, () => renderAll());
-    await nextFrame();
-
-    const verify = verifyGraphRendered(graph);
-    stepLog(5, 'Import graph + VERIFY', verify.ok ? 'OK' : 'FAIL', verify.details);
-    els.overlay.style.display = verify.ok ? 'none' : '';
-    clearDirty(els.dirty);
-    if (!verify.ok) toast('Import loaded but verification failed.', { kind:'error' });
-  } finally {
-    hideBusy();
-  }
+  const res = await openById(state.gid, tempId, nextLoadSeq());
+  clearDirty(els.dirty);
+  els.overlay.style.display = res.ok ? 'none' : '';
   return true;
 }
 
@@ -83,7 +66,7 @@ export async function initBlueprints(gid){
   const btnDeleteBtn = els.bpDelete;
 
   els.overlay.style.display = '';
-  state.bpId = null; state.bpName = null;
+  state.bpId = null; state.bpName = null; state.gid = gid;
 
   window.addEventListener('bp:delete-request', async (ev)=>{
     if (BUSY) return;
@@ -122,6 +105,7 @@ export async function initBlueprints(gid){
     showBusy('Renaming…');
     try{
       await renameBlueprint(gid, { id: targetId, name: newName });
+      Cache.rename(targetId, newName);
       if (state.bpId && String(state.bpId) === targetId) state.bpName = newName;
       await refreshList(gid, state.bpId || null);
     }finally{
@@ -137,6 +121,31 @@ export async function initBlueprints(gid){
     btnSave.addEventListener('click', async ()=>{
       if (BUSY || !state.bpId) return;
       await saveCurrentBlueprint(gid);
+    });
+  }
+
+  const btnRevert =
+    document.querySelector('[data-action="revert"]') ||
+    document.getElementById('bpRevert') ||
+    document.getElementById('revertBtn');
+  if (btnRevert){
+    btnRevert.addEventListener('click', async ()=>{
+      if (BUSY || !state.bpId) return;
+      const entry = Cache.get(state.bpId);
+      if (!entry) return;
+      const base = entry.baseline || { nodes: [], edges: [] };
+
+      showBusy('Reverting…');
+      try{
+        try { Cache.updateGraph(state.bpId, JSON.parse(snapshot())); } catch {}
+        loadSnapshot(base, () => renderAll());
+        await nextFrame();
+        clearDirty(els.dirty);
+        els.overlay.style.display = 'none';
+        stepLog(7, 'Revert baseline', 'OK', `id=${state.bpId}`);
+      } finally {
+        hideBusy();
+      }
     });
   }
 
@@ -169,7 +178,6 @@ export async function initBlueprints(gid){
     const mySeq = nextLoadSeq();
     const res = await openById(gid, picked, mySeq);
 
-    stepLog(6, 'Notify legacy listeners', 'SKIP');
     clearDirty(els.dirty);
     els.overlay.style.display = res.ok ? 'none' : '';
     stepLog(7, 'Finalize UI', res.ok ? 'OK' : 'FAIL', res.ok ? 'overlay hidden' : 'overlay shown');
@@ -181,11 +189,12 @@ export async function initBlueprints(gid){
     if (!name) return;
     showBusy('Creating…');
     try{
-      await createBlueprint(gid, { name });
-      await refreshList(gid);
-      els.bpSelect.value = '';
-      window.dispatchEvent(new CustomEvent('bp:selected', { detail:{ id:'' } }));
-      els.overlay.style.display = '';
+      const created = await createBlueprint(gid, { name });
+      Cache.put(created.id, { name: created.name, graph: { nodes: [], edges: [] }, exists: true });
+      await refreshList(gid, created.id);
+      els.bpSelect.value = created.id;
+      window.dispatchEvent(new CustomEvent('bp:selected', { detail:{ id: created.id } }));
+      els.overlay.style.display = 'none';
     } catch(e){
       const code = codeFromError(e);
       if (code === 'too_many_blueprints'){
@@ -206,6 +215,7 @@ export async function initBlueprints(gid){
     try{
       await renameBlueprint(gid, { id: state.bpId, name });
       state.bpName = name;
+      Cache.rename(state.bpId, name);
       await refreshList(gid, state.bpId);
     }finally{
       hideBusy();
@@ -233,7 +243,6 @@ export async function initBlueprints(gid){
     }
   });
 
-  // Discover page bridge: select by id if message arrives.
   window.addEventListener('message', async (ev) => {
     if (BUSY) return;
     const d = ev?.data;
@@ -245,11 +254,9 @@ export async function initBlueprints(gid){
     els.overlay.style.display = 'none';
   });
 
-  // Initial list
   await refreshList(gid);
   els.bpSelect.value = '';
   window.dispatchEvent(new CustomEvent('bp:selected', { detail:{ id:'' } }));
 
-  // If Discover placed an import payload in sessionStorage, load it as an UNSAVED draft.
   await importDraftFromSession();
 }

@@ -220,14 +220,12 @@
 
     function renderList(data){
       if (!list) return;
-      // stable sort
       const weight = r => r.g.owner ? 0 : hasManagePerms(r.g) ? 1 : 2;
       const arr = [...data].sort((a,b)=> weight(a)-weight(b) || a.g.name.localeCompare(b.g.name));
 
       list.innerHTML = data.length ? '' : '<div class="empty">No servers to show.</div>';
       badgeSlots = new Map();
 
-      // Chunked append
       const CHUNK = 24;
       let i = 0;
       function push(){
@@ -259,7 +257,7 @@
     const seen = new Set();
 
     function observeForCounts(card, gid){
-      if (seen.has(gid)) return; // already scheduled once
+      if (seen.has(gid)) return;
       const io = observeForCounts._io || (observeForCounts._io = new IntersectionObserver((entries)=>{
         entries.forEach(e=>{
           if (!e.isIntersecting) return;
@@ -353,7 +351,6 @@
         renderList(rows);
         setSearchHandler();
 
-        // cache for both session and persistent storage
         writeCache({
           appId,
           apiOrigin,
@@ -365,10 +362,9 @@
       }
     }
 
-    /* ---------- boot ---------- */
     (async () => {
-      const hadCache = await bootstrapFromCache(); // immediate paint if available
-      fetchFreshAndRender(); // refresh in background
+      const hadCache = await bootstrapFromCache();
+      fetchFreshAndRender();
     })();
   </script>
   <script src="/footer.mount.js" defer></script>
